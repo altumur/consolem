@@ -35,7 +35,8 @@ TESTS = cli_paths.opt("tests", "tests")
 cli_paths.opt("api", "api")  # страница сама подключает свой API; параметр принят, чтобы одна строка параметров шла во все инструменты
 
 # Помощники сценариев — те же, что у самопроверки прототипа (?selftest)
-HELPERS = '<script src="%s/ui-harness.js"></script>' % TESTS
+# Сценарий идёт на копии страницы во временной папке: имя файла страницы сценарий узнаёт из UI_PAGE_FILE (absent в ui-harness.js)
+HELPERS = '<script>window.UI_PAGE_FILE = %s;</script><script src="%s/ui-harness.js"></script>' % (json.dumps(os.path.basename(PAGE)), TESTS)
 # Самопроверка: виртуальный срок больше срока сценариев в tests/selftest.js, настоящий — с запасом на занятую машину
 SELFTEST_BUDGET_SEC = 800
 SELFTEST_WAIT_SEC = 900

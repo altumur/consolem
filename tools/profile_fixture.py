@@ -34,6 +34,7 @@ import sys
 
 import cli_paths
 import generic_legacy
+from mechanism import SECTION_OPS
 
 API = cli_paths.opt("api", "api")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -61,7 +62,7 @@ DEVICE_TYPES = ["camera", "det"]
 KIND_MISSING = {"domain": ["create", "delete"], "volume": ["create", "delete"]}
 KIND_ONLY_WITH_PARENT = ["volume"]
 # Виды плагинов и тестовые виды: в профиле «один домен» их нет — система объявляет только свои (тесты с needs "kind:…" пропускаются)
-PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", "test.unknown", "test.perunit", "w2c.example/rows", "domain.shared"]
+PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", "security_controller/KEYPAD", "test.unknown", "test.perunit", "w2c.example/rows", "domain.shared"]
 # Контракт 0.12.0: поддетекторы (вид subdet) и новые настройки детектора. Система объявляет, что поддерживает, схемой вида:
 # в профиле «один домен» вида subdet нет, у det нет и этих свойств, а трекеры (analyticsKind) не заводятся — как у w2c без них
 PLUGIN_KINDS += ["subdet"]
@@ -76,7 +77,7 @@ DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", 
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
 RULE_ONLY_KINDS = ["sensor", "relay", "eventsrc", "acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]
-MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
+MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "getDiscovery", "startDiscovery", "stopDiscovery", "getDomainDiscovery", "startDomainDiscovery", "stopDomainDiscovery", "syncCatalog"]
 # Выгрузка первой генерации VMS (ADR-0117 § 8, доп. (1) п. 3): треки, маска, плеер, облако, титры событий — позже
 FEATURES = ["exportVideo", "exportFrame", "exportLiveFrame", "exportArea", "exportMultiCamera", "exportMultiPeriod", "exportSingleFile", "exportTranscode", "exportTitles", "exportAudio", "exportPassword"]
 # Поиск в журнале (контракт 0.8.0): q, списки и «скрыть», счётчики по полям
@@ -264,7 +265,7 @@ def build(demo):
     ref["ruleActions"] = [a for a in ref["ruleActions"] if a["action"] not in ACTIONS_OFF]
     for a in ref["ruleActions"]:
         if a["action"] == "record":
-            a["fields"] = [dict(f, options=["min"]) if f["id"] == "duration" else f for f in a["fields"] if f["id"] != "afterSec"]
+            a["fields"] = [dict(f, schema={"type": "string", "enum": ["min"]}) if f["id"] == "duration" else f for f in a["fields"] if f["id"] != "afterSec"]
     # Права: система объявляет меньше, как w2c: без вида tel, без MON_PROT и DEV, без части функций,
     # запретов, плагинов и каталогов. Значений, которых система не знает, в ролях не остаётся
     acc = ref["access"]
@@ -324,12 +325,77 @@ def build(demo):
         for p in fx["profiles"]:
             if p["id"] == "vms.detector/1":
                 p["properties"] = [n for n in p["properties"] if n not in DROP_PROPS["det"]]
+        # Зависимости — только от профилей, которые остались в наборе
+        ids = {p["id"] for p in fx["profiles"]}
+        for p in fx["profiles"]:
+            if "uses" in p:
+                p["uses"] = [u for u in p["uses"] if u["id"] in ids]
+                if not p["uses"]:
+                    del p["uses"]
+
+    # Раскладки дерева — как у demo, без видов и профилей, которых у системы нет (tools/mechanism.py, L5)
+    if "layouts" in fx:
+        fx["layouts"] = profile_layouts(fx["layouts"], fx["kinds"], fx.get("profiles") or [])
 
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
+    # Профиль путей снимается с вида, если ни одной операции его путей у системы нет (у «одного домена» нет vms.discovery/1)
+    no_paths = {pid for pid, ops in contract_profile_ops().items() if not any(o in caps["operations"] for o in ops)}
+    for k in fx["kinds"]:
+        if "implements" in k:
+            k["implements"] = [i for i in k["implements"] if i not in no_paths]
     # Только возможности, которые знает контракт (Feature)
     caps["features"] = [f for f in FEATURES if f in contract_features()]
+    # Разделы приложения — как у demo, без тех, чьих операций у системы нет (tools/mechanism.py, S2)
+    if "sections" in caps:
+        caps["sections"] = [x for x in caps["sections"] if all(o in caps["operations"] for o in SECTION_OPS.get(x["id"], []))]
     return fx
+
+
+def profile_layouts(layouts, kinds, profiles):
+    """Раскладки набора: из селекторов уходят коды видов и профили, которых набор не объявил. Селектор, который от этого
+    опустел, значил бы «любой вид»: правило с ним уходит, show и hide — тоже."""
+    codes = {k["kind"] for k in kinds}
+    have = {p["id"] for p in profiles} | {i for k in kinds for i in k.get("implements", [])}
+
+    def cut(sel):
+        out = {}
+        if sel.get("kinds"):
+            out["kinds"] = [c for c in sel["kinds"] if c in codes]
+        if sel.get("implements"):
+            out["implements"] = [i for i in sel["implements"] if i in have]
+        out = {k: v for k, v in out.items() if v}
+        return out or None
+
+    for lay in layouts:
+        for key in ("show", "hide"):
+            if key in lay:
+                lay[key] = cut(lay[key])
+                if lay[key] is None:
+                    del lay[key]
+        rules = []
+        for rule in lay["place"]:
+            gone = False
+            for key in ("what", "ref"):
+                if key in rule:
+                    rule[key] = cut(rule[key])
+                    gone = gone or rule[key] is None
+            if not gone:
+                rules.append(rule)
+        lay["place"] = rules
+    return layouts
+
+
+def contract_profile_ops():
+    """Профиль → operationId путей контракта с x-layer этого профиля ({API}/openapi.json)."""
+    with open(os.path.join(ROOT, API, "openapi.json"), encoding="utf-8") as f:
+        paths = json.load(f)["paths"]
+    out = {}
+    for item in paths.values():
+        layer = item.get("x-layer")
+        if layer and "/" in layer:
+            out.setdefault(layer, []).extend(op["operationId"] for m, op in item.items() if isinstance(op, dict) and "operationId" in op)
+    return out
 
 
 def contract_features():
@@ -427,13 +493,23 @@ def kinds_access(kinds, levels):
                 del e["right"]
 
 
+# Данные стенда, которые отдают пути профилей: пределы (Discovery.ipScanMax, ScenarioDoc.maxItems, с 0.30.0), виды событий
+# сценариев (ScenarioDoc.kinds) и справочник выгрузки (GET /exports/reference) — с 0.32.0 их нет в reference. large и xl пишут
+# stand заново — копия из demo
+STAND_LIMITS = ("ipScanMax", "scenariosMax", "scenarioKinds", "exportReference")
+
+
+def stand_limits(demo):
+    return {k: demo["stand"][k] for k in STAND_LIMITS if k in demo.get("stand", {})}
+
+
 def build_large(demo):
     fx = build(demo)
     fx["$comment"] = (
         "Стенд большого домена: 250 000 камер, 500 серверов. Записи считает заглушка из stand.large при загрузке, "
         "в файле только числа. Собран tools/profile_fixture.py из demo.json, руками не правится."
     )
-    fx["stand"] = {"large": LARGE, "journal": JOURNAL}
+    fx["stand"] = {"large": LARGE, "journal": JOURNAL, **stand_limits(demo)}
     # В отличие от «одного домена» у большого стенда есть ассистент: check_perf меряет поиск вместе с ним (шаг gq-enter-asst).
     # Операция и функция встают на свои места по порядку demo
     caps, dcaps = fx["reference"]["capabilities"], demo["reference"]["capabilities"]
@@ -471,7 +547,7 @@ def via_units(build_fx):
     return run
 
 
-def build_xl():
+def build_xl(demo):
     """Наложение поверх large: только числа стенда. Остальное — из large (tools/build_api.py, tools/serve_api.mjs)."""
     return {
         "$comment": (
@@ -480,7 +556,7 @@ def build_xl():
             "Наложение: целый набор — large и поверх него эти поля. Собран tools/profile_fixture.py, руками не правится."
         ),
         "$base": "large",
-        "stand": {"large": XL, "journal": JOURNAL},
+        "stand": {"large": XL, "journal": JOURNAL, **stand_limits(demo)},
     }
 
 
@@ -492,7 +568,7 @@ def main():
     with open(os.path.join(ROOT, SRC), encoding="utf-8") as f:
         demo = json.load(f)
     code = 0
-    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo))), (OUT_XL, build_xl())):
+    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo))), (OUT_XL, build_xl(demo))):
         text = render(fx)
         path = os.path.join(ROOT, out)
         if "--check" in sys.argv[1:]:

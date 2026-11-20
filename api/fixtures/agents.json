@@ -1,0 +1,2453 @@
+{
+ "$comment": "Набор системы не из мира VMS: оркестратор агентов. Правится руками; раздел profiles собирает tools/build_api.py. Виды домена и папки — общие с demo, но объявляют только профили механизма core.domain/1 (область системы — рабочее пространство) и core.folder/1 (папка); остальные — виды агентов без профилей. Что умеет система — reference.capabilities: операции механизма без видео, лицензий, ассистента и каталогов",
+ "version": 1,
+ "capturedAt": "2026-10-29T09:00:00Z",
+ "timezone": "Europe/Moscow",
+ "kinds": [
+  {
+   "kind": "domain",
+   "label": {
+    "key": "kind.domain",
+    "text": "Рабочее пространство",
+    "lang": "ru"
+   },
+   "icon": "domain",
+   "parents": [
+    null
+   ],
+   "createParents": [],
+   "implements": [
+    "core.domain/1"
+   ],
+   "capabilities": [
+    "rename"
+   ],
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+   }
+  },
+  {
+   "kind": "folder",
+   "label": {
+    "key": "kind.folder",
+    "text": "Папка",
+    "lang": "ru"
+   },
+   "icon": "folder",
+   "parents": [
+    null,
+    "folder"
+   ],
+   "createParents": [
+    null,
+    "folder"
+   ],
+   "children": [
+    "folder"
+   ],
+   "implements": [
+    "core.folder/1"
+   ],
+   "capabilities": [
+    "create",
+    "rename",
+    "delete"
+   ],
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+   }
+  },
+  {
+   "kind": "agent.pipeline",
+   "label": {
+    "key": "kind.agent.pipeline",
+    "text": "Конвейер",
+    "lang": "ru"
+   },
+   "labelPlural": {
+    "key": "kind.agent.pipeline.plural",
+    "text": "Конвейеры",
+    "lang": "ru"
+   },
+   "icon": "pipeline",
+   "parents": [
+    null
+   ],
+   "createParents": [
+    null
+   ],
+   "children": [
+    "agent.step"
+   ],
+   "implements": [],
+   "capabilities": [
+    "create",
+    "rename",
+    "enable",
+    "delete"
+   ],
+   "access": {
+    "class": "agent",
+    "label": {
+     "key": "access.agent",
+     "text": "Агенты",
+     "lang": "ru"
+    },
+    "levels": [
+     "view",
+     "run",
+     "edit"
+    ]
+   },
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "enabled": {
+      "x-label": {
+       "key": "field.enabled",
+       "text": "Включено",
+       "lang": "ru"
+      },
+      "type": "boolean"
+     },
+     "description": {
+      "x-label": {
+       "key": "field.description",
+       "text": "Описание",
+       "lang": "ru"
+      },
+      "type": "string",
+      "x-search": true
+     }
+    }
+   },
+   "actions": [
+    {
+     "id": "start",
+     "label": {
+      "key": "action.agent.start",
+      "text": "Запустить",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "right": {
+      "level": "run"
+     }
+    },
+    {
+     "id": "stop",
+     "label": {
+      "key": "action.agent.stop",
+      "text": "Остановить",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "right": {
+      "level": "run"
+     }
+    }
+   ],
+   "events": [
+    {
+     "id": "finished",
+     "label": {
+      "key": "event.agent.finished",
+      "text": "Конвейер: закончил",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "failed",
+     "label": {
+      "key": "event.agent.failed",
+      "text": "Конвейер: сбой",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    }
+   ]
+  },
+  {
+   "kind": "agent.step",
+   "label": {
+    "key": "kind.agent.step",
+    "text": "Шаг",
+    "lang": "ru"
+   },
+   "labelPlural": {
+    "key": "kind.agent.step.plural",
+    "text": "Шаги",
+    "lang": "ru"
+   },
+   "icon": "step",
+   "parents": [
+    "agent.pipeline"
+   ],
+   "createParents": [
+    "agent.pipeline"
+   ],
+   "implements": [],
+   "capabilities": [
+    "create",
+    "rename",
+    "delete",
+    "move"
+   ],
+   "access": {
+    "class": "agent",
+    "label": {
+     "key": "access.agent",
+     "text": "Агенты",
+     "lang": "ru"
+    },
+    "levels": [
+     "view",
+     "run",
+     "edit"
+    ]
+   },
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "order"
+    ],
+    "properties": {
+     "order": {
+      "x-label": {
+       "key": "field.order",
+       "text": "Порядок",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 1
+     },
+     "agentId": {
+      "x-label": {
+       "key": "field.agentId",
+       "text": "Агент",
+       "lang": "ru"
+      },
+      "type": [
+       "string",
+       "null"
+      ],
+      "format": "uuid",
+      "description": "Агент, который выполняет шаг",
+      "x-ref": {
+       "kinds": [
+        "agent.agent"
+       ]
+      },
+      "x-ui-widget": "ref"
+     }
+    }
+   }
+  },
+  {
+   "kind": "agent.agent",
+   "label": {
+    "key": "kind.agent.agent",
+    "text": "Агент",
+    "lang": "ru"
+   },
+   "labelPlural": {
+    "key": "kind.agent.agent.plural",
+    "text": "Агенты",
+    "lang": "ru"
+   },
+   "icon": "agent",
+   "parents": [
+    null
+   ],
+   "createParents": [
+    null
+   ],
+   "implements": [],
+   "capabilities": [
+    "create",
+    "rename",
+    "enable",
+    "delete",
+    "folders"
+   ],
+   "access": {
+    "class": "agent",
+    "label": {
+     "key": "access.agent",
+     "text": "Агенты",
+     "lang": "ru"
+    },
+    "levels": [
+     "view",
+     "run",
+     "edit"
+    ]
+   },
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "modelId": {
+      "x-label": {
+       "key": "field.modelId",
+       "text": "Модель",
+       "lang": "ru"
+      },
+      "type": [
+       "string",
+       "null"
+      ],
+      "format": "uuid",
+      "description": "Модель, на которой работает агент",
+      "x-ref": {
+       "kinds": [
+        "agent.model"
+       ]
+      },
+      "x-ui-widget": "ref"
+     },
+     "toolIds": {
+      "x-label": {
+       "key": "field.toolIds",
+       "text": "Инструменты",
+       "lang": "ru"
+      },
+      "type": "array",
+      "items": {
+       "type": "string",
+       "format": "uuid",
+       "x-ref": {
+        "kinds": [
+         "agent.tool"
+        ]
+       }
+      },
+      "x-ui-widget": "ref"
+     },
+     "prompt": {
+      "x-label": {
+       "key": "field.prompt",
+       "text": "Задание",
+       "lang": "ru"
+      },
+      "type": "string",
+      "x-ui-widget": "textarea",
+      "x-search": true
+     },
+     "enabled": {
+      "x-label": {
+       "key": "field.enabled",
+       "text": "Включено",
+       "lang": "ru"
+      },
+      "type": "boolean"
+     }
+    }
+   },
+   "actions": [
+    {
+     "id": "start",
+     "label": {
+      "key": "action.agent.start",
+      "text": "Запустить",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "right": {
+      "level": "run"
+     }
+    },
+    {
+     "id": "stop",
+     "label": {
+      "key": "action.agent.stop",
+      "text": "Остановить",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "right": {
+      "level": "run"
+     }
+    },
+    {
+     "id": "check",
+     "label": {
+      "key": "action.agent.check",
+      "text": "Проверить",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "right": {
+      "level": "run"
+     },
+     "scope": [
+      "unit",
+      "kind"
+     ],
+     "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "ok"
+      ],
+      "properties": {
+       "ok": {
+        "type": "boolean"
+       }
+      }
+     }
+    }
+   ],
+   "events": [
+    {
+     "id": "failed",
+     "label": {
+      "key": "event.agent.failed",
+      "text": "Агент: сбой",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "done",
+     "label": {
+      "key": "event.agent.done",
+      "text": "Агент: закончил",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    }
+   ]
+  },
+  {
+   "kind": "agent.model",
+   "label": {
+    "key": "kind.agent.model",
+    "text": "Модель",
+    "lang": "ru"
+   },
+   "labelPlural": {
+    "key": "kind.agent.model.plural",
+    "text": "Модели",
+    "lang": "ru"
+   },
+   "icon": "model",
+   "parents": [
+    null
+   ],
+   "createParents": [
+    null
+   ],
+   "implements": [],
+   "capabilities": [
+    "create",
+    "rename",
+    "delete"
+   ],
+   "access": {
+    "class": "agent",
+    "label": {
+     "key": "access.agent",
+     "text": "Агенты",
+     "lang": "ru"
+    },
+    "levels": [
+     "view",
+     "run",
+     "edit"
+    ]
+   },
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "provider": {
+      "x-label": {
+       "key": "field.provider",
+       "text": "Поставщик",
+       "lang": "ru"
+      },
+      "type": "string",
+      "enum": [
+       "local",
+       "cloud",
+       "partner"
+      ],
+      "x-enum-labels": {
+       "local": {
+        "key": "enum.provider.local",
+        "text": "local",
+        "lang": "ru"
+       },
+       "cloud": {
+        "key": "enum.provider.cloud",
+        "text": "cloud",
+        "lang": "ru"
+       },
+       "partner": {
+        "key": "enum.provider.partner",
+        "text": "partner",
+        "lang": "ru"
+       }
+      }
+     },
+     "contextTokens": {
+      "x-label": {
+       "key": "field.contextTokens",
+       "text": "Окно, токены",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 1
+     }
+    }
+   }
+  },
+  {
+   "kind": "agent.tool",
+   "label": {
+    "key": "kind.agent.tool",
+    "text": "Инструмент",
+    "lang": "ru"
+   },
+   "labelPlural": {
+    "key": "kind.agent.tool.plural",
+    "text": "Инструменты",
+    "lang": "ru"
+   },
+   "icon": "tool",
+   "parents": [
+    null
+   ],
+   "createParents": [
+    null
+   ],
+   "implements": [],
+   "capabilities": [
+    "create",
+    "rename",
+    "delete"
+   ],
+   "access": {
+    "class": "agent",
+    "label": {
+     "key": "access.agent",
+     "text": "Агенты",
+     "lang": "ru"
+    },
+    "levels": [
+     "view",
+     "run",
+     "edit"
+    ]
+   },
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "kind": {
+      "x-label": {
+       "key": "field.toolKind",
+       "text": "Тип",
+       "lang": "ru"
+      },
+      "type": "string",
+      "enum": [
+       "http",
+       "shell",
+       "search"
+      ],
+      "x-enum-labels": {
+       "http": {
+        "key": "enum.toolKind.http",
+        "text": "http",
+        "lang": "ru"
+       },
+       "shell": {
+        "key": "enum.toolKind.shell",
+        "text": "shell",
+        "lang": "ru"
+       },
+       "search": {
+        "key": "enum.toolKind.search",
+        "text": "search",
+        "lang": "ru"
+       }
+      }
+     }
+    }
+   }
+  }
+ ],
+ "profiles": [
+  {
+   "id": "core.domain/1",
+   "label": {
+    "key": "profile.core.domain/1",
+    "text": "Область системы",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": []
+  },
+  {
+   "id": "core.folder/1",
+   "label": {
+    "key": "profile.core.folder/1",
+    "text": "Папка",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": []
+  }
+ ],
+ "layouts": [
+  {
+   "id": "folders",
+   "label": {
+    "key": "layout.folders",
+    "text": "По папкам",
+    "lang": "ru"
+   },
+   "hint": {
+    "key": "layout.folders.hint",
+    "text": "Домен → папки → объекты",
+    "lang": "ru"
+   },
+   "icon": "folder",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "core.folder/1"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "core.folder/1"
+      ]
+     },
+     "by": "parent"
+    },
+    {
+     "by": "folders"
+    },
+    {
+     "root": false,
+     "by": "parent"
+    }
+   ]
+  },
+  {
+   "id": "agent.pipelines",
+   "label": {
+    "key": "layout.agent.pipelines",
+    "text": "Конвейеры",
+    "lang": "ru"
+   },
+   "place": [
+    {
+     "what": {
+      "kinds": [
+       "agent.pipeline"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "kinds": [
+       "agent.step"
+      ]
+     },
+     "by": "parent"
+    }
+   ]
+  },
+  {
+   "id": "agent.models",
+   "label": {
+    "key": "layout.agent.models",
+    "text": "По моделям",
+    "lang": "ru"
+   },
+   "place": [
+    {
+     "what": {
+      "kinds": [
+       "agent.model"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "kinds": [
+       "agent.agent"
+      ]
+     },
+     "by": "ref",
+     "ref": {
+      "kinds": [
+       "agent.model"
+      ]
+     }
+    },
+    {
+     "what": {
+      "kinds": [
+       "agent.agent"
+      ]
+     },
+     "by": "area"
+    }
+   ]
+  }
+ ],
+ "units": [
+  {
+   "uid": "10000001-0000-4000-8000-000000000000",
+   "kind": "domain",
+   "parentId": null,
+   "domainId": null,
+   "name": "Оркестратор",
+   "version": "1",
+   "properties": {},
+   "status": {
+    "link": "online"
+   }
+  },
+  {
+   "uid": "40000001-0000-4000-8000-000000000000",
+   "kind": "folder",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Поддержка",
+   "version": "1",
+   "properties": {}
+  },
+  {
+   "uid": "40000002-0000-4000-8000-000000000000",
+   "kind": "folder",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Аналитика",
+   "version": "1",
+   "properties": {}
+  },
+  {
+   "uid": "30000001-0000-4000-8000-000000000000",
+   "kind": "agent.model",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Локальная модель",
+   "version": "1",
+   "properties": {
+    "provider": "local",
+    "contextTokens": 32000
+   }
+  },
+  {
+   "uid": "30000002-0000-4000-8000-000000000000",
+   "kind": "agent.model",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Облачная модель",
+   "version": "1",
+   "properties": {
+    "provider": "cloud",
+    "contextTokens": 200000
+   }
+  },
+  {
+   "uid": "30000011-0000-4000-8000-000000000000",
+   "kind": "agent.tool",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Запрос в справочник",
+   "version": "1",
+   "properties": {
+    "kind": "http"
+   }
+  },
+  {
+   "uid": "30000012-0000-4000-8000-000000000000",
+   "kind": "agent.tool",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Команда в оболочке",
+   "version": "1",
+   "properties": {
+    "kind": "shell"
+   }
+  },
+  {
+   "uid": "30000013-0000-4000-8000-000000000000",
+   "kind": "agent.tool",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Поиск по базе знаний",
+   "version": "1",
+   "properties": {
+    "kind": "search"
+   }
+  },
+  {
+   "uid": "30000021-0000-4000-8000-000000000000",
+   "kind": "agent.agent",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Агент поддержки",
+   "version": "1",
+   "properties": {
+    "modelId": "30000001-0000-4000-8000-000000000000",
+    "toolIds": [
+     "30000011-0000-4000-8000-000000000000",
+     "30000013-0000-4000-8000-000000000000"
+    ],
+    "prompt": "Ответить на обращение по базе знаний",
+    "enabled": true
+   },
+   "folders": [
+    "40000001-0000-4000-8000-000000000000"
+   ],
+   "status": {
+    "link": "online"
+   }
+  },
+  {
+   "uid": "30000022-0000-4000-8000-000000000000",
+   "kind": "agent.agent",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Агент отчётов",
+   "version": "1",
+   "properties": {
+    "modelId": "30000002-0000-4000-8000-000000000000",
+    "toolIds": [
+     "30000011-0000-4000-8000-000000000000",
+     "30000012-0000-4000-8000-000000000000"
+    ],
+    "prompt": "Собрать недельный отчёт",
+    "enabled": true
+   },
+   "folders": [
+    "40000002-0000-4000-8000-000000000000"
+   ],
+   "status": {
+    "link": "online"
+   }
+  },
+  {
+   "uid": "30000023-0000-4000-8000-000000000000",
+   "kind": "agent.agent",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Агент без модели",
+   "version": "1",
+   "properties": {
+    "modelId": null,
+    "toolIds": [
+     "30000013-0000-4000-8000-000000000000"
+    ],
+    "prompt": "Разобрать входящие письма",
+    "enabled": false
+   },
+   "status": {
+    "link": "offline"
+   }
+  },
+  {
+   "uid": "30000031-0000-4000-8000-000000000000",
+   "kind": "agent.pipeline",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Обработка обращения",
+   "version": "1",
+   "properties": {
+    "enabled": true,
+    "description": "Принять обращение, найти ответ, отправить"
+   }
+  },
+  {
+   "uid": "30000041-0000-4000-8000-000000000000",
+   "kind": "agent.step",
+   "parentId": "30000031-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Принять",
+   "version": "1",
+   "properties": {
+    "order": 1,
+    "agentId": "30000023-0000-4000-8000-000000000000"
+   }
+  },
+  {
+   "uid": "30000042-0000-4000-8000-000000000000",
+   "kind": "agent.step",
+   "parentId": "30000031-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Ответить",
+   "version": "1",
+   "properties": {
+    "order": 2,
+    "agentId": "30000021-0000-4000-8000-000000000000"
+   }
+  },
+  {
+   "uid": "30000032-0000-4000-8000-000000000000",
+   "kind": "agent.pipeline",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Недельный отчёт",
+   "version": "1",
+   "properties": {
+    "enabled": true,
+    "description": "Собрать данные и составить отчёт"
+   }
+  },
+  {
+   "uid": "30000043-0000-4000-8000-000000000000",
+   "kind": "agent.step",
+   "parentId": "30000032-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Собрать данные",
+   "version": "1",
+   "properties": {
+    "order": 1,
+    "agentId": "30000022-0000-4000-8000-000000000000"
+   }
+  },
+  {
+   "uid": "30000044-0000-4000-8000-000000000000",
+   "kind": "agent.step",
+   "parentId": "30000032-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Составить отчёт",
+   "version": "1",
+   "properties": {
+    "order": 2,
+    "agentId": "30000022-0000-4000-8000-000000000000"
+   }
+  },
+  {
+   "uid": "30000045-0000-4000-8000-000000000000",
+   "kind": "agent.step",
+   "parentId": "30000032-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Разослать",
+   "version": "1",
+   "properties": {
+    "order": 3,
+    "agentId": "30000021-0000-4000-8000-000000000000"
+   }
+  }
+ ],
+ "rules": [
+  {
+   "id": "70000001-0000-4000-8000-000000000000",
+   "name": "Агент упал — перезапустить",
+   "enabled": true,
+   "logOnly": false,
+   "logOnlySince": null,
+   "start": "event",
+   "runMode": "always",
+   "operatorMenu": false,
+   "ratePerMinute": 6,
+   "windowSec": 0,
+   "runAt": null,
+   "repeat": "skip",
+   "triggers": [
+    {
+     "source": "unit",
+     "kinds": [
+      "agent.agent"
+     ],
+     "event": "failed",
+     "target": {
+      "include": [
+       {
+        "area": "domain",
+        "uid": "10000001-0000-4000-8000-000000000000"
+       }
+      ],
+      "exclude": [],
+      "gone": [],
+      "fromEvent": false
+     },
+     "match": {}
+    }
+   ],
+   "conditions": [],
+   "steps": [
+    {
+     "type": "unitAction",
+     "action": "start",
+     "target": {
+      "include": [],
+      "exclude": [],
+      "gone": [],
+      "fromEvent": true
+     },
+     "params": {}
+    }
+   ],
+   "owner": "admin",
+   "purpose": "Агент остановился со сбоем — запустить его снова",
+   "serverId": null,
+   "runAsRoleId": null,
+   "allowChain": true,
+   "createdAt": "2026-10-20T09:00:00Z",
+   "createdBy": "admin",
+   "changedAt": "2026-10-20T09:00:00Z",
+   "changedBy": "admin",
+   "mute": null,
+   "order": 1,
+   "version": "1"
+  }
+ ],
+ "ruleVersions": [],
+ "ruleFires": [],
+ "schedules": [
+  {
+   "id": "f0000001-0001-4000-8000-000000000000",
+   "name": "Рабочие дни",
+   "kind": "week",
+   "week": [
+    [
+     [
+      "08:00",
+      "20:00"
+     ]
+    ],
+    [
+     [
+      "08:00",
+      "20:00"
+     ]
+    ],
+    [
+     [
+      "08:00",
+      "20:00"
+     ]
+    ],
+    [
+     [
+      "08:00",
+      "20:00"
+     ]
+    ],
+    [
+     [
+      "08:00",
+      "20:00"
+     ]
+    ],
+    [],
+    []
+   ],
+   "overrides": [
+    {
+     "dayGroupId": "f0000001-0002-4000-8000-000000000000",
+     "mode": "none"
+    },
+    {
+     "dayGroupId": "f0000003-0002-4000-8000-000000000000",
+     "mode": "none"
+    },
+    {
+     "dayGroupId": "f0000002-0002-4000-8000-000000000000",
+     "mode": "custom",
+     "intervals": [
+      [
+       "08:00",
+       "19:00"
+      ]
+     ]
+    }
+   ],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000002-0001-4000-8000-000000000000",
+   "name": "Ночь",
+   "kind": "week",
+   "week": [
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ]
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000003-0001-4000-8000-000000000000",
+   "name": "Выходные и праздники",
+   "kind": "week",
+   "week": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     [
+      "00:00",
+      "00:00"
+     ]
+    ],
+    [
+     [
+      "00:00",
+      "00:00"
+     ]
+    ]
+   ],
+   "overrides": [
+    {
+     "dayGroupId": "f0000001-0002-4000-8000-000000000000",
+     "mode": "full"
+    },
+    {
+     "dayGroupId": "f0000003-0002-4000-8000-000000000000",
+     "mode": "full"
+    }
+   ],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000004-0001-4000-8000-000000000000",
+   "name": "Внерабочее время в будни",
+   "kind": "week",
+   "week": [
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [
+     [
+      "20:00",
+      "08:00"
+     ]
+    ],
+    [],
+    []
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000005-0001-4000-8000-000000000000",
+   "name": "От заката до рассвета",
+   "kind": "astro",
+   "week": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000006-0001-4000-8000-000000000000",
+   "name": "Охрана: сутки через трое",
+   "kind": "cycle",
+   "week": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-01",
+    "days": [
+     [
+      [
+       "08:00",
+       "08:00"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000007-0001-4000-8000-000000000000",
+   "name": "Ярмарка на парковке",
+   "kind": "dates",
+   "week": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [
+    {
+     "date": "2026-11-14",
+     "intervals": [
+      [
+       "09:00",
+       "18:00"
+      ]
+     ]
+    },
+    {
+     "date": "2026-11-15",
+     "intervals": [
+      [
+       "09:00",
+       "16:00"
+      ]
+     ]
+    }
+   ],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": false,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000009-0001-4000-8000-000000000000",
+   "name": "Всегда",
+   "kind": "always",
+   "week": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": true,
+   "owner": null,
+   "version": "1"
+  },
+  {
+   "id": "f0000010-0001-4000-8000-000000000000",
+   "name": "Никогда",
+   "kind": "never",
+   "week": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ],
+   "overrides": [],
+   "valid": {
+    "from": "",
+    "to": ""
+   },
+   "cycle": {
+    "length": 4,
+    "start": "2026-10-29",
+    "days": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   "dates": [],
+   "astro": {
+    "window": "night",
+    "offsetStartMin": 0,
+    "offsetEndMin": 0,
+    "lat": 55.75,
+    "lon": 37.62,
+    "utcOffsetHours": 3
+   },
+   "builtin": true,
+   "owner": null,
+   "version": "1"
+  }
+ ],
+ "dayGroups": [
+  {
+   "id": "f0000001-0002-4000-8000-000000000000",
+   "name": "Праздники РФ",
+   "rules": [
+    {
+     "type": "range",
+     "from": "2026-01-01",
+     "to": "2026-01-08",
+     "yearly": true
+    },
+    {
+     "type": "range",
+     "from": "2026-02-23",
+     "to": "2026-02-23",
+     "yearly": true
+    },
+    {
+     "type": "range",
+     "from": "2026-03-08",
+     "to": "2026-03-08",
+     "yearly": true
+    },
+    {
+     "type": "range",
+     "from": "2026-05-01",
+     "to": "2026-05-01",
+     "yearly": true
+    },
+    {
+     "type": "range",
+     "from": "2026-05-09",
+     "to": "2026-05-09",
+     "yearly": true
+    },
+    {
+     "type": "range",
+     "from": "2026-06-12",
+     "to": "2026-06-12",
+     "yearly": true
+    },
+    {
+     "type": "range",
+     "from": "2026-11-04",
+     "to": "2026-11-04",
+     "yearly": true
+    }
+   ],
+   "version": "1"
+  },
+  {
+   "id": "f0000002-0002-4000-8000-000000000000",
+   "name": "Предпраздничные дни",
+   "rules": [
+    {
+     "type": "range",
+     "from": "2026-11-03",
+     "to": "2026-11-03"
+    },
+    {
+     "type": "range",
+     "from": "2026-12-30",
+     "to": "2026-12-30"
+    }
+   ],
+   "version": "1"
+  },
+  {
+   "id": "f0000003-0002-4000-8000-000000000000",
+   "name": "Санитарный день",
+   "rules": [
+    {
+     "type": "ord",
+     "nth": "last",
+     "dow": 4,
+     "month": 0
+    }
+   ],
+   "version": "1"
+  }
+ ],
+ "modes": {
+  "items": [
+   {
+    "id": "f0000001-0003-4000-8000-000000000000",
+    "name": "Обслуживание",
+    "scheduleId": null,
+    "system": "service",
+    "color": "var(--one-palette-orange)",
+    "builtin": true,
+    "off": {
+     "all": true,
+     "ruleIds": []
+    }
+   },
+   {
+    "id": "f0000002-0003-4000-8000-000000000000",
+    "name": "Ночь",
+    "scheduleId": "f0000002-0001-4000-8000-000000000000",
+    "system": "night",
+    "color": "var(--one-palette-purple)",
+    "builtin": false,
+    "off": {
+     "all": false,
+     "ruleIds": []
+    }
+   },
+   {
+    "id": "f0000003-0003-4000-8000-000000000000",
+    "name": "Выходной",
+    "scheduleId": null,
+    "system": "weekend",
+    "color": "var(--one-palette-green)",
+    "builtin": false,
+    "off": {
+     "all": false,
+     "ruleIds": []
+    }
+   },
+   {
+    "id": "f0000004-0003-4000-8000-000000000000",
+    "name": "Рабочее время",
+    "scheduleId": "f0000001-0001-4000-8000-000000000000",
+    "system": "work",
+    "color": "var(--one-accent)",
+    "builtin": false,
+    "off": {
+     "all": false,
+     "ruleIds": [
+      "70000001-0000-4000-8000-000000000000"
+     ]
+    }
+   }
+  ],
+  "otherwise": null,
+  "version": "1"
+ },
+ "modeManual": null,
+ "maintenanceWindows": [],
+ "network": [],
+ "discovery": [],
+ "access": {
+  "version": "1",
+  "roles": [
+   {
+    "id": "80000001-0000-4000-8000-000000000000",
+    "name": "Администратор",
+    "comment": "Встроенная роль",
+    "loginSchedule": 0,
+    "supervision": {
+     "roleId": null,
+     "login": false,
+     "export": false
+    },
+    "global": {
+     "unr": true,
+     "feat": [
+      "WEB_UI_LOGIN",
+      "SETTINGS_SETUP",
+      "PROGRAMMING_SETUP",
+      "USERS_RIGHTS_SETUP",
+      "SYSTEM_JOURNAL"
+     ],
+     "ur": "ALL",
+     "map": "FULL",
+     "alert": "FULL",
+     "bm": "EDIT",
+     "depth": 0,
+     "restr": {}
+    },
+    "folderAccess": {},
+    "objectAccess": {},
+    "kindAccess": {
+     "agent": "edit"
+    }
+   },
+   {
+    "id": "80000002-0000-4000-8000-000000000000",
+    "name": "Оператор агентов",
+    "comment": "Следит за запусками",
+    "loginSchedule": 0,
+    "supervision": {
+     "roleId": null,
+     "login": false,
+     "export": false
+    },
+    "global": {
+     "unr": false,
+     "feat": [
+      "WEB_UI_LOGIN"
+     ],
+     "ur": "NO",
+     "map": "VIEW",
+     "alert": "FULL",
+     "bm": "PROTECT",
+     "depth": 0,
+     "restr": {}
+    },
+    "folderAccess": {},
+    "objectAccess": {},
+    "kindAccess": {
+     "agent": "run"
+    }
+   }
+  ],
+  "users": [
+   {
+    "id": "90000001-0000-4000-8000-000000000000",
+    "login": "admin",
+    "name": "Администратор",
+    "email": "admin@agents.local",
+    "enabled": true,
+    "roleIds": [
+     "80000001-0000-4000-8000-000000000000"
+    ],
+    "roleUntil": {},
+    "lastLoginDate": "2026-10-29",
+    "expiresDate": null,
+    "webSessions": 0,
+    "mobileSessions": 0,
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
+   },
+   {
+    "id": "90000002-0000-4000-8000-000000000000",
+    "login": "operator",
+    "name": "Оператор",
+    "email": "operator@agents.local",
+    "enabled": true,
+    "roleIds": [
+     "80000002-0000-4000-8000-000000000000"
+    ],
+    "roleUntil": {},
+    "lastLoginDate": "2026-10-28",
+    "expiresDate": null,
+    "webSessions": 0,
+    "mobileSessions": 0,
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
+   }
+  ],
+  "groups": [
+   {
+    "id": "a0000001-0000-4000-8000-000000000000",
+    "name": "Смена агентов",
+    "comment": "Операторы запусков",
+    "roleIds": [
+     "80000002-0000-4000-8000-000000000000"
+    ],
+    "rolesUntil": null,
+    "memberIds": [
+     "90000002-0000-4000-8000-000000000000"
+    ],
+    "source": null
+   }
+  ],
+  "catalogs": [],
+  "history": [],
+  "cellHistory": []
+ },
+ "me": {
+  "userId": "90000001-0000-4000-8000-000000000000"
+ },
+ "settings": {
+  "version": "1",
+  "values": {
+   "ntp.server": "pool.ntp.org",
+   "ntp.tz": "Europe/Moscow",
+   "sec.pwdage": 90,
+   "sec.2fa": "off",
+   "mail.smtp": "smtp.local",
+   "mail.hook": "https://…"
+  }
+ },
+ "licenses": [],
+ "licenseKeys": [],
+ "journal": [
+  {
+   "id": "c0000001-0000-4000-8000-000000000000",
+   "at": "2026-10-28T17:47:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-28T17:47:00Z",
+   "fields": {},
+   "actor": "admin"
+  },
+  {
+   "id": "c0000002-0000-4000-8000-000000000000",
+   "at": "2026-10-28T17:24:00Z",
+   "category": "alarm",
+   "text": "Агент упал · Агент поддержки",
+   "source": "agent",
+   "kind": "failed",
+   "occurredAt": "2026-10-28T17:24:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000003-0000-4000-8000-000000000000",
+   "at": "2026-10-28T16:50:00Z",
+   "category": "alarm",
+   "text": "Агент упал · Агент отчётов",
+   "source": "agent",
+   "kind": "failed",
+   "occurredAt": "2026-10-28T16:50:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000004-0000-4000-8000-000000000000",
+   "at": "2026-10-28T16:10:00Z",
+   "category": "info",
+   "text": "Конвейер закончил · Обработка обращения",
+   "source": "agent",
+   "kind": "finished",
+   "occurredAt": "2026-10-28T16:10:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000031-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000005-0000-4000-8000-000000000000",
+   "at": "2026-10-28T15:30:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-28T15:30:00Z",
+   "fields": {
+    "ip": "10.20.1.9"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000006-0000-4000-8000-000000000000",
+   "at": "2026-10-28T15:00:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-28T15:00:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000027-0000-4000-8000-000000000000",
+   "at": "2026-10-27T17:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T17:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000013-0000-4000-8000-000000000000",
+   "at": "2026-10-27T17:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T17:10:00Z",
+   "fields": {
+    "ip": "10.20.1.18"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000026-0000-4000-8000-000000000000",
+   "at": "2026-10-27T16:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент без модели",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T16:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000023-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000012-0000-4000-8000-000000000000",
+   "at": "2026-10-27T16:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент без модели»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T16:10:00Z",
+   "fields": {
+    "ip": "10.20.1.17"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000025-0000-4000-8000-000000000000",
+   "at": "2026-10-27T15:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент отчётов",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T15:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000011-0000-4000-8000-000000000000",
+   "at": "2026-10-27T15:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T15:10:00Z",
+   "fields": {
+    "ip": "10.20.1.16"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000024-0000-4000-8000-000000000000",
+   "at": "2026-10-27T14:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T14:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000010-0000-4000-8000-000000000000",
+   "at": "2026-10-27T14:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T14:10:00Z",
+   "fields": {
+    "ip": "10.20.1.15"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000023-0000-4000-8000-000000000000",
+   "at": "2026-10-27T13:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент без модели",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T13:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000023-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000f-0000-4000-8000-000000000000",
+   "at": "2026-10-27T13:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент без модели»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T13:10:00Z",
+   "fields": {
+    "ip": "10.20.1.14"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000022-0000-4000-8000-000000000000",
+   "at": "2026-10-27T12:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент отчётов",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T12:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000e-0000-4000-8000-000000000000",
+   "at": "2026-10-27T12:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T12:10:00Z",
+   "fields": {
+    "ip": "10.20.1.13"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000021-0000-4000-8000-000000000000",
+   "at": "2026-10-27T11:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T11:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000d-0000-4000-8000-000000000000",
+   "at": "2026-10-27T11:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T11:10:00Z",
+   "fields": {
+    "ip": "10.20.1.12"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000020-0000-4000-8000-000000000000",
+   "at": "2026-10-27T10:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент без модели",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T10:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000023-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000c-0000-4000-8000-000000000000",
+   "at": "2026-10-27T10:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент без модели»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T10:10:00Z",
+   "fields": {
+    "ip": "10.20.1.11"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c000001f-0000-4000-8000-000000000000",
+   "at": "2026-10-27T09:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент отчётов",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T09:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000b-0000-4000-8000-000000000000",
+   "at": "2026-10-27T09:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T09:10:00Z",
+   "fields": {
+    "ip": "10.20.1.10"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c000001e-0000-4000-8000-000000000000",
+   "at": "2026-10-27T08:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T08:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000a-0000-4000-8000-000000000000",
+   "at": "2026-10-27T08:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T08:10:00Z",
+   "fields": {
+    "ip": "10.20.1.9"
+   },
+   "actor": "admin"
+  }
+ ],
+ "reference": {
+  "ruleActions": [
+   {
+    "source": "net",
+    "action": "http",
+    "fields": [
+     {
+      "id": "method",
+      "optional": true,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE"
+       ]
+      }
+     },
+     {
+      "id": "url"
+     },
+     {
+      "id": "auth",
+      "optional": true,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "none",
+        "basic",
+        "digest",
+        "bearer"
+       ]
+      }
+     },
+     {
+      "id": "headers",
+      "optional": true
+     },
+     {
+      "id": "body",
+      "optional": true
+     }
+    ]
+   },
+   {
+    "source": "rule",
+    "action": "runrule",
+    "fields": [
+     {
+      "id": "ruleId"
+     }
+    ]
+   }
+  ],
+  "ruleConditions": [
+   {
+    "kind": "time"
+   },
+   {
+    "kind": "online",
+    "target": true
+   }
+  ],
+  "ruleChecks": [
+   {
+    "what": "online"
+   }
+  ],
+  "ruleControls": [
+   {
+    "control": "ask",
+    "branches": [
+     "yes",
+     "no"
+    ]
+   }
+  ],
+  "ruleFeatures": [],
+  "access": {
+   "features": [
+    "WEB_UI_LOGIN",
+    "SETTINGS_SETUP",
+    "PROGRAMMING_SETUP",
+    "USERS_RIGHTS_SETUP",
+    "SYSTEM_JOURNAL"
+   ],
+   "levels": {
+    "agent": [
+     "view",
+     "run",
+     "edit"
+    ],
+    "map": [
+     "FORBID",
+     "VIEW",
+     "SCALE",
+     "FULL"
+    ],
+    "alert": [
+     "FORBID",
+     "VIEW",
+     "FULL"
+    ],
+    "bm": [
+     "NO",
+     "CREATE",
+     "PROTECT",
+     "EDIT"
+    ],
+    "ur": [
+     "NO",
+     "ALL"
+    ]
+   },
+   "defaults": [
+    {
+     "key": "agent",
+     "levels": "agent"
+    }
+   ],
+   "globals": [
+    {
+     "key": "map",
+     "levels": "map"
+    },
+    {
+     "key": "alert",
+     "levels": "alert"
+    },
+    {
+     "key": "bm",
+     "levels": "bm"
+    }
+   ],
+   "folderFields": [
+    "agent"
+   ],
+   "visibleFrom": {
+    "agent": "view"
+   },
+   "restrictions": [],
+   "plugins": [],
+   "roleTemplates": [],
+   "loginSchedules": [
+    0
+   ],
+   "syncTimezones": [
+    "Europe/Moscow",
+    "UTC"
+   ],
+   "staleDays": 90,
+   "expiringSoonDays": 7,
+   "passwordPolicy": {
+    "minLength": 8,
+    "letter": true,
+    "digit": true,
+    "notLogin": true
+   },
+   "joins": []
+  },
+  "limits": {
+   "pageMax": 1000,
+   "idsMax": 200,
+   "selectMax": 500,
+   "watchMax": 200,
+   "scanPartsMax": 8,
+   "fileMaxBytes": 10485760,
+   "filesPerTurnMax": 5,
+   "fileTypes": [
+    "image/png",
+    "image/jpeg",
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/json"
+   ]
+  },
+  "capabilities": {
+   "operations": [
+    "getMe",
+    "getReference",
+    "listOperations",
+    "createOperation",
+    "getOperation",
+    "pauseOperation",
+    "resumeOperation",
+    "cancelOperation",
+    "retryFailedOperation",
+    "revertOperation",
+    "redoOperation",
+    "listRules",
+    "createRule",
+    "getRule",
+    "putRule",
+    "listRuleFires",
+    "updateRules",
+    "reorderRules",
+    "testRule",
+    "runRule",
+    "listRuleVersions",
+    "retryRuleFire",
+    "listSchedules",
+    "createSchedule",
+    "getSchedule",
+    "putSchedule",
+    "deleteSchedule",
+    "listDayGroups",
+    "createDayGroup",
+    "getDayGroup",
+    "putDayGroup",
+    "deleteDayGroup",
+    "getModes",
+    "putModes",
+    "getModeCurrent",
+    "setModeCurrent",
+    "listMaintenanceWindows",
+    "createMaintenanceWindow",
+    "getMaintenanceWindow",
+    "putMaintenanceWindow",
+    "deleteMaintenanceWindow",
+    "getAccess",
+    "listJournal",
+    "listJournalFacets",
+    "exportJournal",
+    "listJournalKinds",
+    "uploadFile",
+    "stream",
+    "deleteObjects",
+    "applyAccess",
+    "listRulePrompts",
+    "answerRulePrompt",
+    "getTreeChildren",
+    "getTreePaths",
+    "listAccessUsers",
+    "listAccessGroups",
+    "listAccessHistory",
+    "listAccessCellHistory",
+    "listRoleObjects",
+    "putStreamWatch",
+    "listKinds",
+    "getKind",
+    "runKindAction",
+    "listUnits",
+    "createUnits",
+    "getUnit",
+    "patchUnit",
+    "deleteUnit",
+    "moveUnit",
+    "runUnitAction",
+    "getCreatable",
+    "getUnitSchema",
+    "openUnitSetupUi",
+    "validateUnits"
+   ],
+   "features": [
+    "journalSearch",
+    "journalAudit"
+   ],
+   "sections": [
+    {
+     "id": "objects",
+     "label": {
+      "key": "section.agent.objects",
+      "text": "Агенты",
+      "lang": "ru"
+     }
+    },
+    {
+     "id": "automation"
+    },
+    {
+     "id": "access"
+    },
+    {
+     "id": "journal"
+    }
+   ]
+  },
+  "ruleStarts": [
+   "event",
+   "manual"
+  ],
+  "ruleTargets": {
+   "areas": [
+    "folder",
+    "domain"
+   ],
+   "fromEvent": true,
+   "areaLayouts": {
+    "folder": "folders"
+   }
+  }
+ },
+ "streamAccounts": [],
+ "archiveWatches": [],
+ "archiveScans": [],
+ "relays": [],
+ "stand": {}
+}

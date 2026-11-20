@@ -7,14 +7,19 @@
    UnitKind.events (триггер {source: "unit", kinds?, implements?, event, match}), действия на объектах — из UnitKind.actions
    с ruleAction (шаг {type: "unitAction", action, target, params}), право назвать объект в правиле — right события или
    действия (уровень класса доступа вида, Role.kindAccess, folderAccess, objectAccess). Цель — {uid} или область
-   {area: folder | server | domain, uid}. В коде остаются действия и условия не про объекты: уведомления, раскладка,
-   запрос, запуск правила, время, режим, ход выполнения.
+   {area, uid}: что в области — раскладка reference.ruleTargets.areaLayouts[area] (объекты под uid, world.layoutDescendants),
+   нет строки — область целиком. В коде — только механизм (с 0.31.0): условия time, mode, online, проверка online, действия
+   ntf.*, net.http, rule.runrule, ход выполнения. Условия и проверки профилей судят хуки профилей объекта
+   (world.hooks(вид) → ruleCondition, ruleCheck: api/profiles.js), действия профилей без объекта — world.ruleActions()
+   (Profiles.RULE_ACTIONS: client.*). Проверки шага check — только из каталога reference.ruleChecks (обязательно с 0.32.0).
    Время — в часовом поясе системы: «стенные» даты — объекты Date, у которых UTC-поля равны местному времени системы.
    Трасса запуска — кодами: { code, params }. Подписи по кодам собирает интерфейс.
 
    create(world): world — доступ к данным сервера: store() — склад объектов (api/units.js: get, byKind, byFolder,
-   byParent), kinds() — описания видов, rules(), schedules(), dayGroups(), modes() → { items, otherwise }, (в режиме off: { all, ruleIds }; otherwise — устарело, может быть null),
-   manualMode() → { modeId, until } | null, windows(), roles(), users(), tz — часовой пояс системы (строка или функция). */
+   byParent, byRef), kinds() — описания видов, rules(), schedules(), dayGroups(), modes() → { items, otherwise }, (в режиме off: { all, ruleIds }; otherwise — устарело, может быть null),
+   manualMode() → { modeId, until } | null, windows(), roles(), users(), tz — часовой пояс системы (строка или функция);
+   reference() — справочник системы (каталог правил); hooks(вид) — хуки профилей вида; ruleActions() — действия профилей; layoutDescendants(id раскладки, uid, limit) — объекты под узлом в раскладке или null (раскладки нет).
+   Чего в world нет — того нет: без hooks условия и проверки профилей не выполняются. */
 (() => {
   const RULE_CHAIN_MAX = 5;
   const RULE_DEPTH = 2;
@@ -23,24 +28,19 @@
   // Справочники кодами: события и действия не про объекты (событий таких пока нет), условия, шаги хода выполнения.
   // События и действия объектов — в описаниях видов
   const TRIGGERS = [];
-  // target — условию нужна цель; implements — у каких объектов (нет — у любого объекта правил)
+  // Условия механизма. target — условию нужна цель; implements — у каких объектов (нет — у любого объекта правил). Условия
+  // профилей (armed, recording у VMS) — из каталога reference.ruleConditions, судят их хуки ruleCondition профилей объекта
   const CONDITIONS = [
     { kind: "time" },
     { kind: "mode" },
-    { kind: "armed", implements: ["vms.camera/1"], target: true },
-    { kind: "recording", implements: ["vms.camera/1"], target: true },
     { kind: "online", target: true },
   ];
-  // Действия без объекта. fields — обязательные поля, tpl — поля-шаблоны, via — вид объекта-исполнителя (уведомитель)
+  // Действия механизма без объекта. fields — обязательные поля, tpl — поля-шаблоны, via — вид объекта-исполнителя
+  // (уведомитель). Действия профилей без объекта (client.*) — world.ruleActions()
   const ACTIONS = [
-    { source: "client", action: "layout", fields: ["layoutId", "roleId"] },
     { source: "ntf", action: "email", fields: ["to", "subject"], tpl: ["subject", "body"], via: "email" },
     { source: "ntf", action: "tg", fields: ["chat", "text"], tpl: ["text"] },
     { source: "ntf", action: "push", fields: ["to", "subject"], tpl: ["subject", "body"] },
-    { source: "client", action: "sound", fields: ["file", "roleId"] },
-    { source: "client", action: "voice", fields: ["roleId"] },
-    { source: "client", action: "view", fields: ["view", "roleId"] },
-    { source: "client", action: "program", fields: ["path", "roleId"] },
     { source: "net", action: "http", fields: ["url"], tpl: ["url"] },
     { source: "rule", action: "runrule", fields: ["ruleId"] },
   ];
@@ -53,12 +53,11 @@
     { control: "after", branches: [] },
     { control: "abort", branches: [] },
   ];
-  // Что проверяет шаг check
-  const CHECKS = ["record", "safe", "armed", "online"];
+  // Что проверяет шаг check: механизм — связь объекта (online). Что исполняет система — каталог reference.ruleChecks
+  // (обязательно с 0.32.0): необъявленную проверку движок не исполняет; проверки профилей судят хуки ruleCheck профилей объекта
+  const CHECKS = [{ what: "online" }];
   const UNIT_ACTION = "unitAction";
   const isUnitAction = (a) => !!a && a.type === UNIT_ACTION;
-  const condKind = (c) => CONDITIONS.find((k) => k.kind === c.kind) || CONDITIONS[0];
-  const sysAction = (a) => ACTIONS.find((k) => k.source === a.source && k.action === a.action) || null;
   const branchesOf = (c) => (CONTROLS.find((k) => k.control === c.control) || CONTROLS[0]).branches;
   const msg = (code, params) => ({ code, params: params || {} });
   // Вид без класса доступа — класс = код вида, уровни view < edit < admin
@@ -277,9 +276,28 @@
     const ends = (t) => trigKinds(t).some((k) => evDesc(k, t.event).ends);
     // Виды действия на объекте: у кого действие правила с этим кодом
     const actKinds = (a) => (isUnitAction(a) ? [...kindsNow().keys()].filter((k) => !!actDesc(k, a.action)) : []);
+    // Каталог правил: справочник системы, хуки профилей вида, действия и проверки профилей — из world (чего нет — пусто)
+    const ref = () => (world.reference && world.reference()) || {};
+    const hooksOf = (kind) => (world.hooks && world.hooks(kind)) || [];
+    const sysAction = (a) => [...ACTIONS, ...((world.ruleActions && world.ruleActions()) || [])].find((k) => k.source === a.source && k.action === a.action) || null;
+    // Условие: механизма или из каталога системы (ruleConditions: implements, target); незнакомое — без цели
+    const condKind = (c) => CONDITIONS.find((k) => k.kind === c.kind) || (ref().ruleConditions || []).find((k) => k.kind === c.kind) || { kind: c.kind };
     const condKinds = (c) => (condKind(c).implements ? implementers(condKind(c).implements) : ruleKinds());
-    // Виды шага check: запись, защита и охрана — у камер, связь — у любого объекта правил
-    const checkKinds = (c) => (c.what === "online" ? ruleKinds() : implementers(["vms.camera/1"]));
+    // Проверка шага check: только каталог системы (ruleChecks)
+    const checksKnown = () => ref().ruleChecks || [];
+    const checkDesc = (c) => checksKnown().find((k) => k.what === c.what) || null;
+    // Виды шага check: по implements проверки, нет его — любой объект правил
+    const checkKinds = (c) => ((checkDesc(c) || {}).implements ? implementers(checkDesc(c).implements) : ruleKinds());
+    // Ответ хуков профилей объекта n (запись движка): первый ответ не undefined; никто не ответил — undefined
+    const hctx = { get units() { return store(); } };
+    function hookSays(name, code, n, x) {
+      for (const h of hooksOf(n.type)) {
+        if (typeof h[name] !== "function") continue;
+        const v = h[name](code, n, x, hctx);
+        if (v !== undefined) return v;
+      }
+      return undefined;
+    }
 
     // Запись объекта для движка: свойства и наблюдаемое состояние — полями, как в записи устройства
     function recOf(u) {
@@ -304,44 +322,42 @@
       if (svc && x.serverId && unitIs(x.serverId, "server")) out.push(Object.assign({ kind: "server" }, devById(x.serverId)));
       return out;
     }
-    // Сервер объекта: сервер-родитель, сервер в свойстве serverId, сервер хранилища, куда объект пишет
-    function devServer(n) {
-      for (const x of ancestors(n)) {
-        if (x.type === "server") return x.id;
-        if (x.serverId && unitIs(x.serverId, "server")) return x.serverId;
-        if (x.archiveId && x.recordMode && x.recordMode !== "none") {
-          const a = store().get(x.archiveId);
-          if (a && a.parentId && unitIs(a.parentId, "server")) return a.parentId;
+    // Область целиком (у области нет раскладки в ruleTargets.areaLayouts): всё под объектом — дочерние, объекты в папке,
+    // объекты со ссылкой на него — и так вглубь. Предела нет: правило доходит до каждого объекта области
+    function underAll(uid) {
+      const out = [], queue = [uid], seen = new Set([uid]);
+      while (queue.length) {
+        const at = queue.shift();
+        for (const u of [...store().byParent(at), ...store().byFolder(at), ...(store().byRef ? store().byRef(at) : [])]) {
+          if (seen.has(u.uid)) continue;
+          seen.add(u.uid);
+          out.push(u);
+          queue.push(u.uid);
         }
       }
-      return "";
-    }
-    // Папка — с подпапками; в ней — объекты папок и их дочерние
-    function folderDevs(fid) {
-      const out = new Map();
-      if (!unitIs(fid, "folder")) return out;
-      const kids = (id) => store().byParent(id).forEach((u) => { out.set(u.uid, recOf(u)); kids(u.uid); });
-      const sub = (id) => {
-        store().byFolder(id).forEach((u) => {
-          out.set(u.uid, recOf(u));
-          kids(u.uid);
-        });
-        store().byParent(id).filter((u) => u.kind === "folder").forEach((f) => sub(f.uid));
-      };
-      sub(fid);
       return out;
+    }
+    // Объекты видов kinds в области {area, uid}: раскладка из ruleTargets.areaLayouts — вся ветка узла uid в ней (как
+    // /tree/children вглубь); нет раскладки — область целиком. Предела (limits.selectMax) у области нет: обходится вся ветка,
+    // вид отбирается на обходе, запись движка строится только для подошедших
+    function areaDevs(area, uid, kinds) {
+      const lay = ((ref().ruleTargets || {}).areaLayouts || {})[area];
+      const got = (lay && world.layoutDescendants ? world.layoutDescendants(lay, uid, Infinity) : null) || underAll(uid);
+      const ok = new Set(kinds);
+      return got.filter((u) => ok.has(u.kind)).map(recOf);
     }
     // Цель → строки-элементы, как их сортирует интерфейс: объект — uid, область — вид:uid, удалённое — gone:имя
     const toks = (t) => (t ? [...t.include.map((x) => (x.area ? `${x.area}:${x.uid}` : x.uid)), ...t.gone.map((g) => "gone:" + g)].sort() : []);
-    const isArea = (tok) => /^(folder|server|domain):/.test(tok || "");
+    // Область — элемент «код:uid» (gone:имя — удалённое, не область)
+    const isArea = (tok) => /^[a-z][A-Za-z0-9_.-]*:/.test(tok || "") && !String(tok).startsWith("gone:");
     const isGroup = (t) => !!t && (t.include.length + t.gone.length > 1 || t.exclude.length > 0 || t.include.some((x) => !!x.area));
     function tokNodes(tok, kinds) {
       const i = tok.indexOf(":"), k = i < 0 ? "" : tok.slice(0, i), v = tok.slice(i + 1);
       const all = () => kinds.flatMap((kind) => store().byKind(kind)).map(recOf);
-      if (k === "folder") return [...folderDevs(v).values()].filter((n) => kinds.includes(n.type));
-      if (k === "server") return all().filter((n) => devServer(n) === v);
-      if (k === "domain") return all().filter((n) => n.domainId === v);
       if (k === "gone" || !tok) return [];
+      const lay = ((ref().ruleTargets || {}).areaLayouts || {})[k];
+      if (k === "domain" && !lay) return all().filter((n) => n.domainId === v);
+      if (k) return areaDevs(k, v, kinds);
       const n = devById(tok);
       return n ? [n] : [];
     }
@@ -380,14 +396,6 @@
       if (off) return msg("device.ruleOff", { deviceId: n.id, ruleId: n.disabledByRuleId });
       return n.enabled === false ? msg("device.disabled", { deviceId: n.id }) : null;
     }
-    const recording = (n) => !!n.archiveId && !!n.recordMode && n.recordMode !== "none";
-    // Защищённая запись на встроенном сервере: архив камеры зашифрован (другой метки защиты у склада нет)
-    // Камера пишет сейчас: по настройкам и по наблюдаемому состоянию (recordState: running; нет поля — не опровергнуто)
-    const recordsNow = (n) => n.recordState === undefined || n.recordState === "running";
-    const archiveSafe = (n) => {
-      const a = n.archiveId ? store().get(n.archiveId) : null;
-      return !!a && !!(a.properties || {}).encrypted;
-    };
     // Есть ли что проверять: у камеры есть запись, если названо хранилище — в нём
     const hasRecord = (n, archive) => (archive ? [n.archiveId, ...(n.extraArchives || []).map((x) => x.archiveId)].includes(archive) : !!n.archiveId || !!(n.extraArchives || []).length);
     const paramsOf = (a) => (isUnitAction(a) ? a.params || {} : a);
@@ -604,12 +612,13 @@
       if (c.control === "wait" || c.control === "after") return sec(c) ? null : msg("control.sec", { control: c.control });
       if (c.control === "abort") return null;
       if (c.control === "check") {
-        if (!CHECKS.includes(c.what)) return msg("control.noWhat", { control: c.control });
+        if (!checkDesc(c)) return msg("control.noWhat", { control: c.control });
         if (!c.target) return msg("control.noTarget", { control: c.control });
         const kinds = checkKinds(c);
         if (c.target.fromEvent && !srcOk(r, kinds)) return msg("control.noEventDevice", { control: c.control });
         if (isGroup(c.target) && !broken(c.target) && !nodes(c.target, kinds).length) return msg("control.areaEmpty", { control: c.control });
-        if ((c.what === "record" || c.what === "safe") && !(c.depthSec >= 1 && c.depthSec <= 86400)) return msg("control.depth", { control: c.control });
+        // Глубина depthSec нужна проверке, у которой в каталоге depth: true (у VMS — record, safe)
+        if ((checkDesc(c) || {}).depth && !(c.depthSec >= 1 && c.depthSec <= 86400)) return msg("control.depth", { control: c.control });
         return null;
       }
       if (c.control === "waitEvent") {
@@ -660,6 +669,8 @@
       const stepBad = (a) => {
         if (a.control) {
           if (!ref.ruleControls.some((k) => k.control === a.control)) return bad("steps", "control.notDeclared", { control: a.control });
+          // Проверка шага check — из каталога ruleChecks (с 0.31.0, обязательно с 0.32.0)
+          if (a.control === "check" && !(ref.ruleChecks || []).some((k) => k.what === a.what)) return bad("steps", "control.notDeclared", { control: a.control, what: a.what });
           return a.event ? eventBad(a.event, "steps") : a.control === "check" ? targetBad(a.target, "steps") : null;
         }
         if (isUnitAction(a)) {
@@ -678,7 +689,9 @@
         }
         const k = ref.ruleActions.find((x) => x.source === a.source && x.action === a.action);
         if (!k) return bad("steps", "action.notDeclared", { action: a.action });
-        const value = k.fields.find((f) => (f.options || []).length && a[f.id] != null && a[f.id] !== "" && !f.options.includes(a[f.id]));
+        // Значение поля: по enum его schema (с 0.31.0); поле без schema принимает любое значение (options снято в 0.32.0)
+        const outOf = (f, v) => !!f.schema && Array.isArray(f.schema.enum) && !f.schema.enum.includes(v);
+        const value = k.fields.find((f) => a[f.id] != null && a[f.id] !== "" && outOf(f, a[f.id]));
         if (value) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: value.id });
         const extra = FIELDS_OPTIONAL.find((f) => a[f] && !k.fields.some((x) => x.id === f));
         if (extra) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: extra });
@@ -726,12 +739,15 @@
       }
       const ns = c.target && !broken(c.target) ? nodes(c.target, condKinds(c)) : [];
       if (!ns.length) return fail(msg(!c.target ? "target.none" : broken(c.target) ? "target.deviceGone" : "target.areaEmpty"));
-      const val = c.value !== false;
+      // online — механизм; остальные условия судит хук ruleCondition профиля объекта. Не ответил ни один — не выполнено
       const why = (n) => {
-        if (c.kind === "armed") return !!n.armed === val ? null : { deviceId: n.id, code: val ? "disarmed" : "armed" };
-        if (c.kind === "recording") return recording(n) ? null : { deviceId: n.id, code: "notRecording" };
-        const w = devDown(n, true);
-        return w ? { deviceId: n.id, code: "offline", viaId: w.params.deviceId } : null;
+        if (c.kind === "online") {
+          const w = devDown(n, true);
+          return w ? { deviceId: n.id, code: "offline", viaId: w.params.deviceId } : null;
+        }
+        const res = hookSays("ruleCondition", c.kind, n, c);
+        if (res === undefined) return { deviceId: n.id, code: "notSupported" };
+        return res ? Object.assign({ deviceId: n.id }, res) : null;
       };
       const bad = ns.map(why).filter(Boolean);
       if (!bad.length) return { code: "cond", params: { condition: c }, ok: true, reason: null };
@@ -805,7 +821,8 @@
       if (c.control === "check") {
         const kinds = checkKinds(c);
         const ns = c.target && c.target.fromEvent ? (o.src || []).map(devById).filter((n) => n && kinds.includes(n.type)) : c.target && !broken(c.target) ? nodes(c.target, kinds) : [];
-        const good = (n) => (c.what === "record" ? recording(n) && recordsNow(n) : c.what === "safe" ? recording(n) && recordsNow(n) && archiveSafe(n) : c.what === "armed" ? !!n.armed : !devDown(n, true));
+        // online — механизм; остальные проверки судит хук ruleCheck профиля объекта: не ответил ни один — не прошла
+        const good = (n) => (c.what === "online" ? !devDown(n, true) : hookSays("ruleCheck", c.what, n, c) === true);
         const bad = ns.filter((n) => !good(n));
         const pick = (o.br && o.br[o.key]) || (ns.length && !bad.length ? "yes" : "no");
         // Запуск, который встанет на вопросе, при возобновлении не пересудит проверку: исход запоминается в br
@@ -1029,13 +1046,19 @@
       }
       return st;
     };
+    // Хуки и действия профилей — встроенного сервера (api/profiles.js), если он рядом; раскладок у набора без сервера нет:
+    // область цели — целиком
+    const P = typeof window !== "undefined" && window.ConsolemProfiles ? window.ConsolemProfiles : typeof require === "function" ? require("./profiles.js") : null;
+    const hook = (p) => (P ? P.HOOKS[p] : null);
+    const hooks = (kind) => [...new Set(((db().kinds.find((k) => k.kind === kind) || {}).implements || []).map(hook).filter(Boolean))];
     return create({
       tz: () => db().timezone, store, kinds: () => db().kinds,
       rules: () => db().rules, schedules: () => db().schedules, dayGroups: () => db().dayGroups, modes: () => db().modes, manualMode: () => db().modeManual,
       windows: () => db().maintenanceWindows, roles: () => db().access.roles, users: () => db().access.users,
+      reference: () => db().reference, hooks, ruleActions: () => (P ? P.RULE_ACTIONS : []),
     });
   }
-  const api = { create, forDb, TRIGGERS, CONDITIONS, ACTIONS, CONTROLS };
+  const api = { create, forDb, TRIGGERS, CONDITIONS, ACTIONS, CONTROLS, CHECKS };
   if (typeof window !== "undefined") window.ConsolemRuleEngine = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

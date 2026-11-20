@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!-- Тестовая страница стенда: своя страница подсистемы для вида security_controller/KEYPAD (setupUi.mode: iframe).
+     Протокол setup/1 — api/SETUP-UI.md, библиотека — api/setup-bridge.js. Код только в page.js: без встроенного
+     <script> и без атрибутов on… (CSP script-src 'self'). Своих запросов страница не делает: поля приходят в init,
+     блоки шага 2 (section#bridge) читают и меняют объекты через мост consolem. Хост шага 1 моста не даёт: тогда блоки
+     скрыты. Тексты пишет page.js по init.lang; текст ниже виден, пока init не пришёл. -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Клавиатура</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="page.css">
+</head>
+<body>
+<p id="status" class="status">Страница ждёт данные от консоли.</p>
+<p id="error" class="error-box" hidden></p>
+<main id="form" hidden>
+  <p id="readonly" class="readonly" data-t="readonly" hidden></p>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-code" data-tab="code" aria-controls="panel-code" data-t="tab_code"></button>
+    <button type="button" role="tab" id="tab-screen" data-tab="screen" aria-controls="panel-screen" data-t="tab_screen"></button>
+  </div>
+  <section id="panel-code" class="panel" role="tabpanel" data-panel="code" aria-labelledby="tab-code">
+    <div class="field" data-field="code_length">
+      <label for="f-code_length" data-t="code_length"></label>
+      <input id="f-code_length" type="number" min="4" max="8" step="1" inputmode="numeric">
+      <p class="hint" data-t="code_length_hint"></p>
+      <p class="msg" hidden></p>
+    </div>
+  </section>
+  <section id="panel-screen" class="panel" role="tabpanel" data-panel="screen" aria-labelledby="tab-screen" hidden>
+    <div class="field" data-field="display_text">
+      <label for="f-display_text" data-t="display_text"></label>
+      <input id="f-display_text" type="text" autocomplete="off">
+      <p class="hint" data-t="display_text_hint"></p>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="field" data-field="backlight">
+      <label for="f-backlight" data-t="backlight"></label>
+      <select id="f-backlight">
+        <option value="" data-t="backlight_none"></option>
+        <option value="off" data-t="backlight_off"></option>
+        <option value="low" data-t="backlight_low"></option>
+        <option value="high" data-t="backlight_high"></option>
+      </select>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="field field-check" data-field="beep">
+      <label><input id="f-beep" type="checkbox"> <span data-t="beep"></span></label>
+      <p class="msg" hidden></p>
+    </div>
+  </section>
+  <section id="bridge" class="bridge" hidden>
+    <h2 id="b-title"></h2>
+    <p id="b-error" class="error-box" hidden></p>
+    <div class="block" id="blk-cams">
+      <h3 data-t="cams"></h3>
+      <p class="hint" data-t="cams_hint"></p>
+      <ul id="cams" class="rows"></ul>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="block" id="blk-found">
+      <h3 data-t="found"></h3>
+      <p id="found-state" class="hint"></p>
+      <ul id="found" class="rows"></ul>
+      <div class="acts">
+        <button type="button" id="found-start" data-t="found_start"></button>
+        <button type="button" id="found-stop" data-t="found_stop"></button>
+      </div>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="block" id="blk-kids">
+      <h3 data-t="kids"></h3>
+      <p class="hint" data-t="kids_hint"></p>
+      <ul id="kids" class="rows"></ul>
+      <div class="acts">
+        <button type="button" id="kid-add" data-t="kid_add"></button>
+      </div>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="block" id="blk-cmd">
+      <h3 data-t="cmd"></h3>
+      <p id="cmd-state" class="hint"></p>
+      <div class="acts">
+        <button type="button" id="cmd-arm" data-t="cmd_arm"></button>
+      </div>
+      <p class="msg" hidden></p>
+    </div>
+  </section>
+</main>
+<script src="../../../setup-bridge.js"></script>
+<script src="page.js"></script>
+</body>
+</html>

@@ -32,7 +32,13 @@
       Петля — <code>api.html?api=loopback</code>: тот же встроенный сервер по HTTP, за Service Worker; запуск —
       <code>python3 tools/check_loopback.py</code>. Один тест — <code>?only=&lt;имя&gt;</code>.
     </p>
+    <p>
+      Каждый тест проверяет один слой: механизм, профиль или API видео. Тесты профиля, который система не объявила,
+      консоль пропускает. Под итогом — итог по каждому слою. Проверить только часть слоёв —
+      <code>?layer=mechanism,profile:vms.camera/1</code>.
+    </p>
     <strong id="apitest-summary">Идёт прогон…</strong>
+    <pre id="apitest-layers"></pre>
     <pre id="apitest-log"></pre>
     <script src="../api/openapi.js"></script>
     <script src="../api/fixture.js"></script>
@@ -43,6 +49,7 @@
     <script src="../api/profiles.js"></script>
     <script src="../api/server.js"></script>
     <script src="../api/client.js"></script>
+    <script src="layers.js"></script>
     <script src="harness.js"></script>
     <script src="api-read.js"></script>
     <script src="api-journal.js"></script>
@@ -63,6 +70,7 @@
     <script src="api-access.js"></script>
     <script src="api-assist.js"></script>
     <script src="api-units.js"></script>
+    <script src="api-agents.js"></script>
     <script>
       ApiTest.run();
     </script>

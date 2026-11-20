@@ -2,6 +2,7 @@
    actions с ruleAction; остальное — reference.rule*), поля правила, действия детектора, права при записи правила, ход с
    ответом оператора, правила на несколько доменов. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert } = ApiTest;
   const FX = ApiTest.FX;
   const ref = FX.reference;
@@ -17,7 +18,7 @@
   const act = (action, target, params) => ({ type: "unitAction", action, target, params: params || {} });
   const with_ = (a, params) => Object.assign({}, a, { params: Object.assign({}, a.params, params) });
   const at_ = (a, target) => Object.assign({}, a, { target });
-  const step = act("record", dev(cam.id), { duration: "min", minutes: 5 });
+  const step = act("record", dev(cam && cam.id), { duration: "min", minutes: 5 });
   const blank = (over) => Object.assign({
     name: "Проверка", enabled: true, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6, windowSec: 0,
     runAt: null, repeat: "skip", triggers: [], conditions: [], steps: [step],
@@ -41,7 +42,7 @@
     assert.ok(!("ruleTriggers" in r) && !("eventKinds" in r) && r.ruleActions.every((a) => !("deviceTypes" in a)), "событий и действий устройств в справочнике нет");
     const camera = await env.ok("GET", "/kinds/camera");
     assert.ok(camera.events.some((e) => e.id === "motion" && e.ends) && camera.actions.some((a) => a.id === "record" && a.ruleAction && a.ruleOnly), "у камеры: события и действия правил");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Каталог: включённое вне каталога — 422 NOT_SUPPORTED с полем и причиной, выключенное хранится и читается", async () => {
     const env = await makeEnv({ fixturePatch: noAction("preset") });
@@ -57,7 +58,7 @@
     assert.eq(up.failed.map((x) => x.code), ["NOT_SUPPORTED"], "включить группой нельзя");
     const put = await env.call("PUT", `/rules/${read.id}`, body(read, { enabled: true }), etag(read));
     assert.status(put, 422, "NOT_SUPPORTED", "включить правкой нельзя");
-  });
+  }, { needs: ["kind:camera", "putRule", "updateRules"] });
 
   test("Каталог: уже включённое вне каталога не запускается — 409 NOT_RUNNABLE, причина кодом", async () => {
     const r = FX.rules.find((x) => x.enabled && x.steps.some((s) => s.action));
@@ -91,7 +92,7 @@
     await say({ steps: [with_(step, { duration: "event" })] }, "steps", "action.fieldNotDeclared");
     await say({ steps: [with_(step, { afterSec: 5 })] }, "steps", "action.fieldNotDeclared");
     assert.status(await env.call("POST", "/rules", blank()), 201, null, "объявленное сохраняется");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Каталог: событие и условие вне справочника — поле раздела", async () => {
     const env = await makeEnv({ fixturePatch: {
@@ -105,7 +106,170 @@
     const b = await env.call("POST", "/rules", blank({ conditions: [{ kind: "online", target: dev(cam.id) }] }));
     assert.status(b, 422, "NOT_SUPPORTED");
     assert.eq([b.body.field, issue(b)], ["conditions", "cond.notDeclared"], "условие");
-  });
+  }, { needs: ["kind:camera"] });
+
+  /* ----- Каталог правил без VMS (с 0.31.0): проверки — reference.ruleChecks, поля действий — по schema, область цели — по
+     раскладке ruleTargets.areaLayouts. Виды и объекты — из самой системы (GET /kinds, GET /units), а не из кодов VMS ----- */
+
+  // Объект правил системы: первый объект вида с событиями правил (или с действиями правил, если events = false)
+  async function ruleUnit(env, events) {
+    const ks = (await env.ok("GET", "/kinds")).items.filter((k) => (events === false ? (k.actions || []).some((a) => a.ruleAction) : (k.events || []).some((e) => e.rule !== false)));
+    for (const k of ks) {
+      const l = await env.list(`/units?kind=${encodeURIComponent(k.kind)}&limit=1`);
+      if (l.length) return l[0];
+    }
+    return null;
+  }
+  // Действие без объекта механизма (net.http) и правило из шагов. Система, которая его не объявила, получает его в
+  // каталоге на прогон (withHttp)
+  const http = (over) => Object.assign({ source: "net", action: "http", url: "http://example.invalid/hook" }, over || {});
+  const HTTP_DECL = { source: "net", action: "http", fields: [{ id: "method", optional: true, schema: { type: "string", enum: ["GET", "POST", "PUT", "DELETE"] } }, { id: "url" }] };
+  const withHttp = (acts) => (acts.some((a) => a.source === "net" && a.action === "http") ? acts : acts.concat(HTTP_DECL));
+  const sysRule = (steps) => blank({ steps });
+  // Все узлы ветки под nodeId в раскладке layout (GET /tree/children вглубь; узел группы — шаг пути, не объект)
+  async function branch(env, layout, nodeId) {
+    const out = [], queue = [nodeId];
+    while (queue.length) {
+      const at = queue.shift();
+      for (const n of await env.list(`/tree/children?layout=${encodeURIComponent(layout)}&parentId=${at}&limit=1000`)) {
+        if (!n.group) out.push(n);
+        if (n.hasChildren) queue.push(n.id);
+      }
+    }
+    return out;
+  }
+  // Задевает ли событие объекта uid правило с этой целью: пробный запуск с одним событием — event.came или нет
+  async function hears(env, trigger, uid) {
+    const r = blank({ enabled: false, start: "event", runMode: "always", triggers: [trigger], steps: [http()] });
+    const f = await env.ok("POST", "/rules/test", { ruleId: null, rule: r, events: [{ source: "unit", event: trigger.event, match: {}, deviceId: uid }], at: null, branches: {}, log: false });
+    return f.checks.some((c) => c.code === "event.came");
+  }
+
+  test("Каталог правил: проверка не из ruleChecks — 422 NOT_SUPPORTED control.notDeclared", async () => {
+    const ctl = ref.ruleControls.some((c) => c.control === "check") ? ref.ruleControls : ref.ruleControls.concat({ control: "check", branches: ["yes", "no"] });
+    const env = await makeEnv({ fixturePatch: { reference: { ruleControls: ctl, ruleChecks: [{ what: "online" }], ruleActions: withHttp(ref.ruleActions) } } });
+    const u = await ruleUnit(env);
+    assert.ok(u, "у системы есть объект правил");
+    const ck = (what, over) => Object.assign({ control: "check", what, target: dev(u.uid), yes: [], no: [] }, over || {});
+    const bad = await env.call("POST", "/rules", sysRule([http(), ck("armed")]));
+    assert.status(bad, 422, "NOT_SUPPORTED", "armed нет в ruleChecks");
+    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params], ["steps", "control.notDeclared", { control: "check", what: "armed" }], "шаг и причина");
+    assert.status(await env.call("POST", "/rules", sysRule([http(), ck("online")])), 201, null, "online объявлена — правило сохраняется");
+    assert.status(await env.call("POST", "/rules", Object.assign(sysRule([http(), ck("armed")]), { enabled: false })), 201, null, "выключенное хранится");
+  }, { needs: ["createRule"] });
+
+  test("Поле действия по schema: значение вне enum — action.fieldNotDeclared", async () => {
+    // net.http.method — значения задаёт schema (enum; options снято в 0.32.0)
+    const acts = withHttp(ref.ruleActions).map((a) => (a.source === "net" && a.action === "http"
+      ? Object.assign({}, a, { fields: a.fields.filter((f) => f.id !== "method").concat({ id: "method", optional: true, schema: { type: "string", enum: ["GET", "POST"] } }) }) : a));
+    const env = await makeEnv({ fixturePatch: { reference: { ruleActions: acts } } });
+    const bad = await env.call("POST", "/rules", sysRule([http({ method: "PUT" })]));
+    assert.status(bad, 422, "NOT_SUPPORTED", "PUT вне enum");
+    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.field], ["steps", "action.fieldNotDeclared", "method"], "поле");
+    assert.status(await env.call("POST", "/rules", sysRule([http({ method: "POST" })])), 201, null, "значение из enum");
+  }, { needs: ["createRule"] });
+
+  // Раскладка клиента: id раскладок — enum у schema поля layoutId. Система без client.layout — SKIP по needs, а не пустой PASS
+  test("Поле действия по schema: раскладка клиента вне enum у layoutId — action.fieldNotDeclared", async () => {
+    const lay = ref.ruleActions.find((a) => a.source === "client" && a.action === "layout");
+    const f = lay && lay.fields.find((x) => x.id === "layoutId");
+    assert.ok(f && f.schema && Array.isArray(f.schema.enum) && f.schema.enum.length, "у client.layout поле layoutId с непустым schema.enum");
+    const env2 = await makeEnv();
+    const role = FX.access.roles[0].id;
+    const one = (layoutId) => sysRule([{ source: "client", action: "layout", layoutId, roleId: role }]);
+    const no = await env2.call("POST", "/rules", one("00000000-0000-4000-8000-000000000000"));
+    assert.status(no, 422, "NOT_SUPPORTED", "раскладки нет в enum");
+    assert.eq([issue(no), no.body.params.issue.params.field], ["action.fieldNotDeclared", "layoutId"], "поле layoutId");
+    assert.status(await env2.call("POST", "/rules", one(f.schema.enum[0])), 201, null, "раскладка из enum");
+    assert.ok(f.schema["x-enum-labels"] && f.schema["x-enum-labels"][f.schema.enum[0]], "подпись раскладки — x-enum-labels");
+  }, { needs: ["createRule", "ruleAction:client.layout"] });
+
+  // options снято в 0.32.0: поле без schema принимает любое значение, даже если бэкенд по старинке прислал options
+  test("Поле действия без schema: значение любое, снятое options не ограничивает", async () => {
+    const acts = withHttp(ref.ruleActions).map((a) => (a.source === "net" && a.action === "http"
+      ? Object.assign({}, a, { fields: a.fields.filter((f) => f.id !== "method").concat({ id: "method", optional: true, options: ["GET", "POST"] }) }) : a));
+    const env = await makeEnv({ fixturePatch: { reference: { ruleActions: acts } } });
+    assert.status(await env.call("POST", "/rules", sysRule([http({ method: "PUT" })])), 201, null, "PUT вне снятого options — правило сохраняется");
+  }, { needs: ["createRule"] });
+
+  test("Область цели по раскладке: {area: server} задевает те же объекты, что /tree/children servers под этим сервером", async () => {
+    const env = await makeEnv();
+    // Область сервера — его ветка в раскладке ruleTargets.areaLayouts.server (у demo — servers)
+    const lay = ((await env.ok("GET", "/reference")).ruleTargets.areaLayouts || {}).server || "servers";
+    const kinds = (await env.ok("GET", "/kinds")).items;
+    const evOf = (kind) => ((kinds.find((k) => k.kind === kind) || {}).events || []).find((e) => e.rule !== false);
+    // Сервер с самой большой веткой
+    let best = null;
+    for (const s of FX.servers.filter((x) => x.domainId === FX.domains[0].id).slice(0, 6)) {
+      const b = await branch(env, lay, s.id);
+      if (!best || b.length > best.b.length) best = { s, b };
+    }
+    const inBranch = new Set(best.b.map((n) => n.id));
+    // Объекты домена с событиями правил: из ветки и вне её, до 6 каждого вида
+    const tried = [];
+    for (const k of kinds.filter((x) => evOf(x.kind))) {
+      const us = (await env.list(`/units?kind=${encodeURIComponent(k.kind)}&limit=1000`)).filter((u) => u.domainId === best.s.domainId);
+      tried.push(...us.filter((u) => inBranch.has(u.uid)).slice(0, 6), ...us.filter((u) => !inBranch.has(u.uid)).slice(0, 6));
+    }
+    const got = [], want = [];
+    for (const u of tried) {
+      const t = { source: "unit", kinds: [u.kind], event: evOf(u.kind).id, target: area("server", best.s.id), match: {} };
+      if (await hears(env, t, u.uid)) got.push(u.uid);
+      if (inBranch.has(u.uid)) want.push(u.uid);
+    }
+    assert.ok(want.length > 0, "в ветке сервера есть объекты с событиями");
+    assert.eq(got.sort(), want.sort(), `объекты с событием, которые задевает область сервера «${best.s.name}», — ветка раскладки servers`);
+  }, { needs: ["testRule", "layout:servers", "listUnits", "getTreeChildren"] });
+
+  test("Область папки у оркестратора: правило на папку задевает агентов папки", async () => {
+    const env = await makeEnv();
+    const lay = ((await env.ok("GET", "/reference")).ruleTargets.areaLayouts || {}).folder || "folders";
+    const agents = await env.list("/units?kind=agent.agent&limit=1000");
+    const fid = agents.map((a) => (a.folders || [])[0]).find(Boolean);
+    assert.ok(fid, "агент в папке");
+    const inBranch = new Set((await branch(env, lay, fid)).map((n) => n.id));
+    const r = sysRule([{ type: "unitAction", action: "start", target: area("folder", fid), params: {} }]);
+    const f = await env.ok("POST", "/rules/test", { ruleId: null, rule: Object.assign(r, { enabled: false }), events: [], at: null, branches: {}, log: false });
+    const got = f.steps.filter((s) => !s.control && s.deviceId).map((s) => s.deviceId).sort();
+    const want = agents.filter((a) => inBranch.has(a.uid)).map((a) => a.uid).sort();
+    assert.ok(want.length > 0, "в папке есть агенты");
+    assert.eq(got, want, "шаг на агентов папки — ветка раскладки папок");
+    const t = { source: "unit", kinds: ["agent.agent"], event: "failed", target: area("folder", fid), match: {} };
+    for (const a of agents) assert.eq(await hears(env, t, a.uid), inBranch.has(a.uid), `событие агента «${a.name}»`);
+  }, { needs: ["testRule", "kind:agent.agent", "layout:folders", "listUnits", "getTreeChildren"] });
+
+  test("Область цели целиком: предел selectMax область не урезает — шаг доходит до каждого объекта ветки, с раскладкой и без", async () => {
+    const env0 = await makeEnv();
+    const on = (await env0.ok("GET", "/reference")).ruleTargets;
+    const kinds = (await env0.ok("GET", "/kinds")).items;
+    const actOf = (kind) => ((kinds.find((k) => k.kind === kind) || {}).actions || []).find((a) => a.ruleAction);
+    // Область с раскладкой (сервер, иначе первая из areaLayouts) — узел с самой большой веткой среди объектов этой области
+    const al = on.areaLayouts || {};
+    const [code, lay] = al.server ? ["server", al.server] : Object.entries(al)[0] || [];
+    assert.ok(code, "система объявила раскладку области");
+    const homes = await env0.list(`/units?kind=${encodeURIComponent(code)}&limit=50`);
+    let best = null;
+    for (const h of homes.slice(0, 8)) {
+      const b = (await branch(env0, lay, h.uid)).filter((n) => actOf(n.kind));
+      if (!best || b.length > best.b.length) best = { h, b };
+    }
+    // Самый частый в ветке вид с действием правил: шаг — его действие на всю область
+    const count = {};
+    best.b.forEach((n) => (count[n.kind] = (count[n.kind] || 0) + 1));
+    const kind = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    const want = best.b.filter((n) => n.kind === kind).map((n) => n.id).sort();
+    assert.ok(want.length > 2, `в ветке больше двух объектов вида ${kind}: ${want.length}`);
+    const run = async (env) => {
+      const r = sysRule([{ type: "unitAction", action: actOf(kind).id, target: area(code, best.h.uid), params: {} }]);
+      const f = await env.ok("POST", "/rules/test", { ruleId: null, rule: Object.assign(r, { enabled: false }), events: [], at: null, branches: {}, log: false });
+      return f.steps.filter((s) => !s.control && s.deviceId).map((s) => s.deviceId).filter((id) => want.includes(id)).sort();
+    };
+    const limits = { selectMax: 2 };
+    assert.eq(await run(await makeEnv({ fixturePatch: { reference: { limits } } })), want, `область ${code} по раскладке ${lay}: selectMax 2 — все объекты ветки`);
+    // Без строки areaLayouts — область целиком: тоже без предела
+    const whole = await run(await makeEnv({ fixturePatch: { reference: { limits, ruleTargets: { areaLayouts: { [code]: null } } } } }));
+    assert.ok(whole.length > 2, `область ${code} целиком: selectMax 2 — не урезана (${whole.length} из ${want.length})`);
+  }, { needs: ["testRule", "layout:servers", "listUnits", "getTreeChildren"] });
 
   /* ----- Поля правила ----- */
 
@@ -122,7 +286,7 @@
     }
     const h = await env.list(`/rules/${made.id}/versions`);
     assert.eq(h[h.length - 1].rule.validForSec, 120, "в истории");
-  });
+  }, { needs: ["kind:camera", "putRule", "listRuleVersions"] });
 
   test("Правило: состояние от сервера — следит, отказано, не годится, не проверено; у выключенного нет; в версию не входит", async () => {
     const env = await makeEnv();
@@ -137,7 +301,7 @@
     assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: true }), 200);
     const list = await env.list("/rules");
     assert.eq(list.find((r) => r.id === on.id).status.state, "watching", "в списке — тоже");
-  });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Правило: не годится — пресета нет на камере", async () => {
     const dev0 = FX.devices.find((d) => d.type === "camera" && d.presetMax && d.online);
@@ -146,7 +310,7 @@
     const on = await env.ok("POST", "/rules", blank({ steps: [act("preset", dev(dev0.id), { preset: dev0.presetMax + 1 })] }));
     assert.eq(on.status.state, "unfit", "не годится");
     assert.ok(on.status.reason.includes(String(dev0.presetMax + 1)), "причина: " + on.status.reason);
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Правило: уточнение события открыто — любой ключ, тип значения сохраняется, сравнение строгое", async () => {
     const env = await makeEnv();
@@ -156,7 +320,7 @@
     const run = (value) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "unit", event: "motion", deviceId: cam.id, match: { pass: value } }], at: null, branches: {}, log: false });
     assert.ok((await run(3)).checks.some((c) => c.code === "event.came"), "число совпало");
     assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
-  });
+  }, { needs: ["kind:camera", "testRule"] });
 
   test("Пробный запуск: поля из уточнения нет в событии — не совпало (event.other), как в запуске правил", async () => {
     const env = await makeEnv();
@@ -166,7 +330,7 @@
     const without = (await run({})).checks;
     assert.ok(!without.some((c) => c.code === "event.came") && without.some((c) => c.code === "event.other"), "без detectorKind — event.other: " + JSON.stringify(without.map((c) => c.code)));
     assert.ok((await run({ detectorKind: "motion" })).checks.some((c) => c.code === "event.came"), "с полем — совпало");
-  });
+  }, { needs: ["kind:camera", "testRule"] });
 
   /* ----- Действия детектора ----- */
 
@@ -184,7 +348,7 @@
     assert.eq([made.steps[1].params.beforeSec, made.steps[1].params.afterSec, made.steps[0].params.params], [30, 90, "{\"limit\":3}"], "поля");
     const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq(f.steps.map((s) => [s.action.action, s.state]), [["detect", "ok"], ["scan", "ok"]], "трасса");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Детектор на время и проверка архива: границы и пустое окно — 422 RULE_INVALID, выключенное хранится", async () => {
     const env = await makeEnv();
@@ -197,7 +361,7 @@
     assert.status(win, 422, "RULE_INVALID");
     assert.eq(issue(win), "action.scanWindow", "окно");
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [scan({ beforeSec: 0, afterSec: 0 })] })), 201, null, "незаконченное выключенное");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Проверка архива: камере без записи нечего проверять — шаг не выполнен, правило не годится", async () => {
     const c = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && !d.archiveId && !(d.extraArchives || []).length);
@@ -207,12 +371,12 @@
     assert.eq(made.status.state, "unfit", "не годится");
     const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq([f.steps[0].state, f.steps[0].reason.code, f.result], ["fail", "target.noRecord", "fail"], "шаг");
-  });
+  }, { needs: ["kind:camera"] });
 
   /* ----- Цели и права ----- */
 
   const roleOf = (fn) => FX.access.roles.find(fn);
-  const guard = FX.access.users.find((u) => u.login === "olga"), guardRole = guard.roleIds[0];
+  const guard = FX.access.users.find((u) => u.login === "olga"), guardRole = guard && guard.roleIds[0];
 
   test("Цели: новое устройство в области входит в правило само, новой версии нет", async () => {
     const f = FX.folders.find((x) => x.deviceIds.some((id) => (FX.devices.find((d) => d.id === id) || {}).type === "camera"));
@@ -225,7 +389,7 @@
     await env.ok("PATCH", `/units/${other.id}`, { folders: (u.folders || []).concat(f.id) }, { "If-Match": `"${u.version}"` });
     const n1 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
     assert.eq([n1, (await env.ok("GET", `/rules/${made.id}`)).version], [n0 + 1, made.version], "шаг на новую камеру, версия та же");
-  }, { needs: ["patchUnit"] });
+  }, { needs: ["kind:camera", "patchUnit"] });
 
   test("Права: автор отвечает за всё, что называет правило; нет права — 403, ничего не записано", async () => {
     const env = await makeEnv({ actAs: guard.login });
@@ -240,7 +404,7 @@
     assert.status(await env.call("PUT", `/rules/${r.id}`, body(r, { name: "Чужое" }), etag(r)), 403, "PERMISSION_DENIED", "правка правила с чужой камерой");
     const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: {} };
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] })), 403, "PERMISSION_DENIED", "и у выключенного, и в событии");
-  });
+  }, { needs: ["kind:camera", "putRule"] });
 
   test("Права: своё право годится, умолчание роли и точечное исключение", async () => {
     const own = roleOf((x) => x.id === guardRole);
@@ -249,7 +413,7 @@
     const env = await makeEnv({ actAs: guard.login });
     const res = await env.call("POST", "/rules", blank({ enabled: false, steps: [at_(step, dev(id))] }));
     assert.status(res, 201, null, "камера, где у роли FULL");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Права: роль запуска ограничивает выполнение; автор выбирает любую роль; нет роли — 422", async () => {
     const env = await makeEnv();
@@ -297,7 +461,7 @@
     await ApiTest.settle();
     stop();
     assert.eq(seen.map((m) => [m.type, m.entityId, m.payload.fireId, m.payload.roleId]), [["prompt.opened", p.id, f.id, guardRole]], "поток");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: первый ответ считается — ветка идёт, запись запуска та же, вопрос закрыт, повтор — 409", async () => {
     const env = await envWith({ steps: [ask()] });
@@ -322,7 +486,7 @@
     const closed = seen.find((m) => m.type === "prompt.closed");
     assert.eq([closed.entityId, closed.payload.reason, closed.payload.answer, closed.payload.by], [p.id, "answered", "yes", guard.login], "prompt.closed");
     assert.ok(seen.some((m) => m.type === "entity.changed" && m.kind === "ruleFire" && m.entityId === f.id && m.payload.ruleId === base.id), "запуск изменился — событие");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: ответ «нет» — ветка «нет», «да» пропущена", async () => {
     const env = await envWith({ steps: [ask({ yes: [], no: [rec(cam.id)] })] });
@@ -331,7 +495,7 @@
     assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "no" }), 202);
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.some((s) => s.path === "0.yes" && s.skip), now.steps.filter((s) => s.action).length], ["ok", true, 1], "ветка");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: чужая роль — 403, canAnswer false; не тот вид ответа — 422, вопрос открыт; нет вопроса — 404", async () => {
     const env = await envWith({ steps: [ask()] }, other);
@@ -350,7 +514,7 @@
     assert.eq(kind.body.field, "answer", "поле");
     assert.status(await own.call("POST", `/rule-prompts/${q.id}/answer`, { answer: "maybe" }), 422, "VALIDATION_FAILED", "не из списка");
     assert.eq((await own.list("/rule-prompts")).length, 1, "вопрос открыт");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: срок вышел — ветка default, вопрос закрыт, ответ после срока не действует", async () => {
     const env = await envWith({ steps: [ask({ sec: 30, default: "yes" })] });
@@ -371,7 +535,7 @@
     await ApiTest.settle();
     stop();
     assert.eq(seen.filter((m) => m.type === "prompt.closed").map((m) => m.payload.reason), ["expired"], "причина");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera"] });
 
   test("Вопрос: шаг за шагом — второй вопрос после первого, вложенный в ветку", async () => {
     const env = await envWith({ steps: [ask({ yes: [ask({ text: "Ещё раз?", yes: [rec(cam.id)] })] }), step] });
@@ -383,7 +547,7 @@
     await env.ok("POST", `/rule-prompts/${q.id}/answer`, { answer: "yes" });
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 2], "дошло до конца: и следующий шаг");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: «Только журнал» никого не спрашивает: срок, ветка default, действий нет; пробный запуск вопросов не открывает", async () => {
     const env = await envWith({ logOnly: true, steps: [ask()] });
@@ -399,7 +563,7 @@
     assert.eq(now.result, "watch", "только журнал");
     assert.ok(JSON.stringify(now.steps).includes("ask.noAnswer"), "в трассе — без ответа, веткой default");
     assert.ok(now.steps.filter((s) => s.action).every((s) => s.state === "would"), "действия не исполнены");
-  }, { needs: PROMPTS.concat("clock") });
+  }, { needs: [...PROMPTS.concat("clock"), "kind:camera", "testRule"] });
 
   test("Эскалация: «Только журнал» никого не спрашивает и кончается сроком последнего уровня", async () => {
     const env = await envWith({ logOnly: true, steps: [escalate(), step] });
@@ -410,7 +574,7 @@
     assert.eq((await fireOf(env, f.id)).result, "waiting", "ждёт дальше");
     await env.advance(10 * 60 + 1);
     assert.eq((await fireOf(env, f.id)).result, "watch", "кончилась сроком");
-  }, { needs: PROMPTS.concat("clock") });
+  }, { needs: [...PROMPTS.concat("clock"), "kind:camera"] });
 
   test("Вопрос: роль без строк грантов не видна — canAnswer ложь, 403; закрытый вопрос после ухода из памяти — 404", async () => {
     const roles = FX.access.roles.map((r) => (r.id === guardRole ? Object.assign({}, r, { folderAccess: {}, objectAccess: {} }) : r));
@@ -426,7 +590,7 @@
     assert.status(await live.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 409, "NOT_RUNNABLE", "кончился, имя в памяти");
     await live.advance(86400);
     assert.status(await live.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 404, "NOT_FOUND", "имя ушло");
-  }, { needs: PROMPTS.concat("clock") });
+  }, { needs: [...PROMPTS.concat("clock"), "kind:camera"] });
 
   test("Эскалация: уровни по сроку, прежний остаётся открыт, ack на любом останавливает, уровень в трассе", async () => {
     const env = await envWith({ steps: [escalate(), step] });
@@ -446,7 +610,7 @@
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 1], "пошёл дальше");
     assert.ok(now.steps.some((s) => s.label && s.label.code === "esc.ack" && s.label.params.login === guard.login), "кто квитировал");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera"] });
 
   test("Эскалация: никто не квитировал — конец последнего уровня, запуск идёт дальше", async () => {
     const env = await envWith({ steps: [escalate({ levels: [{ roleId: guardRole, via: "client", waitMin: 1 }, { roleId: guardRole, via: "client", waitMin: 0 }] }), step] });
@@ -455,7 +619,7 @@
     assert.eq(await env.list("/rule-prompts"), [], "закрыто");
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.some((s) => s.label && s.label.code === "esc.none")], ["ok", true], "итог");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera"] });
 
   test("Эскалация: stop: reset — конец события останавливает, вопросы закрываются с reason: reset", async () => {
     const sensor = FX.devices.find((d) => d.type === "sensor");
@@ -491,7 +655,11 @@
       await ApiTest.settle();
       stop();
       assert.eq(seen, ["stopped"], "причина");
-      const fires = await env.list(`/rules/${base.id}/fires`).catch(() => null);
+      // Журнал запусков — необязательная операция: тест называет её в needs, но на системе без неё прогон идёт дальше
+      // Удалённого правила нет — журнал отвечает 404 NOT_FOUND; другой ответ — ошибка
+      const probe = ApiTest.can("listRuleFires") ? await env.call("GET", `/rules/${base.id}/fires?limit=1000`) : null;
+      if (probe && probe.status !== 200) assert.status(probe, 404, "NOT_FOUND", "журнал удалённого правила");
+      const fires = probe && probe.status === 200 ? await env.list(`/rules/${base.id}/fires`) : null;
       if (fires) assert.ok(fires.find((x) => x.id === f.id).result !== "waiting", "запуск снят");
       assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 404, "NOT_FOUND", "снятый запуск — 404");
       return p;
@@ -511,7 +679,7 @@
     const r2 = await env.ok("GET", `/rules/${base.id}`);
     await env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r2.id, version: r2.version, set: { mute: { until: new Date(env.now + 3600000).toISOString().replace(/\.\d+Z$/, "Z"), reason: "" } } }] });
     assert.eq((await env.list("/rule-prompts")).length, 1, "приглушение запуск не снимает");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera", "putRule", "updateRules"] });
 
   test("Ход: repeat — skip пропускает, restart снимает прежний, queue идёт следом, сверх 16 — как skip", async () => {
     let env = await envWith({ repeat: "skip", steps: [ask()] });
@@ -535,7 +703,7 @@
     assert.eq([y.fireId, (await fireOf(env, first.id)).result], [second.id, "ok"], "очередь пошла концом прежнего");
     for (let i = 0; i < 15; i++) assert.eq((await run(env)).result, i < 15 ? "waiting" : "skip", "место в очереди");
     assert.eq((await run(env)).result, "skip", "сверх 16 — как skip");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   /* ----- Домен ----- */
 
@@ -548,7 +716,7 @@
     const bad = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["нет такого"] } }, etag(done));
     assert.status(bad, 422, "VALIDATION_FAILED");
     assert.eq(bad.body.field, "alarms.domain", "поле");
-  });
+  }, { needs: ["kind:camera", "getSettings", "patchSettings"] });
 
   test("Правило на несколько доменов: только объявленные шаги, прочее — 422 NOT_SUPPORTED, field: steps; сервер выбирает домен", async () => {
     const cams = (d) => FX.devices.filter((x) => x.type === "camera" && x.domainId === d.id);
@@ -610,7 +778,7 @@
     assert.ok(second.checks.every((c) => c.ok) && second.checks.some((c) => c.code === "event.came" && c.params.trigger.event === "linecross") && !second.checks.some((c) => c.code === "event.other"), "пробный запуск any: подошло событие второго триггера");
     const all = await test(onEvent({ triggers: t2, windowSec: 30 }));
     assert.ok(all.checks.some((c) => c.code === "event.missing" && !c.ok), "пробный запуск all: второго события нет");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "testRule"] });
 
   test("«Или» между условиями: condLogic any — достаточно одного, all — нужны все; ни одно не выполнено — запуск пропущен", async () => {
     const env = await makeEnv();
@@ -659,7 +827,7 @@
       f = await env.ok("POST", `/rules/${r2.id}/run`, { idempotencyKey: ApiTest.key() });
       assert.eq(f.steps[0].note.code, "check.yes", "камера пишет — проверка record проходит");
     }
-  }, { needs: ["kind:camera", "clock"] });
+  }, { needs: ["kind:camera", "clock", "testRule", "testEvent"] });
 
   test("Шаг check: цель, вид и глубина проверяются — 422 RULE_INVALID у включённого, выключенное хранится", async () => {
     const env = await makeEnv();
@@ -674,7 +842,8 @@
     const tooDeep = await env.call("POST", "/rules", blank({ steps: [step, check("safe", dev(camA.id), [], [], { depthSec: 86401 })] }));
     assert.status(tooDeep, 422, "VALIDATION_FAILED", "глубина больше суток — граница схемы");
     await bad(check("armed", { include: [], exclude: [], gone: [], fromEvent: true }), "control.noEventDevice", "объекта из события нет");
-    assert.status(await env.call("POST", "/rules", blank({ steps: [check("fresh", dev(camA.id))] })), 422, "VALIDATION_FAILED", "вид проверки вне перечня");
+    // Код проверки — открытая строка (с 0.32.0): необъявленный в reference.ruleChecks — 422 NOT_SUPPORTED, control.notDeclared
+    assert.status(await env.call("POST", "/rules", blank({ steps: [check("fresh", dev(camA.id))] })), 422, "NOT_SUPPORTED", "вид проверки вне каталога ruleChecks");
     assert.status(await env.call("POST", "/rules", blank({ steps: [step, check("armed", dev(camA.id))] })), 201, null, "armed без глубины");
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [check("record", null)] })), 201, null, "выключенное хранится");
     const noCtl = makeEnv({ fixturePatch: { reference: { ruleControls: ref.ruleControls.filter((c) => c.control !== "check") } } });
@@ -708,7 +877,7 @@
     assert.status(await env.call("POST", "/rules", blank({ steps: [{ control: "abort" }] })), 422, "RULE_INVALID", "в правиле должно быть действие");
     f = await env.ok("POST", `/rules/${only.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq(f.steps.length, 1, "после abort в списке верхнего уровня — ничего");
-  }, { needs: ["kind:camera", "clock"] });
+  }, { needs: ["kind:camera", "clock", "testEvent"] });
 
   test("Расписание с интервалом: runAt.everyMin запускает правило по часам, randomShift сдвигает запуск в своём интервале", async () => {
     const env = await makeEnv();
@@ -770,7 +939,7 @@
       assert.status(await unitEvent(env, vol.uid, "volume.error"), 200);
       assert.eq((await fireList(env, r.id)).length, w + 1, "ошибка тома запускает правило на томе");
     }
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Новые команды и действия: export, replicate, ptz.tour, program, service, play, push, client.* — объявлены, проверяются, пишутся в журнал запуска", async () => {
     const env = await makeEnv();
@@ -824,7 +993,7 @@
     assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 202);
     const now = await fireOf(env, f.id);
     assert.eq([now.steps[0].note.code, now.steps.filter((s) => s.action).map((s) => s.path)], ["check.yes", ["0.yes.0"]], "запись запуска сохранила прежнюю ветку, хотя камера уже без связи");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera", "testEvent"] });
 
   test("Расписание с интервалом: выключенное правило не догоняет пропущенное, /test/reset очищает память", async () => {
     const env = await makeEnv();
@@ -838,7 +1007,7 @@
     assert.eq((await fireList(env, r.id)).length, n, "включили — пропущенные за 5 часов запуски не выполнены");
     await env.advance(2 * 3600);
     assert.ok((await fireList(env, r.id)).length - n >= 1 && (await fireList(env, r.id)).length - n <= 2, "дальше правило идёт по часам");
-  }, { needs: ["kind:camera", "clock"] });
+  }, { needs: ["kind:camera", "clock", "updateRules"] });
 
   test("Что система не объявила в reference.ruleFeatures, того включённое правило не получает: 422 NOT_SUPPORTED", async () => {
     const t2 = [trig("motion", camA.id), trig("linecross", camA.id)];
@@ -862,7 +1031,7 @@
     const res = await env.call("POST", "/rules/test", { ruleId: null, rule: blank({ enabled: false, steps: [step, check("armed", null)] }), events: [], at: null, branches: {}, log: false });
     assert.status(res, 422, "RULE_INVALID");
     assert.eq(issue(res), "control.noTarget", "причина");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "testRule"] });
 
 
   /* ----- Режим — одно понятие (0.4.0) ----- */
@@ -980,7 +1149,7 @@
     const other = M.items[2].id;
     const put = await env.ok("PUT", "/modes", { items: M.items.slice().reverse(), otherwise: other }, { "If-Match": `"${M.version}"` });
     assert.eq([put.items[0].id, put.otherwise], [M.items[M.items.length - 1].id, other], "порядок и otherwise записаны");
-  });
+  }, { needs: ["kind:camera", "listMaintenanceWindows", "createMaintenanceWindow", "getMaintenanceWindow", "putMaintenanceWindow", "deleteMaintenanceWindow"] });
 
 
   test("Запись режима без off (прежний клиент) оставляет прежний off; три минуты пересечения не пропускаются; сутки часов дают события смены", async () => {
@@ -1017,7 +1186,7 @@
     await ApiTest.settle();
     stop();
     assert.ok(seen.filter((p) => p.source === "schedule").length >= 2, "смены по расписанию за сутки: " + JSON.stringify(seen));
-  }, { needs: ["clock"] });
+  }, { needs: ["clock", "kind:camera"] });
 
   test("Окно обслуживания (устарело) выключило правило: RuleStatus off с windowId", async () => {
     const env = await makeEnv();
@@ -1028,7 +1197,7 @@
     const st = (await env.ok("GET", `/rules/${r.id}`)).status;
     assert.eq([st.state, st.windowId], ["off", w.window.id], "причина — окно");
     assert.ok(/Окно/.test(st.reason), "причина словами: " + st.reason);
-  });
+  }, { needs: ["kind:camera", "listMaintenanceWindows", "createMaintenanceWindow", "getMaintenanceWindow", "putMaintenanceWindow", "deleteMaintenanceWindow"] });
 
   test("Один детектор в правиле (с 0.18.0): событие детектора несёт match.detector; правило с ним ловит свой детектор, без него — любой; удалённый детектор — в target.gone", async () => {
     const env = await makeEnv();
@@ -1090,7 +1259,7 @@
     const r = await env.ok("GET", `/rules/${ok.id}`);
     const put = await env.call("PUT", `/rules/${ok.id}`, Object.assign({}, r, { triggers: [trig("motion", other.uid, { detector: d1.uid })] }), { "If-Match": `"${r.version}"` });
     assert.status(put, 422, "VALIDATION_FAILED", "PUT: детектор другой камеры");
-  }, { needs: ["kind:camera", "kind:det"] });
+  }, { needs: ["kind:camera", "kind:det", "putRule"] });
 
   ApiTest.loaded("api-automation.js");
 })();

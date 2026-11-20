@@ -24,6 +24,14 @@
      (камера w2c — новая запись); moveBack(unit, ctx) → {parentId, params} — как вернуть объект туда, где он сейчас: откат переноса;
    - actions[id] с scope kind (POST /kinds/{kind}/actions/{id}) зовутся без объекта: unit — черновик {uid: null, kind};
    - fixed — свойства, правку которых откат не возвращает;
+   - treeHasChildren(unit, ctx) → true | undefined — стрелка узла дерева: true — у узла «может быть» дети (камера-кластер),
+     undefined — решает движок раскладок по детям;
+   - ruleCondition(kind, unit, cond, ctx) → {code} | null | undefined (с 0.31.0) — условие правила kind на объекте: null —
+     выполнено, {code} — нет и почему (код строки cond.devices), undefined — условие не этого профиля. ruleCheck(what, unit,
+     check, ctx) → boolean | undefined — шаг check правила: прошла проверка или нет, undefined — проверка не этого профиля.
+     unit — запись движка правил (api/rule-engine.js, recOf): свойства и status.observed полями, id, type — вид; ctx — {units};
+   - RULE_ACTIONS (не хук: список рядом с HOOKS) — действия профилей без объекта для движка правил: {source, action, fields —
+     обязательные поля, tpl? — поля-шаблоны}. Проверки шага check система объявляет в reference.ruleChecks (обязательно с 0.32.0);
    - остальное в хуке — общий код старого и нового пути (nameProblem, assign, check, format…). */
 (() => {
   const GB = 1024 ** 3;
@@ -40,7 +48,7 @@
   const trimmed = (v) => String(v == null ? "" : v).trim();
   const isProblem = (r) => !!r && typeof r.status === "number" && !!r.body;
 
-  /* ===== vms.domain/1 — домен ===== */
+  /* ===== core.domain/1 — область системы (домен) ===== */
 
   function domainNameProblem(name, exceptId, ctx) {
     const v = trimmed(name);
@@ -139,7 +147,6 @@
       u.name = trimmed(u.name);
       u.parentId = null;
       u.domainId = null;
-      if (props(u).license === undefined) props(u).license = "";
       statusOf(u).link = "online";
       return null;
     },
@@ -171,7 +178,8 @@
   }
   // Опрос адресов: отвечает ли адрес — у встроенного сервера по хешу адреса, так же, как в макете на константах
   function probe(targets, ctx) {
-    const max = ctx.db.reference.limits.ipScanMax;
+    // Предел адресов — число стенда (stand.ipScanMax, с 0.30.0 его отдаёт Discovery.ipScanMax)
+    const max = ctx.db.stand.ipScanMax;
     if (targets.length > max) return ctx.problem(422, "IP_RANGE_TOO_LARGE", `За раз — не больше ${max} адресов`, { params: { max } });
     const hash = (s) => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0);
     const items = targets.map(({ ip, port }) => {
@@ -244,7 +252,7 @@
     },
   };
 
-  /* ===== vms.folder/1 — папка ===== */
+  /* ===== core.folder/1 — папка ===== */
 
   // Папки ведёт администратор, и только при связи с центром домена
   function folderProblem(domainId, ctx) {
@@ -708,10 +716,23 @@
 
   /* ----- Определить модель и реле ----- */
 
+  // Модели производителя — из описаний видов (с 0.30.0; reference.deviceModels снят в 0.32.0): allOf {if: {vendor: {const}},
+  // then: {model: {examples}}}. Вид без схемы или без allOf моделей не даёт
+  function vendorModels(vendor, ctx) {
+    const out = [];
+    for (const k of ctx.kinds.list()) {
+      for (const x of ((k && k.schema) || {}).allOf || []) {
+        const v = ((((x || {}).if || {}).properties || {}).vendor || {}).const;
+        const m = ((((x || {}).then || {}).properties || {}).model || {}).examples;
+        if (v === vendor && Array.isArray(m)) m.forEach((y) => { if (!out.includes(y)) out.push(y); });
+      }
+    }
+    return out;
+  }
   // Модель «сообщает» устройство; у встроенного сервера — по сумме чисел адреса, как в макете. Драйверу нужен вход: стенд
   // с stand.probeNeedsLogin без логина модели не называет
   function probeModel(body, ctx) {
-    const models = (ctx.db.reference.deviceModels.find((m) => m.vendor === body.vendor) || {}).models || [];
+    const models = body && body.vendor ? vendorModels(body.vendor, ctx) : [];
     if (!models.length || (ctx.db.stand.probeNeedsLogin && !(body.login && body.password))) return { model: null };
     const sum = String(body.ip).split(".").reduce((s, x) => s + (Number(x) || 0), 0);
     return { model: models[Math.abs(sum) % models.length] };
@@ -1035,7 +1056,32 @@
     return out;
   }
 
+  // Правила (с 0.31.0): условия armed, recording и проверки record, safe, armed судит профиль камеры, а не движок правил.
+  // Запись идёт: настроено хранилище и режим не none; пишет сейчас — по recordState (нет поля — не опровергнуто)
+  const ruleRecording = (n) => !!n.archiveId && !!n.recordMode && n.recordMode !== "none";
+  const ruleRecordsNow = (n) => n.recordState === undefined || n.recordState === "running";
+  // Защищённая запись на встроенном сервере: архив камеры зашифрован (другой метки защиты у склада нет)
+  const ruleArchiveSafe = (n, ctx) => {
+    const a = n.archiveId ? ctx.units.get(n.archiveId) : null;
+    return !!a && !!(a.properties || {}).encrypted;
+  };
+  function cameraRuleCondition(kind, n, cond) {
+    if (kind === "armed") {
+      const val = cond.value !== false;
+      return !!n.armed === val ? null : { code: val ? "disarmed" : "armed" };
+    }
+    if (kind === "recording") return ruleRecording(n) ? null : { code: "notRecording" };
+    return undefined;
+  }
+  function cameraRuleCheck(what, n, check, ctx) {
+    if (what === "record") return ruleRecording(n) && ruleRecordsNow(n);
+    if (what === "safe") return ruleRecording(n) && ruleRecordsNow(n) && ruleArchiveSafe(n, ctx);
+    if (what === "armed") return !!n.armed;
+    return undefined;
+  }
+
   const camera = {
+    ruleCondition: cameraRuleCondition, ruleCheck: cameraRuleCheck,
     RECORD_FIELDS, SOURCE_GONE, recordingProblem, cardProblem, serverWideRows, serverWideChanged, replicaView, detKindsOf, hasBuiltIn,
     archiveRowOf, hasAddress, addressProblem, profileProblem, applyProfile, mainStream, setTarget, keepRows, writes: archiveWrites,
     // Ответ ядра: строки архива на весь сервер (readOnly) — в properties.extraArchives, состояние записи и виды детекторов —
@@ -1056,6 +1102,10 @@
       out.status = Object.assign({}, out.status, { observed: obs });
       return out;
     },
+    // Узел дерева: камера-кластер (без родителя и сервера) — сама себе член домена, её дети приходят от её серверов:
+    // у узла «может быть» дети. Сервер — свойство serverId или status.observed.serverId (камера w2c). Остальное решает
+    // движок дерева (undefined)
+    treeHasChildren: (u) => (!u.parentId && !(u.properties || {}).serverId && !((u.status || {}).observed || {}).serverId ? true : undefined),
     // Камере без регистратора нужен адрес; запись — по правилам вида хранилища; профиль при добавлении (x-transient)
     beforeCreate(u, parent, ctx) {
       const s = specOf(u);
@@ -1253,10 +1303,15 @@
     }) || null;
   }
   const conflictParams = (x) => ({ reason: "incompatible", with: [x.id] }); // с 0.22.0 массив, как у akParams
-  // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind) — reference.analyticsConflicts. Охват — сервер расчёта:
-  // пакет распознавания лиц ставят на компьютер сервера. Сервер детектора — свой serverId или сервер камеры
+  // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind). Охват — сервер расчёта: пакет распознавания лиц ставят
+  // на компьютер сервера. Сервер детектора — свой serverId или сервер камеры. С 0.30.0 список — x-conflicts {значение: [значения]}
+  // у свойства analyticsKind вида детектора (расширение vms.detector/1); у вида без x-conflicts несовместимых нет
   const akOf = (p) => (p && !p.builtin && p.detectorKind === "other" ? p.analyticsKind : null);
-  const akBad = (a, b, ctx) => (ctx.db.reference.analyticsConflicts || []).some((c) => (c.analyticsKind === a && (c.conflicts || []).includes(b)) || (c.analyticsKind === b && (c.conflicts || []).includes(a)));
+  const akConflicts = (ctx) => {
+    const ak = (((ctx.kinds.get("det") || {}).schema || {}).properties || {}).analyticsKind || {};
+    return Object.entries(ak["x-conflicts"] || {}).map(([analyticsKind, conflicts]) => ({ analyticsKind, conflicts }));
+  };
+  const akBad = (a, b, ctx) => akConflicts(ctx).some((c) => (c.analyticsKind === a && (c.conflicts || []).includes(b)) || (c.analyticsKind === b && (c.conflicts || []).includes(a)));
   const detServerId = (p, cam, ctx) => (p.serverId ? p.serverId : ((cam ? serverOf(cam, ctx) : serverOf(p, ctx)) || {}).id || null);
   // Включённые детекторы несовместимого вида на том же сервере. p — свойства детектора целиком (с parentId), self — его uid.
   // sid — сервер, если он известен иначе (новая камера той же строки, перенос камеры); skip(x) — кого не считать
@@ -2239,15 +2294,30 @@
     },
   };
 
+  // Профили путей области (с 0.29.0): поиск в сети, сценарии между камерами, ретрансляторы. Пути /units/{uid}/discovery,
+  // /scenarios, /relays зовут обработчики области в server.js (AREA_API); хуков записи объекта у этих профилей нет
+  const discovery = {}, scenarios = {}, relays = {};
+
   const HOOKS = {
-    "vms.domain/1": domain, "vms.server/1": server, "vms.folder/1": folder, "vms.archive/1": archive, "vms.volume/1": volume,
+    "vms.discovery/1": discovery, "vms.scenarios/1": scenarios, "vms.relays/1": relays,
+    "core.domain/1": domain, "vms.server/1": server, "core.folder/1": folder, "vms.archive/1": archive, "vms.volume/1": volume,
     "vms.camera/1": camera, "vms.stream/1": stream, "vms.detector/1": detector, "vms.subdetector/1": subdetector, "vms.acs/1": acs,
     "vms.live/1": live, "vms.ptz/1": ptz, "vms.talk/1": talk, "vms.timeline/1": timeline, "vms.pos/1": pos, "vms.edge/1": edge,
     "vms.webserver/1": webserver,
   };
 
+  // Действия правил без объекта из мира VMS (клиент консоли: раскладка, звук, голос, вид, программа) — движку правил
+  // (api/rule-engine.js, world.ruleActions): fields — обязательные поля шага. Каталог системы — reference.ruleActions
+  const RULE_ACTIONS = [
+    { source: "client", action: "layout", fields: ["layoutId", "roleId"] },
+    { source: "client", action: "sound", fields: ["file", "roleId"] },
+    { source: "client", action: "voice", fields: ["roleId"] },
+    { source: "client", action: "view", fields: ["view", "roleId"] },
+    { source: "client", action: "program", fields: ["path", "roleId"] },
+  ];
+
   // DEVICE — хуки всех видов таблицы devices: сервер зовёт их первыми, затем хуки профилей вида
-  const api = { HOOKS, DEVICE: device, flat, isProblem };
+  const api = { HOOKS, DEVICE: device, RULE_ACTIONS, flat, isProblem };
   if (typeof window !== "undefined") window.ConsolemProfiles = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

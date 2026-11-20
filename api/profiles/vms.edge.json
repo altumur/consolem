@@ -1,0 +1,227 @@
+{
+ "id": "vms.edge/1",
+ "version": "1.1",
+ "label": "Встроенное хранилище устройства",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [
+  {
+   "id": "vms.archive/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.camera/1",
+   "version": "1.0"
+  }
+ ],
+ "properties": {
+  "replication": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "mode": {
+      "type": "string",
+      "enum": [
+       "off",
+       "all"
+      ]
+     },
+     "archiveId": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "format": "uuid",
+      "x-ref": {
+       "implements": [
+        "vms.archive/1"
+       ]
+      }
+     },
+     "speedLimitMbps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+     },
+     "excludedCameras": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+       "type": "string",
+       "format": "uuid",
+       "x-ref": {
+        "implements": [
+         "vms.camera/1"
+        ]
+       }
+      }
+     }
+    },
+    "additionalProperties": false
+   },
+   "meaning": "Настройка репликации в архив сервера. `mode`: `off` — сервер сам не забирает (правила с `replicate` и ручной забор работают), `all` — забирает все записи и не держит живой поток. `archiveId` — хранилище сервера (вид с `replica` в `recordModes`); для `all` нужно, нет значения — хранилище записи камеры, нет и его — `422 VALIDATION_FAILED`, `/properties/replication`. `speedLimitMbps` — 0…1000, 0 без предела. `excludedCameras` — только у регистратора, камеры этого регистратора. Правка частичная",
+   "since": "1.0"
+  },
+  "enabled": {
+   "schema": {
+    "type": "boolean",
+    "readOnly": true
+   },
+   "meaning": "«Включено»",
+   "since": "1.1"
+  },
+  "recordMode": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "none",
+     "always",
+     "motion",
+     "sched",
+     "replica",
+     "backup"
+    ]
+   },
+   "meaning": "«Когда писать»: Режим записи. replica — забирать записи без постоянного потока. backup — живой поток только на время сбоя основной записи: только в extraArchives, на архиве, где это значение есть в recordModes его вида",
+   "since": "1.1"
+  },
+  "short": {
+   "schema": {
+    "type": "string",
+    "readOnly": true
+   },
+   "meaning": "«Короткое имя»: Номер для показа в дереве («3.3.1»)",
+   "since": "1.1"
+  }
+ },
+ "status": {
+  "replicationStatus": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "state": {
+      "type": "string"
+     },
+     "lagSec": {
+      "type": "integer"
+     },
+     "timeLeftSec": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "lastTransferAt": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "format": "date-time"
+     },
+     "nextTransferAt": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "format": "date-time"
+     },
+     "bytesToday": {
+      "type": "integer"
+     },
+     "gaps": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "from": {
+         "type": "string",
+         "format": "date-time"
+        },
+        "to": {
+         "type": "string",
+         "format": "date-time"
+        }
+       }
+      }
+     },
+     "cameras": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "cameraId": {
+         "type": "string",
+         "format": "uuid"
+        },
+        "state": {
+         "type": "string"
+        },
+        "excluded": {
+         "type": "boolean"
+        },
+        "lastTransferAt": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "format": "date-time"
+        },
+        "nextTransferAt": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "format": "date-time"
+        },
+        "gaps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "from": {
+            "type": "string",
+            "format": "date-time"
+           },
+           "to": {
+            "type": "string",
+            "format": "date-time"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "meaning": "`state`: `off`, `waiting` (есть что забрать, нет связи), `planned` (ждёт правила, ручного забора или времени `nextTransferAt`), `running`, `ok`; у регистратора общее состояние — худшее из камер. `lagSec`, `timeLeftSec`, `lastTransferAt`, `nextTransferAt`, `bytesToday`, `gaps` за 7 дней (`queued` — ещё не забрано, `done`, `lost` — устройство записало поверх), у регистратора `cameras[]` (`cameraId`, `state`, `excluded`, `lastTransferAt`, `nextTransferAt`, `gaps`). Есть в каждом объекте перечня `GET /units?kind=storage`",
+   "since": "1.0"
+  },
+  "mediaOk": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Носитель устройства на месте и пишет. Нет значения — true. false: хранилище ждёт, забор не идёт, сервер поднимает одно событие replication.failed (reason media)",
+   "since": "1.0"
+  },
+  "profileG": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Устройство отдаёт записи по ONVIF Profile G. Нет значения — true. false: хранилище ждёт, забор не идёт, сервер поднимает одно событие replication.failed (reason profile)",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.1",
+   "what": "Профиль по особому экрану: добавлены enabled, recordMode, short — вкладка «Хранилище» их показывает. У replicationStatus описаны внутренние поля (properties без required и без additionalProperties:false, тип поля не менялся). Отчёт: docs/contract-layers/2026-11-19-profili-po-ekranam.md."
+  },
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

@@ -1,0 +1,90 @@
+{
+ "id": "vms.archive/1",
+ "version": "1.0",
+ "label": "Хранилище",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [
+  {
+   "id": "vms.camera/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.edge/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.server/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.volume/1",
+   "version": "1.0"
+  }
+ ],
+ "properties": {
+  "admits": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "«Принимает записи»: Принимает ли архив записи камер. false — новые привязки не принимаются, камера выбрать его не может",
+   "since": "1.0"
+  },
+  "encrypted": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "«Шифрование»",
+   "since": "1.0"
+  },
+  "provider": {
+   "schema": {
+    "type": [
+     "string",
+     "null"
+    ],
+    "x-immutable": true
+   },
+   "meaning": "«Провайдер»: Облачный провайдер (не меняется после создания)",
+   "since": "1.0"
+  },
+  "recordMode": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "backup",
+     "always"
+    ]
+   },
+   "meaning": "«Когда писать»: Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида. Нет поля — режим «Авто»: при сбое, а у камеры без основной записи в кластере из одного — постоянно",
+   "since": "1.0"
+  },
+  "retentionDays": {
+   "schema": {
+    "type": "integer",
+    "minimum": 0
+   },
+   "meaning": "«Срок записи, дней»: Глубина хранения; 0 — без ограничения",
+   "since": "1.0"
+  },
+  "storage": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "block",
+     "object"
+    ]
+   },
+   "meaning": "«Тип хранения»",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

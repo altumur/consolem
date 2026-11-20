@@ -1,6 +1,7 @@
 /* Тесты API: поиск в журнале (0.8.0, возможность journalSearch) — текст, списки и «скрыть», группа и автор,
    страница вокруг записи, счётчики по полям, каталог видов. Записи — набора и стенда (stand.journal), если он есть. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert, FX } = ApiTest;
   const LEVELS = ["alarm", "error", "audit", "info", "service"];
   const levelOf = (e) => (LEVELS.includes(e.level) ? e.level : e.category === "audit" ? "audit" : e.category === "alarm" ? "alarm" : "info");
@@ -161,7 +162,7 @@
     assert.ok(kinds.some((k) => k.id === "api.patchUnit" && k.level === "audit"), "вид записи — в каталоге");
     const mine = await env.list(`/journal?limit=1000&actor=${encodeURIComponent(me.login)}&kind=api.patchUnit`);
     assert.ok(mine.some((e) => e.id === top.id), "отбор по автору находит запись");
-  }, { needs: ["feature:journalSearch", "feature:journalAudit", "listJournal", "patchUnit"] });
+  }, { needs: ["feature:journalSearch", "feature:journalAudit", "listJournal", "patchUnit", "kind:camera"] });
 
   test("Журнал: аудит — секреты не попадают в запись и в CSV; каждое удаление — своя запись с именем (0.9.0)", async () => {
     const env = await makeEnv();

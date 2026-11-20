@@ -4,7 +4,7 @@
    досылка по Last-Event-ID) и CORS для страницы с диска (Origin: null) — так, как это описано в
    api/BACKEND.md. Часы идут по-настоящему, пока их не остановит /test/reset.
 
-   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl] [--api DIR] [--tests DIR] [--host ADDR] [--page]   (порт по умолчанию 8787, адрес — 127.0.0.1;
+   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl|agents] [--api DIR] [--tests DIR] [--host ADDR] [--page]   (порт по умолчанию 8787, адрес — 127.0.0.1;
    --page — и страницы репозитория на том же порту: http://<адрес>:<порт>/ открывает index.html с этим API)
    Затем: index.html?api=http://127.0.0.1:8787  или  tests/api.html?api=http://127.0.0.1:8787
    ASSIST_BRIDGE_URL=http://127.0.0.1:18600 — ход ассистента идёт в мост Пилота (настоящая модель), без
@@ -13,7 +13,8 @@
 
    --webui DIR — ещё и консоль VMS так, как её видит WebUI (tools/build_webui.py, tools/check_webui.py):
    сборка DIR — под /backend/ с заголовком CSP консоли, API — под /backend/api/…, сценарии самопроверки —
-   под /backend/tests/ (имя папки — из --tests). Нарушения политики браузер шлёт на /__csp (та же политика в режиме «только
+   под /backend/tests/ (имя папки — из --tests). Файлы стенда — тоже под /backend/api/ и с тем же CSP: тестовая страница
+   подсистемы api/plugins/**, api/setup-bridge.js, api/setup-ui.schema.js и api/contract.js (STAND_API_FILE). Нарушения политики браузер шлёт на /__csp (та же политика в режиме «только
    отчёт»), стенд печатает их строкой CSP-VIOLATION. */
 import fs from "node:fs";
 import http from "node:http";
@@ -31,7 +32,7 @@ require(`${API_DIR}/contract.js`);
 // Реестр видов, склад и хуки профилей: server.js найдёт их и сам, но порядок подключения — как на странице
 for (const f of ["kinds.js", "units.js", "profiles.js"]) require(`${API_DIR}/${f}`);
 require(`${API_DIR}/server.js`);
-const fixtures = { demo: require(`${API_DIR}/fixtures/demo.json`), "one-domain": require(`${API_DIR}/fixtures/one-domain.json`), large: require(`${API_DIR}/fixtures/large.json`) };
+const fixtures = { demo: require(`${API_DIR}/fixtures/demo.json`), "one-domain": require(`${API_DIR}/fixtures/one-domain.json`), large: require(`${API_DIR}/fixtures/large.json`), agents: require(`${API_DIR}/fixtures/agents.json`) };
 // Наборы-наложения (tools/profile_fixture.py): "$base" — целый набор, остальные поля — поверх него, как в api/fixture.js
 // (tools/build_api.py): объекты сливаются по ключам, так что новый ключ базы (например, в stand) не теряется
 const deepMerge = (base, over) =>
@@ -87,12 +88,19 @@ function servePage(req, res) {
   return true;
 }
 
-// Файл сборки или сценария: true — отдан
+// Файлы стенда под /backend/api/ (только --webui, настоящий бэкенд их не отдаёт): тестовая страница подсистемы
+// api/plugins/** с библиотекой api/setup-bridge.js — сервер стенда выдаёт её относительным адресом api/plugins/…
+// (правило стенда, api/SETUP-UI.md), а он под /backend/ — это /backend/api/plugins/…; схема сообщений setup/1 и
+// сверка схем api/contract.js — для сценариев ui-setup-page.js и ui-stranica-most.js. Пути API без расширения, с этими не путаются
+const STAND_API_FILE = (rel) => (/^plugins\/[^?#]+\.[a-z0-9]+$/.test(rel) && !rel.split("/").includes("..")) || ["setup-bridge.js", "setup-ui.schema.js", "contract.js"].includes(rel);
+// Файл сборки, сценария или стенда: true — отдан
 function serveFile(req, res) {
   const url = decodeURIComponent(req.url.split("?")[0]);
-  if (!webui || req.method !== "GET" || !url.startsWith("/backend/") || url.startsWith("/backend/api/")) return false;
+  if (!webui || req.method !== "GET" || !url.startsWith("/backend/")) return false;
+  const standApi = url.startsWith("/backend/api/") && STAND_API_FILE(url.slice("/backend/api/".length));
+  if (url.startsWith("/backend/api/") && !standApi) return false;
   const rel = url.slice("/backend/".length) || "index.html";
-  const [dir, name] = rel.startsWith(TESTS_NAME + "/") ? [TESTS, rel.slice(TESTS_NAME.length + 1)] : [webui, rel];
+  const [dir, name] = standApi ? [API_DIR, rel.slice("api/".length)] : rel.startsWith(TESTS_NAME + "/") ? [TESTS, rel.slice(TESTS_NAME.length + 1)] : [webui, rel];
   const file = path.resolve(dir, name);
   if (!file.startsWith(dir + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404).end();
@@ -194,7 +202,15 @@ http
         res.writeHead(400, { "Content-Type": "application/problem+json" });
         return res.end(JSON.stringify({ code: "VALIDATION_FAILED", message: "Тело — не JSON" }));
       }
-      const out = server.handle(req.method, req.url, body, req.headers);
+      // Исключение встроенного сервера не роняет стенд: ответ 500 и строка STAND-ERROR, остальные сценарии идут дальше
+      let out;
+      try {
+        out = server.handle(req.method, req.url, body, req.headers);
+      } catch (e) {
+        console.log(`STAND-ERROR ${req.method} ${req.url.split("?")[0]}: ${(e && e.stack ? e.stack.split("\n").slice(0, 2).join(" ") : String(e)).slice(0, 300)}`);
+        res.writeHead(500, { "Content-Type": "application/problem+json" });
+        return res.end(JSON.stringify({ code: "INTERNAL", message: `Сервер стенда: ${e && e.message}` }));
+      }
       Object.entries(out.headers || {}).forEach(([k, v]) => res.setHeader(k, v));
       if (out.status === 204 || out.body === null || out.body === undefined) return res.writeHead(out.status).end();
       // Ход ассистента: встроенный сервер отдаёт поток массивом, по HTTP это строки data:

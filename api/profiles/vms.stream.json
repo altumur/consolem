@@ -1,0 +1,82 @@
+{
+ "id": "vms.stream/1",
+ "version": "1.0",
+ "label": "Поток",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [
+  {
+   "id": "vms.camera/1",
+   "version": "1.0"
+  }
+ ],
+ "properties": {
+  "codec": {
+   "schema": {
+    "type": "string",
+    "readOnly": true
+   },
+   "meaning": "«Кодек»: Что отдаёт устройство (только чтение)",
+   "since": "1.0"
+  },
+  "fps": {
+   "schema": {
+    "type": "integer",
+    "minimum": 1
+   },
+   "meaning": "«к/с»",
+   "since": "1.0"
+  },
+  "height": {
+   "schema": {
+    "type": "integer",
+    "readOnly": true
+   },
+   "meaning": "«Высота» (только чтение)",
+   "since": "1.0"
+  },
+  "res": {
+   "schema": {
+    "type": "string",
+    "pattern": "^[0-9]+x[0-9]+$"
+   },
+   "meaning": "Разрешение: ширина x высота, латинская x. Настройка, сервер передаёт её драйверу",
+   "since": "1.0"
+  },
+  "resOptions": {
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    },
+    "readOnly": true
+   },
+   "meaning": "Допустимые разрешения этого потока. Нет поля — ввод руками (только чтение)",
+   "since": "1.0"
+  },
+  "streamId": {
+   "schema": {
+    "type": "string",
+    "readOnly": true
+   },
+   "meaning": "«Код потока»: Его принимают stream камеры и строки extraArchives (только чтение)",
+   "since": "1.0"
+  },
+  "width": {
+   "schema": {
+    "type": "integer",
+    "readOnly": true
+   },
+   "meaning": "«Ширина» (только чтение)",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

@@ -14,7 +14,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(wizd.devState === "searching" && wizd.devResults.length === 0, "поиск начат, список пуст");
   ok(await until(() => wizd.devState === "searching" && wizd.devResults.length > 0 && wizd.devResults.length < before), "находки приходят по одной");
   ok(await until(() => wizd.devState === "done" && wizd.devResults.length === before), "поиск закончен: " + wizd.devResults.length);
-  ok((await API.get(`/domains/${d1.id}/discovery`)).state === "done", "на сервере — закончен");
+  ok((await API.get(`/units/${d1.id}/discovery`)).state === "done", "на сервере — закончен");
   ok(lan.owner === null && pageErrors.length === 0, "вкладка «Сеть» не открывалась: события поиска без ошибок на странице" + (pageErrors.length ? ": " + pageErrors.length + " — " + pageErrors[0] : ""));
   // Добавить выбранные
   const pickRows = wizd.devResults.filter((r) => r.status === "ok").slice(0, 2);
@@ -30,7 +30,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const added = await uiRec(pickRows[0].addedId);
   ok(added.ip === pickRows[0].ip && added.hasPassword && /^\d+$/.test(added.identifier), "на сервере: адрес, пароль задан, номер " + added.identifier);
   ok(pickRows[0].identifier === added.identifier, "номер в строке — тот, что выдал сервер");
-  ok((await API.get(`/domains/${d1.id}/discovery`)).candidates.every((c) => !pickRows.some((r) => r.id === c.id)), "добавленные ушли из найденных на сервере");
+  ok((await API.get(`/units/${d1.id}/discovery`)).candidates.every((c) => !pickRows.some((r) => r.id === c.id)), "добавленные ушли из найденных на сервере");
   // Вручную: определить модель и добавить
   const manualPass = "manual-secret-5";
   wizd.manual = { type: "camera", name: "Камера — вручную", identifier: "", short: "", ip: "10.5.5.5", port: "80", vendor: "Axis", model: "", user: "admin", pass: manualPass, record: "none", arch: "", lat: "", lon: "", azimuth: "", group: wizd.folder };
@@ -119,7 +119,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Введённое в «Найденных» и свёрнутый узел переживают перечитывание всего кэша
   let did = null, fr = null;
   for (const k of Object.keys(found)) {
-    const ids = new Set((await API.get(`/domains/${k}/discovery`)).candidates.map((c) => c.id));
+    const ids = new Set((await API.get(`/units/${k}/discovery`)).candidates.map((c) => c.id));
     fr = foundAll(k).find((x) => !x.added && ids.has(x.id));
     if (fr) { did = k; break; }
   }

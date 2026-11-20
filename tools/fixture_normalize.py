@@ -187,7 +187,7 @@ def normalize(raw, captured_at):
     # ===== Оборудование =====
 
     out["domains"] = [
-        {"id": ids("domain", d["id"]), "name": d["name"], "license": d.get("license") or "", "online": d.get("online", True) is not False, "version": 1}
+        {"id": ids("domain", d["id"]), "name": d["name"], "online": d.get("online", True) is not False, "version": 1}
         for d in raw["domains"]
     ]
     allocated = {sid for d in raw["domains"] for sid in d["servers"]}
@@ -711,20 +711,17 @@ def automation(raw, ids, captured):
 
 
 def reference(r, ids=None, ex=None):
-    """Справочники: коды и строение. Подписи к кодам — в интерфейсе."""
+    """Справочники: коды и строение. Подписи к кодам — в интерфейсе. Ключи, снятые в контракте 0.32.0 (справочники VMS:
+    deviceModels, serviceTypes, supportLevels, recordModes, cloudProviders, layouts, monitors; options у полей действий;
+    limits.ipScanMax, defaultServerPort, scenariosMax), не пишутся: их места — описания видов и schema полей действий."""
     ex = ex or {}
     opt = lambda o: o[0] if isinstance(o, list) else o
     return {
-        "deviceModels": [{"vendor": v, "models": m} for v, m in r["DEVICE_MODELS"].items()],
         "deviceKinds": [{"group": g, "view": x["view"], "types": [t[0] for t in x["types"]]} for g, x in r["WIZ"].items()],
         "ipServerSubtypes": list(r["IPSUB"].keys()),
-        "serviceTypes": r["SYS"],
-        "supportLevels": list(r["DEVICE_STATUS_LABELS"].keys()),
         "detectorKinds": list(DETECTOR_KIND.values()),
-        "recordModes": [x[0] for x in r["REC_MODES"]],
         "archiveKinds": [x[0] for x in r["ARCH_KINDS"]],
         "storageTypes": [x[0] for x in r["ARCH_STORAGE"]],
-        "cloudProviders": [{"id": p, "regions": r["CLOUD_REGIONS"].get(p, [])} for p, _ in r["CLOUD_PROVIDERS"]],
         "volumeStates": list(r["VOL_STATES"].keys()),
         "deviceParams": {
             t: [
@@ -744,7 +741,7 @@ def reference(r, ids=None, ex=None):
                 "deviceTypes": a.get("devTypes", []),
                 "fields": [
                     dict({"id": "roleId" if f["id"] == "to" and a["action"] == "layout" else ACTION_FIELD.get(f["id"], f["id"])},
-                         **({"options": [ids("monitor", o) if f["id"] == "mon" else opt(o) for o in f["opts"]]} if f.get("opts") else {}),
+                         **({"schema": {"type": "string", "enum": [ids("monitor", o) if f["id"] == "mon" else opt(o) for o in f["opts"]]}} if f.get("opts") else {}),
                          **({"optional": True} if "необязательно" in f["label"] or f.get("req") is False else {}))
                     for f in a["fields"]
                 ],
@@ -755,8 +752,6 @@ def reference(r, ids=None, ex=None):
         "ruleTargets": {"kinds": ["device", "folder", "server", "domain"], "fromEvent": True},
         "ruleConditions": [{"kind": c["kind"], "deviceTypes": c.get("devTypes", [])} for c in r.get("COND_KINDS", [])],
         "ruleControls": [{"control": CONTROL[c["ctl"]], "branches": [b[0] for b in c.get("br", [])]} for c in r.get("CTL_KINDS", [])],
-        "layouts": [{"id": ids("layout", x), "name": x} for x in ex.get("ruleLayouts", [])],
-        "monitors": [{"id": ids("monitor", x), "name": x} for x in ex.get("ruleMonitors", [])],
         "access": {
             "features": [f[0] for f in r["ACC_FEATURES"]],
             "levels": {k: [x[0] for x in v] for k, v in r["ACC_LV"].items()},
@@ -774,5 +769,5 @@ def reference(r, ids=None, ex=None):
             "expiringSoonDays": r["ACC_SOON"],
             "passwordPolicy": {"minLength": 8, "letter": True, "digit": True, "notLogin": True},
         },
-        "limits": {"ipScanMax": r["IP_SCAN_LIMIT"], "defaultServerPort": 20111, "pageMax": 1000, "idsMax": 200, "selectMax": 500, "watchMax": 200, "scanPartsMax": 8, "scenariosMax": 1000},
+        "limits": {"pageMax": 1000, "idsMax": 200, "selectMax": 500, "watchMax": 200, "scanPartsMax": 8},
     }

@@ -1,4 +1,23 @@
 window.I18N_EN={
+// Разделы приложения объявляет система (capabilities.sections) (из прототипа 79)
+"Система не объявила ни одного раздела.":"The system declares no sections.",
+// Подписи набора agents (оркестратор агентов): разделы, раскладки и виды приходят от системы Text без ключа словаря —
+// textOf переводит их text через i18n
+"Агенты":"Agents","Конвейеры":"Pipelines","По моделям":"By model","По папкам":"By folder",
+"Домен → папки → объекты":"Domain → folders → objects","Рабочее пространство":"Workspace",
+"Конвейер":"Pipeline","Агент":"Agent","Инструмент":"Tool",
+"Шаги":"Steps","Модели":"Models","Инструменты":"Tools","Задание":"Task","Запустить":"Run","Поставщик":"Provider",
+"Окно, токены":"Window, tokens","Область системы":"System area",
+"Агент: закончил":"Agent: finished","Агент: сбой":"Agent: failed","Конвейер: закончил":"Pipeline: finished","Конвейер: сбой":"Pipeline: failed",
+// Строка условия в трассе правила: хук профиля не проверяет условие у объекта (cond.devices, code: notSupported)
+"система не проверяет это условие у этого объекта":"the system does not check this condition for this object",
+// Смена экрана открытой карточки по kinds.changed (из прототипа 78)
+"Описание вида изменилось, поэтому консоль показывает":"The kind description changed, so the console shows",
+"другим экраном.":"on a different screen.",
+"Консоль не перенесла изменения полей":"The console did not move the changes of the fields",
+"потому что на новом экране этих полей нет.":"because the new screen does not have these fields.",
+"Остальные изменения консоль перенесла.":"The console moved the other changes.",
+"Консоль не прочитала запись объекта.":"The console did not read the object record.",
 // Базовая форма у ручного экрана (из прототипа 77)
 "Все параметры":"All parameters",
 "Вернуться к настройке":"Back to settings",
@@ -4263,4 +4282,63 @@ window.I18N_EN={
 // Страница плагина (контракт 0.16.0)
 "Страница плагина":"Plugin page",
 "Сервер прислал адрес, который консоль не открывает":"The server sent an address that the console does not open",
+// Своя страница подсистемы (контракт 0.33.0)
+"Страница подсистемы":"Subsystem page",
+"Консоль загружает страницу подсистемы…":"The console loads the subsystem page…",
+"Страница подсистемы недоступна, поэтому консоль показывает все параметры по схеме вида.":"The subsystem page is not available, so the console shows all parameters from the kind schema.",
+"Страница не ответила за 10 секунд":"The page did not reply in 10 seconds",
+"Сервер не выдал адрес страницы":"The server did not give the page address",
+"Загрузить страницу снова":"Load the page again",
+"Страница подсистемы недоступна, поэтому консоль показывает обычные вкладки объекта.":"The subsystem page is not available, so the console shows the usual tabs of the object.",
+"Страница не ответила за 2 секунды. Консоль применит изменения, которые страница прислала раньше.":"The page did not reply in 2 seconds. The console applies the changes that the page sent before.",
+"Страница нашла ошибку ввода. Чтобы показать план, исправить ошибку на странице.":"The page found an input error. To show the plan, correct the error on the page.",
+"Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».":"The server does not accept fields that are not on the page. To correct them, open “All parameters”.",
+"У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.":"You have only the view right, so the console does not apply changes on the page.",
+"У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу.":"The subsystem page has the same origin as the console, so the console does not open the page.",
+// Проверка правки сервером до плана (форма по схеме, своя страница подсистемы)
+"Сервер не примет правку":"The server does not accept the change",
+// Своя страница подсистемы, шаг 2: мост к механизму (контракт 0.34.0, из прототипа 81)
+// Мост страницы подсистемы (шаг 2): problem.message отказа моста
+"Консоль не выполняет эту операцию для страницы.":"The console does not run this operation for the page.",
+"Параметр не подходит к описанию операции.":"The parameter does not match the operation description.",
+"Страница открыта только для просмотра, поэтому консоль не принимает шаги черновика.":"The page is view-only, so the console does not accept draft steps.",
+"Страница отправила больше вызовов, чем разрешает предел.":"The page sent more calls than the limit allows.",
+"Пользователь отказался в диалоге консоли.":"The user refused in the console dialog.",
+"Нет связи с сервером.":"There is no connection to the server.",
+// Диалог команды с ActionDescriptor.confirm (ключи карточки, в assets/i18n-en.js английского нет)
+"Выполнить команду?":"Run the command?",
+"Чтобы подтвердить, ввести число объектов команды":"To confirm, enter the number of objects for the command",
+// Черновик моста (задача 4): строки плана, диалог удаления, отказ «Применить»
+"Изменить «{имя}»":"Change “{имя}”",
+"Добавить: {вид} «{имя}»":"Add: {вид} “{имя}”",
+"Удалить «{имя}»":"Delete “{имя}”",
+"Перенести «{имя}» в «{родитель}»":"Move “{имя}” to “{родитель}”",
+"Папки «{имя}»":"Folders of “{имя}”",
+"Удалить объекты?":"Delete the objects?",
+"Страница вида «{вид}» просит удалить объекты.":"The page of the “{вид}” kind asks to delete objects.",
+"Страница вида «{вид}» просит удалить объект.":"The page of the “{вид}” kind asks to delete an object.",
+"Консоль удалит и все вложенные объекты.":"The console also deletes all nested objects.",
+"Консоль удалит и все вложенные объекты. Консоль посчитала только первый уровень вложенности, там {n} {объектов}.":"The console also deletes all nested objects. The console counted only the first nesting level. It has {n} {объектов}.",
+"Вложенных объектов нет.":"There are no nested objects.",
+"Останутся другие объекты домена и другие шаги черновика.":"Other objects of the domain and other draft steps stay as they are.",
+"Консоль удалит объект по кнопке «Применить». До этого объект останется на сервере.":"The console deletes the object when you click “Apply”. Until then, the object stays on the server.",
+"Консоль удалит их по кнопке «Применить». До этого объекты останутся на сервере.":"The console deletes them when you click “Apply”. Until then, the objects stay on the server.",
+"Консоль не может отправить эту правку и шаги страницы одной операцией.":"The console cannot send this change and the page steps in one operation.",
+// Мост шага 2 (задача 5): подписка, переход, подтверждение страницы
+"Страница открыла больше подписок, чем разрешает предел.":"The page opened more subscriptions than the limit allows.",
+"В подписках страницы больше объектов, чем разрешает предел.":"The page subscriptions have more objects than the limit allows.",
+"Консоль уже показывает вопрос страницы.":"The console already shows a question from the page.",
+"Объекта нет, или у пользователя нет права его видеть.":"The object does not exist, or the user has no right to see it.",
+"Спрашивает страница вида «{вид}».":"A “{вид}” page asks this question.",
+"Консоль уже показывает другой диалог, поэтому не открывает этот вопрос.":"The console already shows a different dialog, so it does not open this question.",
+"Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.":"The user refused three times in a row, so the console does not show questions from the page for 10 seconds.",
+"Консоль ещё не закончила прошлый переход страницы.":"The console has not finished the previous navigation of the page.",
+"Страница не удаляет и не переносит свой объект.":"The page does not delete or move its own object.",
+// Мост шага 2, итоговая волна: команда вне описания вида, папки своего объекта, виды подписки
+"Страница не меняет папки своего объекта шагом моста.":"The page does not change the folders of its own object with a bridge step.",
+"Подписка по видам принимает только виды объектов, которые знает консоль.":"A subscription by kinds accepts only the object kinds that the console knows.",
+"Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.":"The console does not know this command of the object kind, so it does not know if the command needs a confirmation. The console did not send the command.",
+"Чтобы подтвердить, ввести число":"To confirm, enter the number",
+"Подтвердить":"Confirm",
+"будет добавлен, вложенных объектов: {n}":"will be added, nested objects: {n}",
 };

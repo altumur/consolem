@@ -1,0 +1,407 @@
+{
+ "id": "vms.subdetector/1",
+ "version": "1.0",
+ "label": "Поддетектор",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {
+  "classes": {
+   "schema": {
+    "type": "array",
+    "maxItems": 8,
+    "items": {
+     "type": "string",
+     "enum": [
+      "person",
+      "car",
+      "bike"
+     ]
+    }
+   },
+   "meaning": "Как у детектора. Нет поля — все классы",
+   "since": "1.0"
+  },
+  "confirmFrames": {
+   "schema": {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 20
+   },
+   "meaning": "«Кадров подряд»: С 0.15.0. multi: столько кадров подряд число объектов должно держаться, чтобы поддетектор сработал. Нет поля — 1",
+   "since": "1.0"
+  },
+  "cooldownSec": {
+   "schema": {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 10000
+   },
+   "meaning": "«Пауза между событиями»: С 0.15.0. multi: не чаще одного события за столько секунд. Нет поля — 1",
+   "since": "1.0"
+  },
+  "direction": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "ab",
+     "ba",
+     "both"
+    ]
+   },
+   "meaning": "Для `line` и `stripe`, нет поля — `both`. С 0.15.0 и для `a2a`: `ab` — из `zone` в `zoneTo`, `ba` — обратно, `both` — в обе стороны; нет поля — `ab`",
+   "since": "1.0"
+  },
+  "enabled": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Нет поля — включён",
+   "since": "1.0"
+  },
+  "extraZones": {
+   "schema": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+     "type": "object",
+     "properties": {
+      "type": {
+       "type": "string",
+       "enum": [
+        "in",
+        "ex"
+       ]
+      },
+      "points": {
+       "type": "array",
+       "minItems": 3,
+       "maxItems": 64,
+       "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+         "type": "number",
+         "minimum": 0,
+         "maximum": 1
+        }
+       }
+      },
+      "name": {
+       "type": "string",
+       "maxLength": 64
+      },
+      "description": {
+       "type": "string",
+       "maxLength": 256
+      },
+      "frontEdge": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 63
+      },
+      "crossing": {
+       "type": "string",
+       "enum": [
+        "in",
+        "out",
+        "both"
+       ]
+      }
+     },
+     "required": [
+      "type",
+      "points"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "meaning": "С 0.15.0. `in` — ещё области (несколько областей подсчёта у `multi`), `ex` — свои исключения вдобавок к исключениям детектора",
+   "since": "1.0"
+  },
+  "group": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+     },
+     "waitSec": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400
+     }
+    },
+    "required": [
+     "count"
+    ],
+    "additionalProperties": false
+   },
+   "meaning": "Нет поля — без группы",
+   "since": "1.0"
+  },
+  "lostObjectType": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "left",
+     "taken",
+     "any"
+    ]
+   },
+   "meaning": "С 0.15.0. `abandoned`: оставленный, унесённый или любой предмет. Нет поля — `left`",
+   "since": "1.0"
+  },
+  "maxObjects": {
+   "schema": {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 100
+   },
+   "meaning": "«Объектов не больше»: С 0.15.0. multi: конец диапазона числа объектов. Меньше minObjects — 422 VALIDATION_FAILED, field: /properties/minObjects, params.reason: minAboveMax. Нет поля — без верхней границы, как раньше",
+   "since": "1.0"
+  },
+  "minObjects": {
+   "schema": {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 100
+   },
+   "meaning": "`multi`",
+   "since": "1.0"
+  },
+  "objectSize": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "min": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+       "type": "number",
+       "minimum": 0,
+       "maximum": 1
+      }
+     },
+     "max": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+       "type": "number",
+       "minimum": 0,
+       "maximum": 1
+      }
+     }
+    },
+    "additionalProperties": false
+   },
+   "meaning": "С 0.15.0. Свой размер объекта; `min` выше `max` — `reason: \"minAboveMax\"`. Нет поля — размер детектора",
+   "since": "1.0"
+  },
+  "offset": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "x": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 40
+     },
+     "y": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 40
+     }
+    },
+    "additionalProperties": false
+   },
+   "meaning": "Смещение, % рамки объекта",
+   "since": "1.0"
+  },
+  "rangeMode": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "in",
+     "out"
+    ]
+   },
+   "meaning": "«Тревога, когда число»: С 0.15.0. multi: поддетектор срабатывает, когда число объектов в диапазоне minObjects–maxObjects или вне его. Нет поля — in, как раньше",
+   "since": "1.0"
+  },
+  "showLine": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "С 0.15.0. `line`, `stripe`: клиент рисует линию. Нет поля — `true`",
+   "since": "1.0"
+  },
+  "speed": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "min": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+     },
+     "max": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+     }
+    },
+    "additionalProperties": false
+   },
+   "meaning": "`move`. Единица условная, с Axxon One не сверялась",
+   "since": "1.0"
+  },
+  "subdetectorKind": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "line",
+     "enter",
+     "exit",
+     "dwell",
+     "stop",
+     "move",
+     "multi",
+     "a2a",
+     "abandoned",
+     "mask",
+     "stripe"
+    ],
+    "x-immutable": true
+   },
+   "meaning": "Вид поддетектора (не меняется после создания). Незнакомое значение клиент показывает кодом, только чтение",
+   "since": "1.0"
+  },
+  "timeMode": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "gt",
+     "lt",
+     "eq"
+    ]
+   },
+   "meaning": "`dwell`, `stop`, `abandoned`. Нет поля — `gt`",
+   "since": "1.0"
+  },
+  "timeSec": {
+   "schema": {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 172800
+   },
+   "meaning": "Время в области. `stop`, `abandoned` — не меньше 1",
+   "since": "1.0"
+  },
+  "width": {
+   "schema": {
+    "type": "number",
+    "minimum": 0,
+    "maximum": 100
+   },
+   "meaning": "С 0.15.0. `stripe`: ширина полосы вокруг линии. Нет поля — 5",
+   "since": "1.0"
+  },
+  "zone": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "shape": {
+      "type": "string",
+      "enum": [
+       "rect",
+       "polygon",
+       "line",
+       "polyline"
+      ]
+     },
+     "points": {
+      "type": "array",
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       }
+      }
+     },
+     "name": {
+      "type": "string",
+      "maxLength": 64
+     },
+     "description": {
+      "type": "string",
+      "maxLength": 256
+     },
+     "frontEdge": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 63
+     },
+     "crossing": {
+      "type": "string",
+      "enum": [
+       "in",
+       "out",
+       "both"
+      ]
+     }
+    },
+    "required": [
+     "shape",
+     "points"
+    ],
+    "additionalProperties": false
+   },
+   "meaning": "Обязательна. `line` и `stripe` — `shape: line` или (с 0.15.0) `polyline`; остальные виды — `rect` или `polygon`. Свойства зоны 0.15.0 — как у детектора",
+   "since": "1.0"
+  },
+  "zoneTo": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "points": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 64,
+      "items": {
+       "type": "array",
+       "minItems": 2,
+       "maxItems": 2,
+       "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       }
+      }
+     }
+    },
+    "required": [
+     "points"
+    ],
+    "additionalProperties": false
+   },
+   "meaning": "Только `a2a`: вторая область (многоугольник)",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

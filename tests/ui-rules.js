@@ -1,12 +1,71 @@
 /* Сценарии интерфейса: «Автоматизация» через API — правка правила и «Отменить», новое правило, состояние и
    приглушение группой, порядок, удаление с отсчётом, «Запустить», пробный запуск, история версий, режим
    вручную, расписание, группа особых дней, режим. Запуск — tools/check_ui.py. */
-UiCheck(async ({ ok, until, confirmWith }) => {
+UiCheck(async ({ ok, until, confirmWith, absent }) => {
   const R1 = "70000001-0000-4000-8000-000000000000";   // «Охрана входа ночью»
   const R2 = "70000002-0000-4000-8000-000000000000";   // «Сирена по двери»
   const r = (id) => rules.find((x) => x.id === id);
   const undo = (prefix) => [...document.querySelectorAll(".ttu")].reverse().find((e) => e.id.startsWith("ttu-" + prefix))?.querySelector(".ttu-act");
   goApp("rules");
+
+  // Справочники VMS и каталог правил — только из новых мест (ключи reference сняты в контракте 0.32.0): производители и модели,
+  // режимы записи, метки серверов, несовместимые детекторы — из описаний видов; раскладки и мониторы — из schema полей действий;
+  // виды событий сценариев — из ScenarioDoc.kinds; справочник выгрузки — GET /exports/reference. Старый бэкенд, который ещё
+  // отдаёт снятые ключи, списков не меняет. Страница со старым autoRef(ref) — проверять нечего
+  if (typeof autoRef !== "function" || autoRef.length < 2) absent("справочников из описаний видов (autoRef(ref, kinds))");
+  else {
+    const snap = () => JSON.stringify({ models: DEVICE_MODELS, rec: refRecModes, labels: refLabels, clash: DET_AK_CLASH, lay: RULE_LAYOUTS, mons: RULE_MONS, layId: [...REF_LAYOUT], monId: [...REF_MONITOR] });
+    autoRef(REF_LAST, KINDS);
+    const full = snap(), nModels = Object.keys(DEVICE_MODELS).length, rec = refRecModes.join(), lays = RULE_LAYOUTS.join(), mons = RULE_MONS.join();
+    const oldScen = { did: SCEN.did, doc: SCEN.doc }, oldExp = EXP_REF;
+    try {
+      ok(nModels > 0 && rec && lays && mons, `списки из видов и полей действий: производителей ${nModels}, режимов записи ${rec}, раскладок ${lays}, мониторов ${mons}`);
+      // Справочник со снятыми ключами (старый бэкенд): страница их не читает
+      refScenKinds = null;
+      const stale = Object.assign(JSON.parse(JSON.stringify(REF_LAST)), { deviceModels: [{ vendor: "Снятый", models: ["X"] }], recordModes: ["снятый"],
+        serverLabels: ["снятая"], analyticsConflicts: [{ analyticsKind: "снятый", conflicts: ["другой"] }], scenarioKinds: ["снятый"],
+        layouts: [{ id: "l-old", name: "Снятая" }], monitors: [{ id: "m-old", name: "Снятый" }], export: { formats: [] } });
+      autoRef(stale, KINDS);
+      ok(snap() === full, "снятые ключи reference списков не меняют (модели, режимы записи, метки, несовместимые детекторы, раскладки, мониторы)");
+      ok(!refScenKinds || !refScenKinds.length, "виды событий сценариев не из reference.scenarioKinds — до чтения документа сценариев их нет");
+      ok(refFieldOpts({ id: "attach", options: ["none", "snapshot"] }).length === 0, "поле действия без schema: снятое options не читается");
+      await scenLoad(domains[0].id);
+      ok((refScenKinds || []).length > 0 && (refScenKinds || []).join() === (SCEN.doc?.kinds || []).join(), "виды событий сценариев — ScenarioDoc.kinds: " + (refScenKinds || []).join());
+      // Новое чтение /kinds перечитывает списки (kindsApply → autoRefLists): виды из документа сценариев остаются
+      const scenKinds = (refScenKinds || []).join();
+      autoRef(REF_LAST, KINDS);
+      ok(scenKinds && (refScenKinds || []).join() === scenKinds, "виды событий сценариев из документа переживают перечитывание справочника: " + (refScenKinds || []).join());
+      EXP_REF = await expRefLoad();
+      const own = await API.get("/exports/reference");
+      ok(JSON.stringify(EXP_REF) === JSON.stringify(own) && (EXP_REF?.formats || []).length > 0, "справочник выгрузки — GET /exports/reference, не reference.export: форматов " + (EXP_REF?.formats || []).length);
+      // Область цели «сервер» — ветка раскладки areaLayouts.server под этим сервером, а не сервер архива камеры
+      const lay = RULE_REF.targets?.areaLayouts?.server;
+      ok(lay === "servers", "область сервера — раскладка из ruleTargets.areaLayouts: " + lay);
+      const branch = async (id) => {
+        const out = [], queue = [id];
+        while (queue.length) {
+          const at = queue.shift();
+          let cursor = null;
+          do {
+            const r = await API.get("/tree/children", { layout: lay, parentId: at, limit: 1000, cursor });
+            r.items.forEach((n) => { if (!n.group && n.kind === "camera") out.push(n.id); if (n.hasChildren) queue.push(n.id); });
+            cursor = r.nextCursor || null;
+          } while (cursor);
+        }
+        return out.sort();
+      };
+      const diff = [];
+      for (const s of servers) {
+        const want = (await branch(s.id)).join(), got = ruleTokNodes("server:" + s.id, ["camera"]).map((n) => n.id).sort().join();
+        if (want !== got) diff.push(`${locName(s)}: ветка ${want.split(",").filter(Boolean).length}, форма ${got.split(",").filter(Boolean).length}`);
+      }
+      ok(servers.length > 0 && !diff.length, "камеры области сервера в форме — те же, что ветка раскладки servers: " + (diff.join("; ") || "серверов проверено: " + servers.length));
+    } finally {
+      autoRef(REF_LAST, KINDS);
+      EXP_REF = oldExp; SCEN.did = oldScen.did; SCEN.doc = oldScen.doc;
+    }
+    ok(snap() === full, "справочник вернулся");
+  }
 
   // Каталог — из справочника: незнакомый вид не подменяется, необъявленное не предлагается, в правиле — видно
   const strayT = triggerKind({ sub: "acs", kind: "pass" }), strayA = actionKind({ sub: "vms", action: "bell", ref: "x" });

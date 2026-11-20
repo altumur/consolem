@@ -1,0 +1,20 @@
+// Английский прототипа 80 (docs/TEXTS.md, «Как менять текст безопасно»): подключён после assets/i18n-en.js
+Object.assign(window.I18N_EN,{
+"Страница подсистемы":"Subsystem page",
+"Консоль загружает страницу подсистемы…":"The console loads the subsystem page…",
+"Страница подсистемы недоступна, поэтому консоль показывает все параметры по схеме вида.":"The subsystem page is not available, so the console shows all parameters from the kind schema.",
+"Страница не ответила за 10 секунд":"The page did not reply in 10 seconds",
+"Сервер не выдал адрес страницы":"The server did not give the page address",
+"Загрузить страницу снова":"Load the page again",
+"Страница подсистемы недоступна, поэтому консоль показывает обычные вкладки объекта.":"The subsystem page is not available, so the console shows the usual tabs of the object.",
+"Страница не ответила за 2 секунды. Консоль применит изменения, которые страница прислала раньше.":"The page did not reply in 2 seconds. The console applies the changes that the page sent before.",
+"Страница нашла ошибку ввода. Чтобы показать план, исправить ошибку на странице.":"The page found an input error. To show the plan, correct the error on the page.",
+"Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».":"The server does not accept fields that are not on the page. To correct them, open “All parameters”.",
+"У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.":"You have only the view right, so the console does not apply changes on the page.",
+"Свой":"Own",
+"Какой экран показать":"Screen to show",
+"Свой экран показывает полей вида: {n} из {m}.":"The own screen shows fields of the kind: {n} of {m}.",
+"Нет на своём экране":"Not on the own screen",
+"Свой экран называет поля, которых нет в схеме вида. Это ошибка описания вида.":"The own screen names fields that are not in the kind schema. This is an error in the kind description.",
+"Страница не сообщила свои поля.":"The page did not report its fields.",
+});

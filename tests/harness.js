@@ -29,6 +29,8 @@
   let CAPS = null;
   // Виды и профили системы — из GET /kinds (если система его объявила): для needs "kind:<вид>", "implements:<профиль>"
   let KINDS = null;
+  // Справочник системы — GET /reference: для needs "ruleAction:<source>.<action>"
+  let REF = null;
 
   let api = null;
   async function connect() {
@@ -61,6 +63,22 @@
   }
 
   class Failure extends Error {}
+  // Тест вызвал операцию, которой нет в capabilities.operations, и не назвал её в needs. Служебные вызовы harness
+  // (поток watch, /test/…, /reference, /kinds) идут через raw мимо защиты: ловится только то, что делает тест
+  class Undeclared extends Error {
+    constructor(op) {
+      super(op);
+      this.op = op;
+    }
+  }
+  function guard(method, path) {
+    const op = CAPS && ConsolemTestLayers.undeclaredOperation(spec, CAPS, method, path);
+    if (op) throw new Undeclared(op);
+  }
+  async function guarded(method, path, body, headers) {
+    guard(method, path);
+    return raw(method, path, body, headers);
+  }
   const fmt = (v) => JSON.stringify(v);
   const assert = {
     ok(cond, msg) {
@@ -93,15 +111,16 @@
     const env = {
       frozen,
       now: Date.parse(reset.body.now),
-      call: (method, path, body, headers) => raw(method, path, body, headers),
+      call: (method, path, body, headers) => guarded(method, path, body, headers),
       async ok(method, path, body, headers) {
-        const res = await raw(method, path, body, headers);
+        const res = await guarded(method, path, body, headers);
         if (res.status >= 400) throw new Failure(`${method} ${path} → ${res.status} ${res.body && res.body.code} ${res.body && res.body.message}`);
         return res.body;
       },
       // Поток ответа на POST: сообщения по порядку; каждое сверяется со схемой
       async stream(path, body) {
         const got = [];
+        guard("POST", path);
         await api.stream(path, body, (m) => {
           got.push(m);
           recorded.push({ method: "POST", template: path, status: 200, body: m, kind: "sse" });
@@ -136,7 +155,7 @@
       },
       // Версия записи для If-Match — из ETag свежего чтения, как у клиента, который только что её открыл
       async etag(path) {
-        const res = await raw("GET", path);
+        const res = await guarded("GET", path);
         if (res.status !== 200) throw new Failure(`GET ${path} → ${res.status}`);
         if (!res.headers.etag) throw new Failure(`GET ${path}: нет заголовка ETag`);
         return res.headers.etag;
@@ -145,7 +164,7 @@
       // остановленных часах: тест, который его вызывает, объявляет needs: ["clock"] или проверяет env.frozen
       async advance(sec) {
         if (!frozen) throw new Failure("часы идут по-настоящему: /test/clock не вызывается — тесту нужно needs: [\"clock\"]");
-        const res = await raw("POST", "/test/clock", { advanceSec: sec });
+        const res = await guarded("POST", "/test/clock", { advanceSec: sec });
         if (res.status !== 200) throw new Failure(`POST /test/clock → ${res.status}`);
         env.now = Date.parse(res.body.now);
         return res.body.fired;
@@ -176,7 +195,7 @@
         }, `операция ${id} завершилась`, maxSec),
       // Операция до конца: запустить и дождаться
       async runOperation(body) {
-        const res = await raw("POST", "/operations", body);
+        const res = await guarded("POST", "/operations", body);
         assert.status(res, 202, null, "POST /operations");
         return env.finished(res.body.id, 100);
       },
@@ -188,12 +207,50 @@
   const key = () => `test-${Date.now().toString(36)}-${++keySeq}`;
 
   // needs — что тесту нужно от системы: operationId, "type:<вид устройства>", "feature:<возможность>",
-  // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы. Чего нет — тест
-  // пропускается (SKIP) и не считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units)
-  function test(name, fn, opts) {
-    const src = document.currentScript ? (document.currentScript.getAttribute("src") || "").split("/").pop().replace(/\.js$/, "") : "";
-    tests.push({ name, fn, needs: (opts && opts.needs) || [], file: src });
+  // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы,
+  // "layout:<id>" — система объявила раскладку дерева (GET /kinds → layouts),
+  // "section:<id>" — система объявила раздел приложения (GET /reference → capabilities.sections; поля нет — раздела нет),
+  // "ruleAction:<source>.<action>" — действие правила есть в каталоге системы (GET /reference → ruleActions),
+  // "profile:<id>[@M.m]" — профиль объявлен (и его версия не младше M.m). Чего нет — тест пропускается (SKIP) и не
+  // считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units).
+  // layer — чью договорённость проверяет тест: "mechanism", "video" или "profile:<id>"; без него — слой файла (fileLayer).
+  // Слой профиля добавляет в needs условие profile:<id> (с @since, если задан since)
+  const scriptFile = () => (document.currentScript ? (document.currentScript.getAttribute("src") || "").split("/").pop().replace(/\.js$/, "") : "");
+  const fileLayers = {};
+  // Слой по умолчанию для тестов файла; один вызов на файл, до первого test()
+  function fileLayer(layer) {
+    const file = scriptFile();
+    if (Object.prototype.hasOwnProperty.call(fileLayers, file)) throw new Error("fileLayer: слой файла уже задан");
+    fileLayers[file] = layer;
   }
+  function test(name, fn, opts) {
+    const file = scriptFile();
+    const layer = (opts && opts.layer) || fileLayers[file] || null;
+    const since = (opts && opts.since) || null;
+    const needs = ((opts && opts.needs) || []).slice();
+    const parsed = layer && ConsolemTestLayers.parseLayer(layer);
+    if (parsed && parsed.type === "profile") {
+      const cond = since ? `${layer}@${since}` : layer;
+      if (!needs.includes(cond)) needs.push(cond);
+    }
+    tests.push({ name, fn, needs, file, layer, since });
+  }
+  // test с таблицей префиксов [[начало имени, слой]…]: слой теста — по началу имени; остальные — слой файла.
+  // Явный opts.layer сильнее префикса; если оба есть и различаются — ошибка при загрузке файла (имя теста в тексте)
+  function prefixLayers(table) {
+    return (name, fn, opts) => {
+      const hit = table.find(([prefix]) => name.startsWith(prefix));
+      if (hit && opts && opts.layer && opts.layer !== hit[1]) throw new Error(`prefixLayers: у теста «${name}» слой ${opts.layer} расходится со слоем ${hit[1]} по префиксу «${hit[0]}»`);
+      test(name, fn, hit && !(opts && opts.layer) ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+    };
+  }
+  // Реестр тестов без запуска: needs — уже с условием profile:; files — слой каждого файла (null — не задан)
+  const registry = () => ({
+    files: Object.assign({}, fileLayers),
+    tests: tests.map(({ name, file, layer, since, needs }) => ({ name, file, layer, since, needs: needs.slice() })),
+  });
+  // Профили системы (GET /kinds) — строятся после чтения видов
+  let DECLARED = new Map();
   // Вид, с которым тест может работать: система его объявила (GET /kinds), и объект этого вида можно завести (create) или он
   // есть в наборе. Вид, объявленный только ради каталога правил (профиль «один домен»: события датчика, источника, единиц
   // СКУД и выход реле, а объектов нет и завести их нельзя), тестам объектов не годится
@@ -229,7 +286,21 @@
         const x = KINDS && KINDS.items.find((i) => i.kind === k);
         return !x || !usableKind(k) || !(((x.schema || {}).properties || {})[f]);
       }
+      if (n.startsWith("profile:")) return !!ConsolemTestLayers.profileLack(n, DECLARED);
       if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
+      // layout:<id> — раскладку дерева объявила система (GET /kinds → layouts): тесты раскладок VMS на системе без них — SKIP
+      if (n.startsWith("layout:")) return !KINDS || !(KINDS.layouts || []).some((l) => l.id === n.slice(7));
+      // ruleAction:<source>.<action> — действие правила есть в каталоге системы (GET /reference → ruleActions): раскладки клиента
+      // client.layout на системе без них — SKIP
+      if (n.startsWith("ruleAction:")) {
+        const [src, act] = n.slice(11).split(".");
+        return !REF || !(REF.ruleActions || []).some((a) => a.source === src && a.action === act);
+      }
+      // section:<id> — раздел приложения объявила система (capabilities.sections): без объявления тест пропускается
+      if (n.startsWith("section:")) return !((CAPS.sections || []).some((x) => x.id === n.slice(8)));
+      // Служебные операции стенда (testEvent, testStreamElsewhere) в capabilities не входят: у стенда они есть всегда, а в needs
+      // их называют ради покрытия — тест, который не шёл (нет вида), освобождает и их
+      if (allOps().some((o) => o.test && o.id === n)) return false;
       return !CAPS.operations.includes(n);
     });
   }
@@ -238,13 +309,17 @@
   // Операции контракта, которые тесты не обязаны вызывать (пусто — покрыто всё)
   const NOT_COVERED = [];
 
-  function finish(lines, summary, failed) {
+  // layerLines — строки LAYER (итог по слоям): в #apitest-layers, в консоль и в тело ?report= перед итогом
+  function finish(lines, layerLines, summary, failed) {
     const reportTo = params.get("report");
-    if (reportTo) fetch(reportTo, { method: "POST", body: lines.concat(summary, `RESULT ${failed ? "fail" : "pass"}`).join("\n") }).catch(() => {});
+    if (reportTo) fetch(reportTo, { method: "POST", body: lines.concat(layerLines, summary, `RESULT ${failed ? "fail" : "pass"}`).join("\n") }).catch(() => {});
     document.documentElement.dataset.apitest = failed ? "fail" : "pass";
     lines.forEach((l) => console.log(`APITEST ${l}`));
+    layerLines.forEach((l) => console.log(`APITEST ${l}`));
     console.log(`APITEST ${summary}`);
     document.getElementById("apitest-summary").textContent = summary;
+    const box = document.getElementById("apitest-layers");
+    if (box) box.textContent = layerLines.join("\n");
     document.getElementById("apitest-log").textContent = lines.join("\n");
   }
 
@@ -256,13 +331,13 @@
     let failed = 0;
     if (!FX) {
       lines.push(`FAIL  Набор ${fixtureName} есть — в api/fixture.js только: ${Object.keys(window.CONSOLEM_FIXTURES || {}).join(", ")}`);
-      return finish(lines, "Тесты API не запущены: нет набора", true);
+      return finish(lines, [], "Тесты API не запущены: нет набора", true);
     }
     try {
       api = await connect();
     } catch (err) {
       lines.push(`FAIL  Тестовый стенд доступен — ${err.message}`);
-      return finish(lines, "Тесты API не запущены: стенд недоступен", true);
+      return finish(lines, [], "Тесты API не запущены: стенд недоступен", true);
     }
     // Поток стенда наблюдает весь набор: сверка схем должна видеть и события устройств
     api.subscribe((message) => {
@@ -276,18 +351,20 @@
           ? "сервер не ответил: нет сети, неверный адрес или бэкенд не разрешает запросы со страницы (CORS)"
           : `POST /test/reset → ${probe.status}${probe.body && probe.body.message ? ` (${probe.body.message})` : ""}: на сервере нет служебных операций тестового стенда, набора ${fixtureName}${frozen ? " или остановки часов (?clock=real)" : ""}`;
       lines.push(`FAIL  Тестовый стенд доступен — ${why}`);
-      return finish(lines, "Тесты API не запущены: стенд недоступен", true);
+      return finish(lines, [], "Тесты API не запущены: стенд недоступен", true);
     }
     const ref = await api.raw("GET", "/reference");
     CAPS = ref.status === 200 && ref.body && ref.body.capabilities;
+    REF = ref.status === 200 ? ref.body : null;
     if (!CAPS) {
       lines.push(`FAIL  Система объявляет возможности — GET /reference → ${ref.status}, нет capabilities`);
-      return finish(lines, "Тесты API не запущены: неизвестно, что умеет система", true);
+      return finish(lines, [], "Тесты API не запущены: неизвестно, что умеет система", true);
     }
     if (CAPS.operations.includes("listKinds")) {
       const kinds = await api.raw("GET", "/kinds");
       KINDS = kinds.status === 200 ? kinds.body : null;
     }
+    DECLARED = ConsolemTestLayers.declaredProfiles(KINDS, usableKind);
     const undeclared = allOps().filter((op) => !op.test && !CAPS.operations.includes(op.id));
     lines.push(`INFO  Возможности: операций ${CAPS.operations.length}, видов ${KINDS ? KINDS.items.length : 0}, необязательных ${CAPS.features.length}${undeclared.length ? `; не поддержаны: ${undeclared.map((o) => o.id).join(", ")}` : ""}`);
     // Файлы тестов загрузились целиком: каждый в конце объявляет себя (loaded)
@@ -297,27 +374,84 @@
       failed += 1;
       lines.push(`FAIL  Файлы тестов загрузились — ${broken.join("; ")}`);
     } else lines.push(`PASS  Файлы тестов загрузились — ${files.length}`);
+    let cross = 1; // сквозные проверки, у которых есть строка в отчёте: число идёт в итог
     const only = params.get("only");
+    const layerParam = params.get("layer");
+    const wanted = layerParam ? layerParam.split(",").map((x) => x.trim()).filter(Boolean) : [];
+    const unlayered = tests.filter((t) => !t.layer || !ConsolemTestLayers.parseLayer(t.layer)).map((t) => t.name);
+    if (unlayered.length) {
+      failed += 1;
+      lines.push(`FAIL  У каждого теста есть слой — без слоя: ${unlayered.join("; ")}`);
+    } else lines.push(`PASS  У каждого теста есть слой — ${tests.length} тестов`);
+    cross += 1;
+    // Отбор слоёв: неизвестный слой или слой без тестов — отказ до прогона
+    const bad = wanted.find((x) => !ConsolemTestLayers.parseLayer(x));
+    const empty = bad === undefined ? wanted.find((x) => !tests.some((t) => t.layer === x)) : undefined;
+    if (bad !== undefined || empty !== undefined) {
+      lines.push(bad !== undefined ? `FAIL  Отбор слоёв — неизвестный слой «${bad}»` : `FAIL  Отбор слоёв — нет тестов слоя ${empty}`);
+      return finish(lines, [], `Тесты API не запущены: ${bad !== undefined ? "неизвестный слой" : "слой без тестов"}`, true);
+    }
+    // Тесты вне отбора не идут и строк не дают; ?only= и ?layer= действуют вместе
+    const selected = tests.filter((t) => (!only || t.name === only || t.file === only) && (!wanted.length || wanted.includes(t.layer)));
+    const stats = new Map();
+    const stat = (t) => {
+      if (!stats.has(t.layer)) stats.set(t.layer, { pass: 0, fail: 0, skip: 0 });
+      return stats.get(t.layer);
+    };
+    const mark = (t) => `[${ConsolemTestLayers.layerTitle(t.layer)}] `;
     let skipped = 0;
-    // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида), — покрытие их не требует
+    // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида, профиля или возможности), — покрытие их не требует
     const waived = new Set();
-    for (const t of tests) {
-      if (only && t.name !== only && t.file !== only) continue;
+    for (const t of selected) {
       const missing = lacks(t.needs);
       if (missing.length) {
         skipped += 1;
-        if (missing.some((n) => /^(kind|implements|under|cap):/.test(n))) t.needs.forEach((n) => waived.add(n));
-        lines.push(`SKIP  ${t.name} — система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`);
+        stat(t).skip += 1;
+        if (missing.some((n) => /^(kind|implements|under|cap|profile|feature):/.test(n))) t.needs.forEach((n) => waived.add(n));
+        // Не хватило условия profile: — причина из profileLack, иначе прежнее «система не умеет»
+        const lack = missing.find((n) => n.startsWith("profile:"));
+        lines.push(`SKIP  ${mark(t)}${t.name} — ${lack ? ConsolemTestLayers.profileLack(lack, DECLARED) : `система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`}`);
         continue;
       }
       try {
         const note = await t.fn();
-        lines.push(`PASS  ${t.name}${note ? ` — ${note}` : ""}`);
+        stat(t).pass += 1;
+        lines.push(`PASS  ${mark(t)}${t.name}${note ? ` — ${note}` : ""}`);
       } catch (err) {
+        if (err instanceof Undeclared) {
+          if (!apiBase || apiBase === "loopback") {
+            // Встроенный сервер объявляет всё, что умеет: необъявленный вызов — ошибка теста
+            failed += 1;
+            stat(t).fail += 1;
+            lines.push(`FAIL  ${mark(t)}${t.name} — тест вызвал операцию ${err.op}, которую система не объявила; назвать её в needs`);
+          } else {
+            // Стенд бэкенда умеет не всё: тест пропускается, как при нехватке needs
+            skipped += 1;
+            stat(t).skip += 1;
+            t.needs.forEach((n) => waived.add(n));
+            lines.push(`SKIP  ${mark(t)}${t.name} — система не объявила операцию ${err.op}; тест не назвал её в needs`);
+          }
+          continue;
+        }
         failed += 1;
-        lines.push(`FAIL  ${t.name} — ${err instanceof Failure ? err.message : err && err.stack ? err.stack.split("\n").slice(0, 2).join(" ") : JSON.stringify(err)}`);
+        stat(t).fail += 1;
+        lines.push(`FAIL  ${mark(t)}${t.name} — ${err instanceof Failure ? err.message : err && err.stack ? err.stack.split("\n").slice(0, 2).join(" ") : JSON.stringify(err)}`);
       }
     }
+    // Итог по слоям: механизм, профили по id, API видео; слой — если в прогоне был хоть один его тест
+    const layerLines = [];
+    const order = (l) => (l === "mechanism" ? "0" : l === "video" ? "2" : `1${l}`);
+    [...stats.keys()].sort((a, b) => (order(a) < order(b) ? -1 : 1)).forEach((l) => {
+      const st = stats.get(l);
+      const parsed = ConsolemTestLayers.parseLayer(l);
+      const title = ConsolemTestLayers.layerTitle(l);
+      if (parsed.type === "profile" && !DECLARED.has(parsed.profile)) {
+        layerLines.push(`LAYER ${title} — не объявлен, пропущено ${st.skip}`);
+        return;
+      }
+      const version = parsed.type === "profile" && DECLARED.get(parsed.profile).version;
+      layerLines.push(`LAYER ${title}${version ? ` ${version}` : ""} — прошли ${st.pass}, не прошли ${st.fail}, пропущено ${st.skip}`);
+    });
     // Поток: последние сообщения могли ещё не дойти
     await new Promise((resolve) => setTimeout(resolve, 50));
     const problems = ConsolemContract.problems(spec, recorded);
@@ -325,7 +459,8 @@
       failed += 1;
       lines.push(`FAIL  Ответы соответствуют openapi.json — расхождений ${problems.length}: ${problems.slice(0, 12).join("; ")}`);
     } else lines.push(`PASS  Ответы соответствуют openapi.json — ${recorded.length} ответов и сообщений потока`);
-    if (only) return finish(lines, failed ? `Тесты API: ${failed} не прошли` : "Тесты API: прошли", failed);
+    cross += 1;
+    if (only) return finish(lines, layerLines, failed ? `Тесты API: ${failed} не прошли` : "Тесты API: прошли", failed);
     // Необъявленные операции — 404 NO_ROUTE до разбора тела и адреса: клиент так узнаёт «не поддержано»
     const wrongRoute = [];
     for (const op of undeclared) {
@@ -336,6 +471,13 @@
       failed += 1;
       lines.push(`FAIL  Неподдержанные операции отвечают 404 NO_ROUTE — ${wrongRoute.join("; ")}`);
     } else lines.push(`PASS  Неподдержанные операции отвечают 404 NO_ROUTE — ${undeclared.length ? undeclared.length : "система объявила все операции"}`);
+    cross += 1;
+    if (wanted.length) {
+      lines.push("INFO  Покрытие операций проверяется только при полном прогоне");
+      const total = selected.length - skipped + cross;
+      const skip = skipped ? `, пропущено ${skipped} — система этого не умеет` : "";
+      return finish(lines, layerLines, failed ? `Тесты API: ${failed} из ${total} не прошли${skip}` : `Тесты API: все ${total} прошли${skip}`, failed);
+    }
     // Покрытие — по объявленным операциям; служебные стенда — те, что нужны в этом режиме часов
     const called = new Set(recorded.map((r) => `${r.method} ${r.template}`));
     const ops = allOps().filter((op) => (op.test ? op.id !== "testClock" || frozen : CAPS.operations.includes(op.id))).map((op) => `${op.method} ${op.path}`);
@@ -344,10 +486,15 @@
     if (uncovered.length) {
       failed += 1;
       lines.push(`FAIL  Каждая объявленная операция покрыта тестами — без тестов: ${uncovered.join(", ")}`);
-    } else lines.push(`PASS  Каждая объявленная операция покрыта тестами — ${ops.length - NOT_COVERED.length} операций${NOT_COVERED.length ? `, исключения: ${NOT_COVERED.join(", ")}` : ""}`);
-    const total = tests.length - skipped + 4;
+    } else {
+      // Операции, которых не вызвал ни один прошедший тест: их освободили пропущенные тесты (нет вида, профиля, возможности)
+      const waivedOnly = ops.filter((op) => !called.has(op) && !NOT_COVERED.includes(op));
+      lines.push(`PASS  Каждая объявленная операция покрыта тестами — ${ops.length - NOT_COVERED.length} операций${NOT_COVERED.length ? `, исключения: ${NOT_COVERED.join(", ")}` : ""}; только по освобождению пропущенным тестом: ${waivedOnly.length}${waivedOnly.length ? ` (${waivedOnly.join(", ")})` : ""}`);
+    }
+    cross += 1;
+    const total = selected.length - skipped + cross;
     const skip = skipped ? `, пропущено ${skipped} — система этого не умеет` : "";
-    finish(lines, failed ? `Тесты API: ${failed} из ${total} не прошли${skip}` : `Тесты API: все ${total} прошли${skip}`, failed);
+    finish(lines, layerLines, failed ? `Тесты API: ${failed} из ${total} не прошли${skip}` : `Тесты API: все ${total} прошли${skip}`, failed);
   }
 
   // Операции контракта: метод, путь, operationId, служебная ли (test-support)
@@ -364,10 +511,13 @@
   // Поток для теста. watch — какие устройства наблюдать: их события приходят только наблюдающим
   const subscribeForTest = (fn, watch) =>
     api.subscribe((m) => {
+      // PUT watch идёт через api.raw, мимо защиты, намеренно: так же ходит поток самого harness
       if (m.type === "stream.hello" && watch) api.raw("PUT", `/stream/${m.clientId}/watch`, { ids: watch });
       fn(m);
     });
   const settle = () => new Promise((r) => setTimeout(r, apiBase ? 400 : 20));
+  // Профили механизма: область системы и папка (с 0.28.0; vms.domain/1, vms.folder/1 сняты в 0.32.0)
+  const AREA = "core.domain/1", FOLDER = "core.folder/1";
 
-  window.ApiTest = { test, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase) };
+  window.ApiTest = { test, prefixLayers, fileLayer, registry, layers: ConsolemTestLayers, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase), AREA, FOLDER };
 })();

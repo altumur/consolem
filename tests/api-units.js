@@ -1,11 +1,12 @@
 /* Тесты API: ядро универсальной модели — описания видов (/kinds) и объекты склада (/units), дерево на складе. Чтение и запись
    объектов видов без профиля: создание, правка, удаление, перенос, команды, проверка без записи, шаги операций по uid. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { makeEnv, assert, FX } = ApiTest;
   // Виды плагинов и тестовые виды есть не в каждой системе (профиль «один домен» их не объявляет): тест, где вид назван
   // (литерал или CONTROLLER, SENSOR), получает needs "kind:<вид>" сам и без вида пропускается
   const PLUGIN_NEEDS = [[/CONTROLLER/, "kind:security_controller/CONTROLLER"], [/\bSENSOR\b|security_controller\/SENSOR/, "kind:security_controller/SENSOR"], [/test\.unknown|\bT\b|\bt[12]\(\)/, "kind:test.unknown"],
-    [/test\.perunit|\bPER\b/, "kind:test.perunit"], [/w2c\.example\/rows|\bROWS\b/, "kind:w2c.example/rows"], [/domain\.shared|\bDOC\b/, "kind:domain.shared"]];
+    [/test\.perunit|\bPER\b/, "kind:test.perunit"], [/w2c\.example\/rows|\bROWS\b/, "kind:w2c.example/rows"], [/domain\.shared|\bDOC\b/, "kind:domain.shared"], [/KEYPAD/, "kind:security_controller/KEYPAD"]];
   const test = (name, fn, opts) => {
     const text = name + String(fn), needs = ((opts && opts.needs) || []).slice();
     PLUGIN_NEEDS.forEach(([re, need]) => re.test(text) && !needs.includes(need) && needs.push(need));
@@ -14,6 +15,7 @@
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const CONTROLLER = "security_controller/CONTROLLER";
   const SENSOR = "security_controller/SENSOR";
+  const KEYPAD = "security_controller/KEYPAD";
   const kindPath = (kind) => `/kinds/${encodeURIComponent(kind)}`;
   const units = () => FX.units || [];
   const kindOf = (code) => (FX.kinds || []).find((k) => k.kind === code);
@@ -73,6 +75,36 @@
     return `видов ${res.body.items.length}`;
   }, { needs: ["listKinds", "getKind"] });
 
+  // Сравнение «M.m» числами: 1.10 новее 1.9
+  const cmp = (a, b) => {
+    const [a1, a2] = a.split(".").map(Number), [b1, b2] = b.split(".").map(Number);
+    return a1 - b1 || a2 - b2;
+  };
+
+  test("Профили 0.25.0: version и uses в GET /kinds — M.m своей старшей, зависимость не младше указанной", async () => {
+    const env = await makeEnv();
+    const profiles = (await env.ok("GET", "/kinds")).profiles || [];
+    const VER = /^[0-9]+\.[0-9]+$/, ID = /^[A-Za-z0-9_.-]+\/[0-9]+$/;
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    profiles.forEach((p) => {
+      if (p.version !== undefined) assert.ok(VER.test(p.version) && Number(p.version.split(".")[0]) === Number(p.id.split("/")[1]), `${p.id}: version ${p.version} — M.m своей старшей`);
+      (p.uses || []).forEach((u) => {
+        assert.ok(ID.test(u.id) && VER.test(u.version) && u.id !== p.id, `${p.id}: uses ${JSON.stringify(u)}`);
+        const dep = byId.get(u.id);
+        if (dep && dep.version) assert.ok(cmp(dep.version, u.version) >= 0, `${p.id} использует ${u.id} ${u.version}, сервер отдаёт ${dep.version}`);
+      });
+    });
+    // Встроенный сервер отдаёт профили набора как есть: version и uses те же, что в наборе (иначе тест прошёл бы и без полей).
+    // Стенд бэкенда (?api=) эту сверку не проходит: version там необязателен (api/README.md, 0.25.0), профили и младшие
+    // версии — свои
+    if (!ApiTest.external) {
+      const fx = new Map((FX.profiles || []).map((p) => [p.id, p]));
+      profiles.forEach((p) => assert.ok((fx.get(p.id) || {}).version, `${p.id}: набор несёт version (профили собирают из api/profiles/)`));
+      profiles.forEach((p) => assert.eq({ version: p.version, uses: p.uses }, { version: (fx.get(p.id) || {}).version, uses: (fx.get(p.id) || {}).uses }, `${p.id}: version и uses — как в наборе`));
+    }
+    return `профилей ${profiles.length}, с версией ${profiles.filter((p) => p.version).length}`;
+  }, { needs: ["listKinds"] });
+
   test("Кэш описаний 0.16.0: Vary: Accept-Language у /kinds и /kinds/{kind}; у вида If-None-Match — 304", async () => {
     const env = await makeEnv();
     const list = await env.call("GET", "/kinds");
@@ -109,6 +141,38 @@
     const denied = await viewer.call("POST", `/units/${ctl.uid}/setup-ui`, {});
     assert.status(denied, 403, "PERMISSION_DENIED", "без права edit");
     assert.eq(denied.body.params.right.level, "edit", "нужен уровень edit");
+  }, { needs: ["openUnitSetupUi", "getUnit"] });
+
+  // Человек с одной ролью поверх «Аудитора»: класс security_controller на уровне level (null — класса в роли нет), как asRole в api-access.js
+  const VIEW_ROLE = "8fff0003-0000-4000-8000-000000000003", VIEW_USER = "9fff0004-0000-4000-8000-000000000004";
+  const asView = (level) => {
+    const A = FX.access, meId = FX.me.userId;
+    const base = A.roles.find((r) => !r.global.unr && !Object.keys(r.folderAccess).length);
+    const role = Object.assign(JSON.parse(JSON.stringify(base)), { id: VIEW_ROLE, name: "Проверка страницы", kindAccess: level ? { security_controller: level } : {} });
+    const user = Object.assign(JSON.parse(JSON.stringify(A.users.find((u) => u.id !== meId))), { id: VIEW_USER, login: "setup-ui-check", name: "Проверка страницы", roleIds: [VIEW_ROLE], roleUntil: {}, enabled: true, expiresDate: null });
+    return makeEnv({ actAs: user.login, fixturePatch: { access: { roles: A.roles.concat([role]), users: A.users.concat([user]) } } });
+  };
+
+  test("Своя страница подсистемы 0.33.0: mode iframe — адрес по праву view, readOnly, относительный адрес страницы стенда; mode tab — по-прежнему edit", async () => {
+    const env = await makeEnv();
+    const kp = ofKind(KEYPAD)[0], ctl = ofKind(CONTROLLER)[0];
+    assert.eq(kindOf(KEYPAD).setupUi, { mode: "iframe", protocol: "setup/1", kinds: [KEYPAD] }, "setupUi вида: iframe, setup/1");
+    const a = await env.ok("POST", `/units/${kp.uid}/setup-ui`, {});
+    assert.ok(a.url.startsWith("api/plugins/security_controller/setup/index.html?"), "стенд: относительный адрес тестовой страницы: " + a.url);
+    const q = new URL(a.url, "http://x/").searchParams;
+    assert.eq([q.get("type"), q.get("id"), !!q.get("t")], [KEYPAD, kp.uid, true], "вид, объект, разовый ключ");
+    assert.eq([a.readOnly, "origin" in a], [false, false], "право edit — readOnly false; стенд не перенаправляет — origin нет");
+    assert.ok(((await env.ok("GET", unitPath(kp.uid))).capabilities || []).includes("setupUi"), "отметка setupUi у клавиатуры");
+    const view = await asView("view");
+    assert.ok(((await view.ok("GET", unitPath(kp.uid))).capabilities || []).includes("setupUi"), "по праву view отметка есть");
+    assert.eq((await view.ok("POST", `/units/${kp.uid}/setup-ui`, {})).readOnly, true, "по праву view — readOnly true");
+    const tab = await view.call("POST", `/units/${ctl.uid}/setup-ui`, {});
+    assert.status(tab, 403, "PERMISSION_DENIED", "mode tab по праву view — по-прежнему 403");
+    assert.eq(tab.body.params.right.level, "edit", "mode tab: нужен edit");
+    const none = await asView(null);
+    const no = await none.call("POST", `/units/${kp.uid}/setup-ui`, {});
+    assert.status(no, 403, "PERMISSION_DENIED", "без права на класс — 403");
+    assert.eq(no.body.params.right.level, "view", "mode iframe: нужен view");
   }, { needs: ["openUnitSetupUi", "getUnit"] });
 
   test("Плагин 0.16.0: x-hidden — поле в properties, правка без него значение не меняет; statusSchema; message и fields в условии", async () => {
@@ -240,7 +304,7 @@
     sensors.forEach((n) => check(n, "контроллер"));
     const archives = await env.pages(`/tree/children?layout=archives&parentId=${server.id}`);
     archives.forEach((n) => assert.ok(n.kind.startsWith("archive.") && n.implements.includes("vms.archive/1"), `хранилище ${n.name} — вид archive.*`));
-  }, { needs: ["getTreeChildren", "listKinds"] });
+  }, { needs: ["getTreeChildren", "listKinds", "layout:servers", "layout:archives"] });
 
   test("/units/{uid}/creatable под контроллером — только SENSOR", async () => {
     const env = await makeEnv();
@@ -292,7 +356,7 @@
     assert.eq((await env.pages(`/units?${query({ q: cam.name, fields: "vendor" })}`)).length, 0, "имя не ищется, если его нет в fields");
     const two = await env.pages(`/units?${query({ q: cam.name, fields: "vendor,name" })}`);
     assert.ok(two.some((u) => u.uid === cam.uid && u.match.field === "name"), "fields через запятую");
-  }, { needs: ["listUnits"] });
+  }, { needs: ["listUnits", "kind:camera"] });
 
   test("/units?q= не ищет по свойству без x-search", async () => {
     const env = await makeEnv();
@@ -469,7 +533,7 @@
     }
     assert.ok(n >= 3, `проверено видов: ${n}`);
     return `видов ${n}`;
-  }, { needs: ["patchUnit"] });
+  }, { needs: ["patchUnit", "kind:camera"] });
 
   test("x-immutable после создания — 422", async () => {
     const env = await makeEnv();
@@ -542,7 +606,7 @@
     assert.eq(back.body.parentId, a.uid, "снова под родителем");
     const ctrl = ofKind(CONTROLLER)[0];
     invalid(await env.call("POST", `/units/${ctrl.uid}/move`, { parentId: null }, { "If-Match": await env.etag(unitPath(ctrl.uid)) }), "/parentId", null, "у вида нет move в capabilities", "NOT_SUPPORTED");
-  }, { needs: ["moveUnit"] });
+  }, { needs: ["moveUnit", "layout:servers"] });
 
   test("действие instant ARM — 200 result, status.observed.armed, событие", async () => {
     const env = await makeEnv();
@@ -645,6 +709,39 @@
     const row = await env.ok("GET", unitPath(op.items[4].createdId));
     assert.eq([row.kind, row.parentId, row.properties.slot], [ROWS, owner, 5], "строка таблицы — под камерой-хозяином");
   }, { needs: ["createOperation", "getOperation"] });
+
+  // Мост страницы подсистемы (api/SETUP-UI.md, «Шаг 2»): шаги draft страницы consolem отправляет при «Применить» одной
+  // POST /operations. Объекты — контроллер клавиатуры KEYPAD (страница стенда) и его датчики, второй контроллер и его датчик
+  test("Мост 0.34.0: черновик страницы — одна операция: patch, createUnit, move и delete по разным объектам; откат возвращает всё", async () => {
+    const keypad = ofKind(KEYPAD)[0];
+    const ctrl = units().find((u) => u.uid === keypad.parentId);
+    const [s1, s2] = ofKind(SENSOR).filter((x) => x.parentId === ctrl.uid);
+    const s1b = ofKind(SENSOR).find((x) => x.parentId && x.parentId !== ctrl.uid);
+    const ctrl2 = units().find((u) => u.uid === s1b.parentId);
+    assert.ok(s1 && s2 && ctrl2.kind === CONTROLLER, "в наборе: два датчика у контроллера клавиатуры и второй контроллер с датчиком");
+    // У датчика набора нет move (demo.json не меняем: на нём стоят экраны и проверки): перенос даёт виду только этот тест
+    const kinds = FX.kinds.map((k) => (k.kind === SENSOR ? Object.assign(copy(k), { capabilities: k.capabilities.concat("move") }) : k));
+    const env = await makeEnv({ fixturePatch: { kinds } });
+    const items = [{ uid: s1.uid, patch: { name: "Мост 1" } }, { uid: ctrl.uid, createUnit: { kind: SENSOR, name: "Мост новый", properties: { zone: "Мост" } } },
+      { uid: s2.uid, move: ctrl2.uid }, { uid: s1b.uid, delete: true }];
+    const res = await env.call("POST", "/operations", { idempotencyKey: ApiTest.key(), items, expectedVersions: { [s1.uid]: s1.version, [s2.uid]: s2.version, [s1b.uid]: s1b.version }, wait: false });
+    assert.status(res, 202, null, "POST /operations");
+    const op = await env.finished(res.body.id);
+    assert.eq(op.items.map((x) => [x.state, x.code || null]), [["ok", null], ["ok", null], ["ok", null], ["ok", null]], "все шаги выполнены");
+    const madeId = op.items[1].createdId;
+    assert.ok(madeId, "у шага createUnit — createdId");
+    assert.eq((await env.ok("GET", unitPath(s1.uid))).name, "Мост 1", "датчик переименован");
+    const made = await env.ok("GET", unitPath(madeId));
+    assert.eq([made.kind, made.parentId, made.name], [SENSOR, ctrl.uid, "Мост новый"], "датчик создан под контроллером");
+    assert.eq((await env.ok("GET", unitPath(s2.uid))).parentId, ctrl2.uid, "датчик перенесён ко второму контроллеру");
+    assert.status(await env.call("GET", unitPath(s1b.uid)), 404, "NOT_FOUND", "датчик второго контроллера удалён");
+    const undo = await env.finished((await env.ok("POST", `/operations/${op.id}/revert`, {})).id);
+    assert.ok(undo.items.every((x) => x.state === "ok"), "откат: все шаги — ok");
+    assert.eq((await env.ok("GET", unitPath(s1.uid))).name, s1.name, "имя вернулось");
+    assert.status(await env.call("GET", unitPath(madeId)), 404, "NOT_FOUND", "созданного нет");
+    assert.eq((await env.ok("GET", unitPath(s2.uid))).parentId, ctrl.uid, "датчик вернулся к контроллеру клавиатуры");
+    assert.eq((await env.ok("GET", unitPath(s1b.uid))).parentId, ctrl2.uid, "удалённый датчик вернулся");
+  }, { needs: ["createOperation", "getOperation", "revertOperation"] });
 
   test("validate не пишет", async () => {
     const env = await makeEnv();
@@ -854,7 +951,7 @@
     // Камера (vms.camera/1 — хук есть) пишется ядром
     const cam = ofKind("camera").find((u) => !u.parentId);
     assert.status(await patch(env, cam.uid, { name: "Камера ядром" }), 200, null, "камера — путями ядра");
-  }, { needs: ["patchUnit", "deleteUnit", "createUnits"] });
+  }, { needs: ["patchUnit", "deleteUnit", "createUnits", "kind:camera"] });
 
   test("откат POST /units снимает созданное вместе с детьми; индексы parentId и kind чистые", async () => {
     const env = await makeEnv();
@@ -944,7 +1041,7 @@
     // У вида без этих полей их нет и в кратком объекте
     const dom = (await env.ok("GET", "/tree/children?layout=servers")).items[0];
     assert.ok(!("enabled" in ((dom.unit || {}).brief || {})) && !((dom.unit.status || {}).observed), "у домена — ни enabled, ни observed");
-  }, { needs: ["getTreeChildren", "kind:camera"] });
+  }, { needs: ["getTreeChildren", "kind:camera", "layout:servers"] });
 
   test("Команда вида без объекта: scope kind — POST /kinds/{kind}/actions/{id}; probe камеры, регистратора, сервера, check хранилища", async () => {
     const env = await makeEnv();
@@ -981,13 +1078,13 @@
     const has = (id, names) => assert.eq(names.filter((n) => !prof[id].includes(n)), [], `${id}: нет свойств`);
     has("vms.archive/1", ["recordMode"]);
     has("vms.talk/1", ["channel", "enabled", "short"]);
-    has("vms.acs/1", ["identifier", "ip", "login", "password", "port", "unitOptions", "vendor", "operations", "properties"]);
+    has("vms.acs/1", ["identifier", "ip", "unitOptions", "vendor", "operations", "properties"]);
     // Свойство профиля есть хотя бы у одного вида, который профиль реализует
     list.profiles.forEach((p) => {
       const own = list.items.filter((k) => (k.implements || []).includes(p.id));
       (p.properties || []).forEach((n) => assert.ok(!own.length || own.some((k) => n in ((k.schema || {}).properties || {})), `${p.id}: ${n} нет ни у одного вида`));
     });
-  }, { needs: ["listKinds"] });
+  }, { needs: ["listKinds", "kind:camera"] });
 
   test("hasChildren объекта: потоки дочерними не считаются, дочерние объекты — считаются; как в узле дерева", async () => {
     const env = await makeEnv();
@@ -999,7 +1096,7 @@
     assert.eq((await env.ok("GET", `/units/${withDevices.uid}`)).hasChildren, true, "есть дочерние объекты — шеврон");
     const node = (await env.pages(`/tree/children?layout=servers&parentId=${dom1()}`)).find((n) => n.id === onlyStreams.parentId);
     if (node) assert.eq(node.hasChildren, true, "узел сервера с камерами");
-  }, { needs: ["getUnit", "kind:camera"] });
+  }, { needs: ["getUnit", "kind:camera", "layout:servers"] });
 
   test("UnitBrief.subtype — как DeviceRow.subtype: подвид объекта в узле дерева, нет свойства — нет поля", async () => {
     const env = await makeEnv();
@@ -1015,7 +1112,7 @@
       else assert.ok(!("subtype" in n.unit), `у узла ${n.id} нет подвида — нет и поля`);
     });
     if (units().some((u) => u.properties && u.properties.subtype)) assert.ok(seen > 0, "в обходе есть узел с подвидом");
-  }, { needs: ["getTreeChildren"] });
+  }, { needs: ["getTreeChildren", "layout:servers"] });
 
   test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — триггеры (с 0.17.0); other и segment.lost — не тревоги", async () => {
     const env = await makeEnv();
@@ -1033,6 +1130,17 @@
     const ok = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["crowd"] } }, tag);
     assert.status(ok, 200, null, "crowd — тревога");
   }, { needs: ["listKinds", "getKind", "patchSettings"] });
+
+  test("Набор без VMS: виды без профилей vms.* сверх области и папки, дерево папок, команда агента", async () => {
+    const env = await makeEnv();
+    const kinds = (await env.ok("GET", "/kinds")).items;
+    assert.ok(kinds.every((k) => (k.implements || []).every((p) => [ApiTest.AREA, ApiTest.FOLDER].includes(p))), "сверх области и папки профилей нет");
+    const top = await env.pages("/tree/children?layout=folders");
+    assert.eq(top.length, 1, "одна область");
+    assert.ok((await env.pages(`/tree/children?layout=folders&parentId=${top[0].id}`)).every((n) => n.kind === "folder"), "под областью — папки");
+    const agent = (await env.ok("GET", "/units?kind=agent.agent")).items[0];
+    assert.status(await env.call("POST", `/units/${agent.uid}/actions/check`, { params: {} }), 200);
+  }, { needs: ["listKinds", "getTreeChildren", "runUnitAction", "kind:agent.agent", "layout:folders"], layer: "mechanism" });
 
   ApiTest.loaded("api-units.js");
 })();

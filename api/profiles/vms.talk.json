@@ -1,0 +1,44 @@
+{
+ "id": "vms.talk/1",
+ "version": "1.0",
+ "label": "Разговор",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {
+  "channel": {
+   "schema": {
+    "type": "integer",
+    "readOnly": true
+   },
+   "meaning": "«Канал»: Номер входа, выхода, канала: внутри своего вида, с 1. Сквозной по устройству, поэтому у камеры бывает не с 1 и с пропусками (3, 7) (только чтение)",
+   "since": "1.0"
+  },
+  "enabled": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "«Включено»",
+   "since": "1.0"
+  },
+  "short": {
+   "schema": {
+    "type": "string",
+    "readOnly": true
+   },
+   "meaning": "«Короткое имя»: Номер для показа в дереве («3.3.1») (только чтение)",
+   "since": "1.0"
+  }
+ },
+ "apis": [
+  "talk"
+ ],
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

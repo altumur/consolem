@@ -20,12 +20,29 @@
 7. Числа в api/BACKEND.md (сколько операций и служебных) совпадают с контрактом.
 8. Ломающие изменения против контракта старого макета (git show 47d1310:api/openapi.json) названы в api/README.md;
    без git или без этого коммита в истории — пропуск с пометкой.
+9. Граница слоёв (tools/layers.py): x-layer стоит только у схемы, пути или поля общей схемы; значение — профиль, video или vms;
+   общие схемы и пути не ссылаются на схемы подсистем; поля подсистем в общих схемах названы в KNOWN_LEAKS;
+   id профиля в описании поля общей схемы — пометка поля или пример из EXAMPLE_MENTIONS.
+10. Профили в файлах api/profiles/*.json (tools/profile_files.py): формат файлов; раздел profiles наборов — из файлов;
+   виды несут поля профиля того же типа, status объектов — по схеме профиля; версия профиля против --profiles-base
+   (по умолчанию origin/main; без git — пропуск); зависимости uses есть и не младше.
+11. Слой у каждого теста API (node tools/api_tests_registry.mjs): слой — mechanism, video или profile:<id> с файлом в api/profiles/;
+   since — только у теста профиля, вида M.m, старшая цифра как в /N, не старше версии профиля; INFO — тесты механизма на видах набора
+   и профили без тестов. Тесты — --tests DIR (по умолчанию tests).
+12. Протокол своей страницы setup/1: api/setup-ui.schema.json — ключевые слова из разрешённого списка, ссылки в $defs, у сообщений
+   x-direction, proto и type, примеры проходят схему; таблицы «Сообщения» api/SETUP-UI.md — те же сообщения и направления;
+   problem и problemError — поля Problem и ProblemError контракта; описание setupUi ссылается на api/SETUP-UI.md.
+13. Мост страницы подсистемы: у каждой операции api/openapi.json (и api/*.openapi.json, api/profiles/*.openapi.json) — x-bridge
+   (read, act, draft) или причина в BRIDGE_CLOSED; read — только GET или BRIDGE_READ_POST, act — только BRIDGE_ACT, draft — только
+   BRIDGE_DRAFT; без x-bridge у /test, /test/*, test-support и deprecated; в BRIDGE_CLOSED — только операции описаний; кривое
+   описание (paths не объект, путь не объект) — отказ строкой; поддельные описания проверяют саму проверку (bridge_selfcheck).
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
-Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE]
+Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE] [--profiles-base REF]
 (--page — прототип вместо index.html; --api — копия папки API вместо api; в документе выше пути даны для умолчаний)
 Код выхода 1, если что-то не прошло.
 """
+import glob
 import json
 import os
 import re
@@ -34,9 +51,13 @@ import sys
 
 import cli_paths
 import generic_legacy
+import layers
+import mechanism
+import profile_files
 
 API = cli_paths.opt("api", "api")
 PROTOTYPE = cli_paths.opt("page", "index.html")
+TESTS = cli_paths.opt("tests", "tests")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METHODS = ("get", "post", "put", "patch", "delete")
 
@@ -169,6 +190,8 @@ def validate(spec, schema, value, where, out):
             out.append(f"{where}: {value!r} не подходит под {schema['pattern']}")
         if "minLength" in schema and len(value) < schema["minLength"]:
             out.append(f"{where}: короче {schema['minLength']}")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            out.append(f"{where}: длиннее {schema['maxLength']}")
     if k in ("integer", "number"):
         if "minimum" in schema and value < schema["minimum"]:
             out.append(f"{where}: {value} меньше {schema['minimum']}")
@@ -176,6 +199,8 @@ def validate(spec, schema, value, where, out):
             out.append(f"{where}: {value} больше {schema['maximum']}")
     if k == "array" and "minItems" in schema and len(value) < schema["minItems"]:
         out.append(f"{where}: меньше {schema['minItems']} элементов")
+    if k == "array" and "maxItems" in schema and len(value) > schema["maxItems"]:
+        out.append(f"{where}: больше {schema['maxItems']} элементов")
     if k == "array" and "items" in schema:
         for i, item in enumerate(value):
             validate(spec, schema["items"], item, f"{where}[{i}]", out)
@@ -260,6 +285,159 @@ def check_contract(rep, spec):
     return seen
 
 
+# ===== 1а. Мост страницы подсистемы (x-bridge) =====
+# Что своя страница подсистемы (setupUi.mode: iframe) может вызвать через consolem, api/SETUP-UI.md, «Шаг 2: мост к механизму».
+# read — consolem выполняет сразу; act — выполняет сразу, команда видна в журнале; draft — кладёт шаг в черновик карточки,
+# выполняет по «Применить». Нет x-bridge — мост отказывает (NOT_SUPPORTED), и тогда причина — строкой в BRIDGE_CLOSED:
+# новую операцию проверка не пропустит, пока о ней не решили.
+BRIDGE_VALUES = ("read", "act", "draft")
+BRIDGE_DRAFT = {"patchUnit", "createUnits", "deleteUnit", "moveUnit", "deleteObjects", "createOperation"}
+BRIDGE_READ_POST = {"validateUnits"}
+# act — только команды объекта и долгая работа, которую карточка consolem тоже запускает сразу
+BRIDGE_ACT = {"runUnitAction", "runKindAction", "cancelOperation", "startDiscovery", "stopDiscovery", "uploadFile"}
+_ACCESS = "права и сеанс — вкладка «Доступ» у consolem своя"
+_AUTOMATION = "автоматизация — редактор правил, расписаний и режимов у consolem свой, и чтение, и запись"
+_VIDEO = "работа оператора с видео и архивом, а не настройка объекта"
+_EXPORT = "выгрузка — работа оператора, рамка не сохраняет файлы"
+_LIVE = "живое видео — после отдельного API видео (решение О5)"
+_SYSTEM = "настройки системы и ключи — вне склада объектов, и чтение, и запись"
+_STORAGE = "хранилище, а не объект страницы"
+_OLD = "устарела"
+_TEST = "служебная операция стенда (test-support) — никогда"
+_REDO = "откат и повтор ведёт consolem: тост «Отменить», журнал операций"
+BRIDGE_CLOSED = {
+    "getMe": _ACCESS, "getAccess": _ACCESS, "applyAccess": _ACCESS, "syncCatalog": _ACCESS,
+    "listAccessUsers": _ACCESS, "listAccessGroups": _ACCESS, "listAccessHistory": _ACCESS, "listAccessCellHistory": _ACCESS,
+    "listRoleObjects": _ACCESS, "listStreamAccounts": _ACCESS, "createStreamAccount": _ACCESS, "patchStreamAccount": _ACCESS,
+    "deleteStreamAccount": _ACCESS, "resetStreamAccountPassword": _ACCESS,
+    "revertOperation": _REDO, "redoOperation": _REDO, "retryFailedOperation": _REDO,
+    "pauseOperation": _OLD, "resumeOperation": _OLD,
+    "listMaintenanceWindows": _OLD, "createMaintenanceWindow": _OLD, "getMaintenanceWindow": _OLD,
+    "putMaintenanceWindow": _OLD, "deleteMaintenanceWindow": _OLD,
+    "openUnitSetupUi": "адрес страницы берёт сам consolem",
+    "getSettings": _SYSTEM, "patchSettings": _SYSTEM, "listLicenseKeys": _SYSTEM, "getLicenseKey": _SYSTEM, "createLicenseKey": _SYSTEM,
+    "patchLicenseKey": _SYSTEM, "deleteLicenseKey": _SYSTEM,
+    "exportJournal": "файл журнала — рамка не сохраняет файлы",
+    "createRule": _AUTOMATION, "putRule": _AUTOMATION, "updateRules": _AUTOMATION, "reorderRules": _AUTOMATION,
+    "listRuleFires": _AUTOMATION, "listRuleVersions": _AUTOMATION, "testRule": _AUTOMATION, "runRule": _AUTOMATION,
+    "retryRuleFire": _AUTOMATION, "createSchedule": _AUTOMATION, "putSchedule": _AUTOMATION, "deleteSchedule": _AUTOMATION,
+    "listDayGroups": _AUTOMATION, "createDayGroup": _AUTOMATION, "getDayGroup": _AUTOMATION, "putDayGroup": _AUTOMATION,
+    "deleteDayGroup": _AUTOMATION, "putModes": _AUTOMATION, "setModeCurrent": _AUTOMATION,
+    "listRulePrompts": "работа оператора — ответ на вопрос правила", "answerRulePrompt": "работа оператора — ответ на вопрос правила",
+    "putScenarios": "документ сценариев правит consolem",
+    "startUnitLive": _LIVE, "moveUnitLive": _LIVE,
+    "startUnitTalk": _VIDEO, "getUnitTimeline": _VIDEO, "getUnitPlayback": _VIDEO, "listUnitHolds": _VIDEO,
+    "createUnitHold": _VIDEO, "deleteHold": _VIDEO, "verifyHold": _VIDEO, "listUnitBookmarks": _VIDEO,
+    "createUnitBookmark": _VIDEO, "fetchUnitArchive": _VIDEO, "putUnitPtz": _VIDEO, "deleteUnitPtz": _VIDEO,
+    "putUnitPreset": _VIDEO, "deleteUnitPreset": _VIDEO, "getUnitRecordingDays": _VIDEO,
+    "putUnitRecordingTarget": "запись настройки мимо черновика карточки",
+    "getExportGrant": _EXPORT, "getExportReference": "выгрузка — работа оператора, а не настройка объекта", "checkExport": _EXPORT, "listExports": _EXPORT,
+    "createExport": _EXPORT, "getExport": _EXPORT, "deleteExport": _EXPORT, "cancelExport": _EXPORT,
+    "retryExport": _EXPORT, "getExportFileLink": _EXPORT,
+    "listArchiveWatches": _STORAGE, "createArchiveWatch": _STORAGE, "patchArchiveWatch": _STORAGE, "deleteArchiveWatch": _STORAGE,
+    "listArchiveScans": _STORAGE, "createArchiveScan": _STORAGE, "deleteArchiveScan": _STORAGE,
+    "stream": "поток — вместо него сообщение subscribe", "putStreamWatch": "поток — вместо него сообщение subscribe",
+    "assistTurn": "ассистент — служебное",
+    "testReset": _TEST, "testClock": _TEST, "testEvent": _TEST, "testStreamElsewhere": _TEST, "testPutKind": _TEST,
+}
+
+
+def bridge_specs():
+    """Описания, чьи операции размечает x-bridge: api/openapi.json и, если появятся, api/*.openapi.json и api/profiles/*.openapi.json."""
+    out = [(f"{API}/openapi.json", load(f"{API}/openapi.json"))]
+    for pat in (f"{API}/*.openapi.json", f"{API}/profiles/*.openapi.json"):
+        for p in sorted(glob.glob(os.path.join(ROOT, pat))):
+            out.append((os.path.relpath(p, ROOT), load(os.path.relpath(p, ROOT))))
+    return out
+
+
+def bridge_problems(specs, closed=None, draft=None, read_post=None, act=None):
+    """Отказы разметки x-bridge и счёт {read, act, draft, closed} по описаниям specs: [(имя, описание)].
+    Кривой ввод (описание или путь не объект, paths: null) — строка отказа, а не сбой проверки."""
+    closed = BRIDGE_CLOSED if closed is None else closed
+    draft = BRIDGE_DRAFT if draft is None else draft
+    read_post = BRIDGE_READ_POST if read_post is None else read_post
+    act = BRIDGE_ACT if act is None else act
+    problems, count, seen = [], {"read": 0, "act": 0, "draft": 0, "closed": 0}, set()
+    for name, spec in specs:
+        if not isinstance(spec, dict):
+            problems.append(f"{name}: описание не объект")
+            continue
+        paths = spec.get("paths") or {}
+        if not isinstance(paths, dict):
+            problems.append(f"{name}: paths не объект")
+            continue
+        for path, item in paths.items():
+            if not isinstance(item, dict):
+                problems.append(f"{name}: {path}: не объект")
+                continue
+            for method in METHODS:
+                op = item.get(method)
+                if not isinstance(op, dict):
+                    continue
+                oid = op.get("operationId") or f"{method.upper()} {path}"
+                where = f"{name}: {oid}"
+                seen.add(oid)
+                has = "x-bridge" in op
+                val = op.get("x-bridge")
+                tags = op.get("tags") if isinstance(op.get("tags"), list) else []
+                test = path == "/test" or path.startswith("/test/") or "test-support" in tags
+                if not has:
+                    if oid in closed:
+                        count["closed"] += 1
+                    else:
+                        problems.append(f"{where}: нет x-bridge и нет в BRIDGE_CLOSED")
+                    continue
+                if oid in closed:
+                    problems.append(f"{where}: есть x-bridge и строка в BRIDGE_CLOSED — нужно одно")
+                if test:
+                    problems.append(f"{where}: x-bridge у служебной операции (/test/*, test-support)")
+                if op.get("deprecated"):
+                    problems.append(f"{where}: x-bridge у устаревшей операции")
+                if val not in BRIDGE_VALUES:
+                    problems.append(f"{where}: x-bridge {val!r} — не из {', '.join(BRIDGE_VALUES)}")
+                    continue
+                if val == "read" and method != "get" and oid not in read_post:
+                    problems.append(f"{where}: read у {method.upper()} — только GET или BRIDGE_READ_POST")
+                if val == "draft" and oid not in draft:
+                    problems.append(f"{where}: draft — только операции BRIDGE_DRAFT")
+                if val == "act" and oid not in act:
+                    problems.append(f"{where}: act — только операции BRIDGE_ACT")
+                count[val] += 1
+    problems += [f"BRIDGE_CLOSED: {oid} — такой операции нет ни в одном описании" for oid in sorted(set(closed) - seen)]
+    return problems, count
+
+
+def bridge_selfcheck():
+    """Проверка самой проверки: поддельные описания, на которых bridge_problems обязана отказать, и кривой ввод."""
+    out = []
+    cases = [
+        ("act вне BRIDGE_ACT", {"paths": {"/x": {"post": {"operationId": "doX", "x-bridge": "act"}}}}, "act — только операции BRIDGE_ACT"),
+        ("путь /test без косой черты", {"paths": {"/test": {"post": {"operationId": "poke", "x-bridge": "act"}}}}, "служебной операции"),
+        ("paths: null", {"paths": None}, None),
+        ("описание не объект", None, "описание не объект"),
+        ("путь не объект", {"paths": {"/y": None}}, "/y: не объект"),
+    ]
+    for title, spec, want in cases:
+        try:
+            got, _ = bridge_problems([("поддельное", spec)], closed={}, draft=set(), read_post=set(), act=set())
+        except Exception as e:  # noqa: BLE001 — любой сбой на кривом вводе и есть отказ
+            out.append(f"проверка моста на «{title}» упала: {type(e).__name__}: {e}")
+            continue
+        if want and not any(want in g for g in got):
+            out.append(f"проверка моста не отказала на «{title}»: {got}")
+        if not want and got:
+            out.append(f"проверка моста отказала на «{title}» без причины: {got}")
+    return out
+
+
+def check_bridge(rep, specs):
+    problems, c = bridge_problems(specs)
+    problems = bridge_selfcheck() + problems
+    rep.check("Мост страницы: x-bridge у каждой операции или причина в BRIDGE_CLOSED", problems,
+              f"read {c['read']}, act {c['act']}, draft {c['draft']}, закрыто {c['closed']}")
+
+
 # ===== 2. Эталонный набор =====
 
 def check_fixture(rep, spec, fx, label="Эталонный набор"):
@@ -296,9 +474,13 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     # modeManual — режим, включённый вручную ({ modeId, until } или null): состояние стенда, ответ — GET /modes/current
     if fx.get("modeManual") is not None:
         validate(spec, {"$ref": "#/components/schemas/ModeCurrentWrite"}, fx["modeManual"], "modeManual", problems)
+    # layouts — раскладки дерева (GET /kinds → layouts): записи по схеме TreeLayout, согласие с видами — check_mechanism
+    for i, rec in enumerate(fx.get("layouts") or []):
+        validate(spec, {"$ref": "#/components/schemas/TreeLayout"}, rec, f"layouts[{i}]", problems)
+        total += 1
     # kinds, profiles, units — описания видов, профили, объекты склада: их проверяет check_units
     known = set(collections) | set(singles) | set(generic_legacy.OLD_TABLES) | {"access", "$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual", "stand", "scenarioDocs", "relays",
-                                                "kinds", "profiles", "units"}
+                                                "kinds", "profiles", "units", "layouts"}
     problems += [f"раздел {k} не описан в check_api.py" for k in fx if k not in known]
     rep.check(f"{label} соответствует схемам контракта", problems, f"{total} записей + access, settings, reference")
 
@@ -327,8 +509,9 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     day_groups = own("dayGroup", fx["dayGroups"])
     modes = own("mode", fx["modes"]["items"])
     windows = own("window", fx["maintenanceWindows"])
-    layouts = own("layout", fx["reference"]["layouts"])
-    monitors = own("monitor", fx["reference"]["monitors"])
+    # Раскладки клиента и мониторы: enum полей действий (reference.layouts и monitors сняты в 0.32.0)
+    layouts = {v: None for v in rule_field_enum(fx, "layoutId")}
+    monitors = {v: None for v in rule_field_enum(fx, "monitorId")}
     network = own("candidate", fx["network"])
     roles = own("role", acc["roles"])
     users = own("user", acc["users"])
@@ -495,7 +678,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
 # Незнакомый x-* клиент пропускает, поэтому он не ошибка; незнакомое ключевое слово без x- — ошибка
 KIND_KEYWORDS = {"type", "enum", "const", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "format",
                  "items", "minItems", "maxItems", "required", "default", "readOnly", "writeOnly", "if", "then", "else", "dependentSchemas",
-                 "description", "title", "properties", "additionalProperties", "deprecated"}
+                 "description", "title", "properties", "additionalProperties", "deprecated", "allOf", "examples"}
 KIND_TYPES = {"string", "integer", "number", "boolean", "array", "object", "null"}
 KIND_FLAGS = ("x-search", "x-immutable", "x-unique", "x-ui-filter", "x-ui-advanced")
 UUID_ANY = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4000-8000-[0-9a-f]{12}")
@@ -535,6 +718,16 @@ def kind_schema_problems(spec, node, where, kinds, profiles, out):
     for key in ("items", "if", "then", "else"):
         if key in node:
             kind_schema_problems(spec, node[key], f"{where}/{key}", kinds, profiles, out)
+    # allOf — независимые условия: каждая часть — своё if/then/else (описание JsonSchema)
+    if "allOf" in node:
+        if not isinstance(node["allOf"], list):
+            out.append(f"{where}: allOf — не список")
+        else:
+            for i, part in enumerate(node["allOf"]):
+                kind_schema_problems(spec, part, f"{where}/allOf/{i}", kinds, profiles, out)
+    # examples — подсказки значений (с 0.30.0): список; сервер по ним не проверяет
+    if "examples" in node and not isinstance(node["examples"], list):
+        out.append(f"{where}: examples — не список")
     if isinstance(node.get("additionalProperties"), dict):
         kind_schema_problems(spec, node["additionalProperties"], f"{where}/additionalProperties", kinds, profiles, out)
     # Расширения
@@ -771,6 +964,69 @@ def check_units(rep, spec, fx, label="Эталонный набор"):
     rep.check(f"{label}: ссылки правил, прав, обходов, удержаний, отметок — на объекты склада", problems)
 
 
+def rule_field_enum(fx, field):
+    """Значения поля шага правила из каталога (с 0.31.0): enum у schema поля действия без объекта (reference.ruleActions)
+    и у параметра команды правила вида (UnitKind.actions[].params)."""
+    out = []
+    for a in fx["reference"].get("ruleActions", []):
+        out += [v for f in a.get("fields", []) if f.get("id") == field for v in (f.get("schema") or {}).get("enum", [])]
+    for k in fx.get("kinds", []):
+        for a in k.get("actions") or []:
+            if a.get("ruleAction"):
+                out += ((((a.get("params") or {}).get("properties") or {}).get(field)) or {}).get("enum", [])
+    return out
+
+
+def check_rule_catalog(rep, spec, fixtures):
+    """Каталог правил (с 0.31.0): schema полей действий — в подмножестве схем видов; ruleChecks без повторов, implements —
+    объявленные профили; areaLayouts — объявленные области и раскладки набора."""
+    problems = []
+    for name, fx in fixtures.items():
+        ref = fx["reference"]
+        kinds = {k["kind"] for k in fx.get("kinds", [])}
+        profiles = {p for k in fx.get("kinds", []) for p in k.get("implements") or []}
+        for a in ref.get("ruleActions", []):
+            for f in a.get("fields", []):
+                if "schema" in f:
+                    kind_schema_problems(spec, f["schema"], f"{name}: ruleActions {a['source']}.{a['action']}.{f['id']}", kinds, profiles, problems)
+        whats = [c["what"] for c in ref.get("ruleChecks", [])]
+        problems += [f"{name}: ruleChecks {w} — повтор" for w in set(whats) if whats.count(w) > 1]
+        for c in ref.get("ruleChecks", []) + ref.get("ruleConditions", []):
+            problems += [f"{name}: {c.get('what') or c.get('kind')} — профиль {p} не объявлен видами" for p in c.get("implements") or [] if p not in profiles]
+        on = ref.get("ruleTargets") or {}
+        lays = {l["id"] for l in fx.get("layouts") or []}
+        for area, lay in (on.get("areaLayouts") or {}).items():
+            if area not in on.get("areas", []):
+                problems.append(f"{name}: areaLayouts {area} — области нет в ruleTargets.areas")
+            if lay not in lays:
+                problems.append(f"{name}: areaLayouts {area} — раскладки {lay} нет в layouts")
+    rep.check("Каталог правил: schema полей действий, ruleChecks, areaLayouts", problems,
+              ", ".join(f"{n}: проверок {len(fx['reference'].get('ruleChecks', []))}" for n, fx in fixtures.items()))
+
+
+def check_agents_mechanism(rep, spec, fx):
+    """Набор agents (система не из мира VMS): объявлены только операции механизма — пути без x-layer; виды — без профилей слоёв,
+    кроме профилей механизма core.domain/1 (область) и core.folder/1 (папка)."""
+    op_layer = {}
+    for path, item in spec["paths"].items():
+        for method, o in item.items():
+            if method in ("get", "post", "put", "patch", "delete") and "test-support" not in o.get("tags", []):
+                op_layer[o["operationId"]] = layers.layer_of_path(spec, path)
+    problems = [f"agents: операция {op} — слоя {op_layer[op]}" for op in fx["reference"]["capabilities"]["operations"] if op_layer.get(op) is not None]
+    allowed = {"core.domain/1", "core.folder/1"}
+    problems += [f"agents: вид {k['kind']} объявляет профиль {p}" for k in fx.get("kinds", []) for p in k.get("implements") or [] if p not in allowed]
+    # Устаревшие справочники VMS в Reference (с 0.30.0 необязательны): у системы без VMS их нет
+    ref_props = spec["components"]["schemas"]["Reference"]["properties"]
+    old = [k for k, s in ref_props.items() if s.get("deprecated") and s.get("x-layer")]
+    old_limits = [k for k, s in ref_props["limits"]["properties"].items() if s.get("deprecated") and s.get("x-layer")]
+    problems += [f"agents: reference.{k} — справочник VMS" for k in old if k in fx["reference"]]
+    problems += [f"agents: reference.limits.{k} — предел VMS" for k in old_limits if k in fx["reference"].get("limits", {})]
+    # Каталог правил (с 0.31.0): условия и проверки — механизма или профилей механизма
+    for c in fx["reference"].get("ruleConditions", []) + fx["reference"].get("ruleChecks", []):
+        problems += [f"agents: правило {c.get('kind') or c.get('what')} — профиль {p}" for p in c.get("implements") or [] if p not in allowed]
+    rep.check("agents: только операции механизма", problems, f"операций {len(fx['reference']['capabilities']['operations'])}")
+
+
 def check_capabilities(rep, spec, fixtures):
     """Возможности системы в наборах: из контракта; эталонный — весь контракт; данные набора не
     противоречат объявленному (нет устройств неподдержанных видов, шифрования без archiveEncryption…)."""
@@ -804,7 +1060,7 @@ def check_capabilities(rep, spec, fixtures):
             problems.append(f"{name}: лицензии без listLicenses")
         if "getDiscovery" not in ops and (fx["discovery"] or fx["network"]):
             problems.append(f"{name}: итоги поиска без getDiscovery")
-        if not creates("vms.domain/1") and len(fx["domains"]) > 1:
+        if not creates("core.domain/1") and len(fx["domains"]) > 1:
             problems.append(f"{name}: доменов {len(fx['domains'])} без create у вида домена")
     # Шаги ожидания оператора объявляются только вместе с дверью ответа
     for name, fx in fixtures.items():
@@ -905,7 +1161,7 @@ def check_server(rep, spec):
 # Перечни таблицы контракта: у каждого limit и cursor, ответ {items, nextCursor?, total?} — и так же ведёт себя сервер.
 # Перечни объектов — /units, предметные API — по uid
 PAGED = ["/units", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
-         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery",
+         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/units/{uid}/discovery",
          "/units/{uid}/timeline", "/units/{uid}/holds", "/units/{uid}/bookmarks"]
 
 
@@ -924,6 +1180,185 @@ def check_pages(rep, spec):
     res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_pages.js"), API], capture_output=True, text=True, cwd=ROOT)
     problems += res.stderr.strip().splitlines()[-3:] if res.returncode else json.loads(res.stdout)
     rep.check("Общее правило страницы: каждый перечень, пустая страница, обе формы version", problems, f"{len(PAGED)} перечней")
+
+
+# ===== Протокол своей страницы setup/1 (api/SETUP-UI.md, api/setup-ui.schema.json) =====
+# Разрешённые ключевые слова схемы сообщений: то, что понимают validate выше и ConsolemContract.check (api/contract.js),
+# плюс служебные слова корня и $defs. Список разрешённый, а не запретный: незнакомое слово — отказ, а не молчаливый пропуск
+SETUP_UI_KEYWORDS = {"type", "properties", "required", "additionalProperties", "items", "enum", "$ref", "oneOf", "anyOf", "format",
+                     "minimum", "maximum", "pattern", "minLength", "maxLength", "minItems", "maxItems", "description",
+                     "$schema", "$id", "$defs", "title", "examples", "x-direction", "x-step"}
+SETUP_UI_DIRECTIONS = {"toPage": "→ страница", "toHost": "→ consolem"}
+
+
+def setup_ui_problems(spec, schema, doc):
+    """Расхождения схемы сообщений setup/1 с собой, с описанием SETUP-UI.md и с Problem контракта (список строк).
+    Кривой вход (не тот тип у $defs, properties, oneOf, x-step…) — отказ строкой, а не исключение."""
+    if not isinstance(schema, dict):
+        return ["#: схема — не объект"], 0
+    problems = []
+    defs = schema.get("$defs")
+    if not isinstance(defs, dict):
+        problems.append("#/$defs: не объект")
+        defs = {}
+    bad_refs = []
+    obj = lambda v: v if isinstance(v, dict) else {}
+
+    def walk(node, where):
+        if not isinstance(node, dict):
+            problems.append(f"{where}: схема — не объект")
+            return
+        problems.extend(f"{where}: {k} — вне разрешённых ключевых слов" for k in sorted(map(str, node)) if k not in SETUP_UI_KEYWORDS)
+        ref = node.get("$ref")
+        if ref is not None and not (isinstance(ref, str) and re.fullmatch(r"#/\$defs/\w+", ref) and ref.split("/")[-1] in defs):
+            bad_refs.append(ref)
+            problems.append(f"{where}: ссылка {ref} — только на #/$defs/<имя> этого файла")
+        for key in ("properties", "$defs"):
+            sub = node.get(key)
+            if sub is not None and not isinstance(sub, dict):
+                problems.append(f"{where}/{key}: не объект")
+                continue
+            for name, one in (sub or {}).items():
+                walk(one, f"{where}/{key}/{name}")
+        for key in ("items", "additionalProperties"):
+            if isinstance(node.get(key), dict):
+                walk(node[key], f"{where}/{key}")
+            elif key in node and not isinstance(node[key], bool):
+                problems.append(f"{where}/{key}: не схема и не true/false")
+        for key in ("oneOf", "anyOf"):
+            sub = node.get(key)
+            if sub is not None and not isinstance(sub, list):
+                problems.append(f"{where}/{key}: не список")
+                continue
+            for i, one in enumerate(sub or []):
+                walk(one, f"{where}/{key}/{i}")
+        for key in ("required", "enum"):
+            if key in node and not isinstance(node[key], list):
+                problems.append(f"{where}/{key}: не список")
+
+    walk(schema, "#")
+    # Сообщения — $defs с x-direction; корень перечисляет в oneOf ровно их
+    messages = {n: d for n, d in defs.items() if isinstance(d, dict) and "x-direction" in d}
+    one_of = schema.get("oneOf") if isinstance(schema.get("oneOf"), list) else []
+    listed = {s["$ref"].split("/")[-1] for s in one_of if isinstance(s, dict) and isinstance(s.get("$ref"), str)}
+    problems.extend(f"#/oneOf: нет сообщения {n}" for n in sorted(set(messages) - listed))
+    problems.extend(f"#/oneOf: {n} — не сообщение (у $defs нет x-direction)" for n in sorted(listed - set(messages)))
+    for name, d in messages.items():
+        where = f"#/$defs/{name}"
+        if not isinstance(d["x-direction"], str) or d["x-direction"] not in SETUP_UI_DIRECTIONS:
+            problems.append(f"{where}: x-direction {d['x-direction']!r} — не toPage и не toHost")
+        step = d.get("x-step")
+        if not isinstance(step, int) or isinstance(step, bool):
+            problems.append(f"{where}: x-step {step!r} — нужно целое число" if "x-step" in d else f"{where}: нет x-step")
+        required = d.get("required") if isinstance(d.get("required"), list) else []
+        if not {"proto", "type"} <= {r for r in required if isinstance(r, str)}:
+            problems.append(f"{where}: proto и type не в required")
+        props = obj(d.get("properties"))
+        if obj(props.get("proto")).get("enum") != ["setup/1"]:
+            problems.append(f"{where}: proto — не enum [\"setup/1\"]")
+        if obj(props.get("type")).get("enum") != [name]:
+            problems.append(f"{where}: type — не enum [\"{name}\"]")
+        if d.get("additionalProperties") is not False:
+            problems.append(f"{where}: нет additionalProperties: false")
+    # Примеры: у каждого сообщения есть, каждый проходит схему своего type (с битой ссылкой схему не прогнать)
+    shape = {"components": {"schemas": defs}}
+    seen = set()
+    examples = schema.get("examples", [])
+    if not isinstance(examples, list):
+        problems.append("#/examples: не список")
+        examples = []
+    for i, ex in enumerate(examples):
+        t = ex.get("type") if isinstance(ex, dict) else None
+        if not isinstance(t, str) or t not in messages:
+            problems.append(f"#/examples/{i}: нет сообщения type {t!r}")
+            continue
+        seen.add(t)
+        if not bad_refs:
+            try:
+                validate(shape, messages[t], ex, f"#/examples/{i} ({t})", problems)
+            except Exception as e:  # кривая схема сообщения: причина уже в problems выше, пример не прогнать
+                problems.append(f"#/examples/{i} ({t}): схему не прогнать — {type(e).__name__}: {e}")
+    problems.extend(f"#/$defs/{n}: нет примера в examples" for n in sorted(set(messages) - seen))
+    # Таблицы «Сообщения» описания: строка на сообщение, направление — по заголовку таблицы
+    sec = re.search(r"^## Сообщения\s*$(.*?)(?=^## )", doc + "\n## ", re.S | re.M)
+    rows = {}
+    if not sec:
+        problems.append("SETUP-UI.md: нет раздела «## Сообщения»")
+    else:
+        direction = None
+        for line in sec.group(1).splitlines():
+            if line.startswith("### "):
+                direction = next((k for k, v in SETUP_UI_DIRECTIONS.items() if v in line), None)
+                if direction is None:
+                    problems.append(f"SETUP-UI.md: «{line[4:]}» — заголовок таблицы без «→ страница» или «→ consolem»")
+                continue
+            m = re.match(r"\|\s*`(\w+)`\s*\|\s*([^|]*)\|", line)
+            if not m or m.group(2).strip() == "Когда":  # строка заголовка таблицы
+                continue
+            if m.group(1) in rows:
+                problems.append(f"SETUP-UI.md: сообщение {m.group(1)} — в таблицах дважды")
+            rows[m.group(1)] = direction
+    for n, direction in rows.items():
+        if n not in messages:
+            problems.append(f"SETUP-UI.md: сообщение {n} — нет в $defs")
+        elif messages[n]["x-direction"] != direction:
+            problems.append(f"SETUP-UI.md: сообщение {n} — в таблице {direction}, в схеме {messages[n]['x-direction']}")
+    problems.extend(f"SETUP-UI.md: сообщения {n} нет в таблицах «Сообщения»" for n in sorted(set(messages) - set(rows)) if sec)
+    # problem и problemError — копии Problem и ProblemError контракта
+    schemas = spec["components"]["schemas"]
+    for mine, theirs in (("problem", "Problem"), ("problemError", "ProblemError")):
+        a, b = defs.get(mine), schemas.get(theirs) or {}
+        if not isinstance(a, dict):
+            problems.append(f"#/$defs/{mine}: нет копии {theirs}")
+            continue
+        if set(obj(a.get("properties"))) != set(b.get("properties") or {}):
+            problems.append(f"#/$defs/{mine}: поля {sorted(obj(a.get('properties')))} — у {theirs} {sorted(b.get('properties') or {})}")
+        req = sorted(map(str, a.get("required") if isinstance(a.get("required"), list) else []))
+        if req != sorted(b.get("required") or []):
+            problems.append(f"#/$defs/{mine}: required {req} — у {theirs} {sorted(b.get('required') or [])}")
+    setup = schemas.get("UnitKind", {}).get("properties", {}).get("setupUi", {})
+    if "api/SETUP-UI.md" not in setup.get("description", ""):
+        problems.append("openapi.json: в описании UnitKind.setupUi нет ссылки на api/SETUP-UI.md")
+    return problems, len(messages)
+
+
+def check_setup_ui(rep, spec):
+    name = "Протокол страницы setup/1: схема сообщений, примеры, описание"
+    missing = [f"файла {API}/{f} нет" for f in ("setup-ui.schema.json", "SETUP-UI.md") if read(f"{API}/{f}") is None]
+    if missing:
+        return rep.check(name, missing)
+    try:
+        schema = json.loads(read(f"{API}/setup-ui.schema.json"))
+    except ValueError as e:
+        return rep.check(name, [f"{API}/setup-ui.schema.json: не JSON — {e}"])
+    problems, n = setup_ui_problems(spec, schema, read(f"{API}/SETUP-UI.md"))
+    rep.check(name, problems, f"{n} сообщений")
+    # Библиотека автора страницы: протокол в Node на поддельном окне, каждое её сообщение — по схеме (tools/check_setup_bridge.js)
+    name = "Библиотека страницы setup-bridge.js: протокол setup/1"
+    if read(f"{API}/setup-bridge.js") is None:
+        return rep.fail(name, [f"{API}/setup-bridge.js нет"])
+    problems, note = setup_bridge_run()
+    rep.check(name, problems, note)
+
+
+def setup_bridge_run():
+    """Прогон tools/check_setup_bridge.js в Node → (отказы, итог). Скрипт печатает {"problems": […], "scenarios": N}.
+    Нет node, выход не 0 или вывод не тот — отказ строкой, а не исключение."""
+    try:
+        res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_setup_bridge.js"), API], capture_output=True, text=True, cwd=ROOT)
+    except OSError as e:
+        return [f"node не запустился: {e}"], ""
+    if res.returncode:
+        return res.stderr.strip().splitlines()[-3:] or [f"check_setup_bridge.js: exit code {res.returncode}"], ""
+    try:
+        out = json.loads(res.stdout)
+    except ValueError:
+        return [f"check_setup_bridge.js: не JSON — {res.stdout.strip()[-200:]}"], ""
+    problems = out.get("problems") if isinstance(out, dict) else None
+    count = out.get("scenarios") if isinstance(out, dict) else None
+    if not isinstance(problems, list) or not isinstance(count, int) or isinstance(count, bool):
+        return [f"check_setup_bridge.js: вывод не {{problems: […], scenarios: N}} — {res.stdout.strip()[-200:]}"], ""
+    return [str(p) for p in problems], f"сценариев {count}"
 
 
 def check_core_field(rep, spec):
@@ -950,6 +1385,141 @@ def check_core_field(rep, spec):
                 query = {p.get("name") for p in op.get("parameters", []) if isinstance(p, dict)} if isinstance(op, dict) else set()
                 walk(op, f"{method.upper()} {path}", query)
     rep.check("Пути ядра: field отказа в описаниях — JSON Pointer", problems, f"{n} упоминаний")
+
+
+PROFILES_BASE = cli_paths.opt("profiles-base", "origin/main")
+
+
+def check_profile_files(rep, spec, fixtures):
+    """Профили в файлах api/profiles/*.json (tools/profile_files.py): формат; раздел profiles наборов — из файлов;
+    виды несут поля профиля того же типа, status объектов — по схеме профиля; версия против PROFILES_BASE; зависимости uses."""
+    folder = os.path.join(ROOT, API, profile_files.PROFILES_DIR)
+    if not os.path.isdir(folder):
+        rep.fail("Профили api/profiles/: файлы по формату", [f"нет папки {API}/profiles"])
+        return
+    try:
+        docs = profile_files.load_profiles(os.path.join(ROOT, API))
+    except ValueError as e:
+        rep.fail("Профили api/profiles/: файлы по формату", [str(e)])
+        return
+    problems = [f"{d['_file']}: {t}" for d in docs for t in profile_files.profile_problems(d)]
+    rep.check("Профили api/profiles/: файлы по формату", problems, f"файлов {len(docs)}")
+    problems = []
+    for name, fx in fixtures.items():
+        problems += [f"набор {name}: {t}" for t in profile_files.fixture_profile_problems(fx.get("profiles") or [], docs, name == "demo")]
+    rep.check("Профили: раздел profiles наборов — из файлов", problems)
+    problems = []
+    for name, fx in fixtures.items():
+        problems += [f"набор {name}: {t}" for t in profile_files.kind_problems(docs, fx.get("kinds") or [], name != "demo", {k["kind"] for k in fx.get("kinds") or []})]
+    # status.observed объектов эталонного набора — по схеме профиля (имя состояния → schema)
+    demo = fixtures.get("demo") or {}
+    kinds = {k["kind"]: k for k in demo.get("kinds") or []}
+    schemas = {d["id"]: {n: f["schema"] for n, f in (d.get("status") or {}).items()} for d in docs}
+    for u in demo.get("units") or []:
+        obs = (u.get("status") or {}).get("observed") or {}
+        for pid in (kinds.get(u.get("kind")) or {}).get("implements") or []:
+            for n, sch in (schemas.get(pid) or {}).items():
+                if n in obs:
+                    out = []
+                    validate(spec, sch, obs[n], f"{u['uid']} status.observed.{n}", out)
+                    problems += [f"набор demo: {pid}: {t}" for t in out]
+    rep.check("Профили: виды несут поля профиля того же типа; status объектов — по схеме профиля", problems)
+    name = f"Профили: версия против {PROFILES_BASE}"
+    if API != "api":
+        rep.info(f"{name}: {API} — копия папки API, сверка с git пропущена")
+    else:
+        mb = layers.merge_base(PROFILES_BASE, ROOT, None)
+        if mb is None:
+            rep.info(f"{name}: нет git или {PROFILES_BASE}, сверка пропущена")
+        else:
+            problems = []
+            for d in docs:
+                text = layers.git_out(ROOT, "show", f"{mb}:{API}/profiles/{d['_file']}")
+                try:
+                    base = json.loads(text) if text else None
+                except ValueError:
+                    base = None
+                problems += [f"{d['_file']}: {t}" for t in profile_files.history_problems(d, base)]
+            listing = layers.git_out(ROOT, "ls-tree", "--name-only", mb, f"{API}/profiles/") or ""
+            base_names = [os.path.basename(x) for x in listing.split("\n") if x.endswith(".json")]
+            problems += profile_files.removed_file_problems(base_names, [d["_file"] for d in docs])
+            rep.check(name, problems)
+    rep.check("Профили: зависимости uses есть и не младше", profile_files.uses_problems(docs))
+
+
+def check_layers(rep, spec):
+    """Граница слоёв: правила S1–S5 в tools/layers.py."""
+    try:
+        problems = layers.static_problems(spec, layers.profile_ids(API))
+    except ValueError as e:  # сломанный файл профиля
+        rep.fail("Граница слоёв: поля подсистем в общих схемах", [str(e)])
+        return
+    schemas = [n for n in spec["components"]["schemas"] if layers.layer_of_schema(spec, n)]
+    paths = [p for p in spec["paths"] if layers.layer_of_path(spec, p)]
+    leaks = layers.leak_marks(spec)
+    rep.check("Граница слоёв: поля подсистем в общих схемах", problems,
+              f"{len(schemas)} схем, {len(paths)} путей подсистем, {len(leaks)} полей подсистем в общих схемах")
+
+
+def check_mechanism(rep, spec, fixtures):
+    """Механизм без VMS (tools/mechanism.py): раскладки наборов сходятся с их видами (L1–L7), разделы приложения (S1–S4), описания дерева — без слов VMS (B5)."""
+    problems = [p for name, fx in fixtures.items() for p in mechanism.layout_problems(fx, name)]
+    rep.check("Раскладки дерева в наборах: объявления сходятся с видами", problems,
+              ", ".join(f"{name}: {len(fx.get('layouts') or [])}" for name, fx in fixtures.items()))
+    problems = [p for name, fx in fixtures.items() for p in mechanism.section_problems(fx, name)]
+    rep.check("Разделы приложения в наборах: объявлены с операциями, demo — все коды", problems,
+              ", ".join(f"{name}: {len(((fx.get('reference') or {}).get('capabilities') or {}).get('sections') or [])}" for name, fx in fixtures.items()))
+    rep.check("Граница механизма: без VMS в общих описаниях", mechanism.border_problems(spec),
+              f"схем {len(mechanism.TREE_SCHEMAS)} и пути {mechanism.TREE_PATH_PREFIX}*")
+
+
+def check_versions_by_layer(rep, spec):
+    """Таблица docs/contract-layers/versions-by-layer.md: строка у каждой версии README и у текущей, слои знакомые."""
+    name = "Версии контракта по слоям"
+    path = os.path.join(ROOT, "docs", "contract-layers", "versions-by-layer.md")  # от корня репозитория, не от --api
+    if not os.path.exists(path):
+        rep.fail(name, ["нет файла docs/contract-layers/versions-by-layer.md"])
+        return
+    with open(path, encoding="utf-8") as f:
+        table = f.read()
+    try:
+        ids = layers.profile_ids(API)
+    except ValueError as e:  # сломанный файл профиля
+        rep.fail(name, [str(e)])
+        return
+    problems = layers.versions_table_problems(read(f"{API}/README.md") or "", table, spec["info"]["version"], ids)
+    rep.check(name, problems, f"текущая версия {spec['info']['version']}")
+
+
+def check_layer_diff(rep, spec):
+    """Слои правки против origin/main (tools/layers.py): какие слои задела правка, кого уведомить; механизм без новой версии — отказ."""
+    name = "Слои правки против origin/main"
+    if API != "api":
+        rep.info(f"{name}: {API} — копия папки API, сверка с git пропущена")
+        return
+    try:
+        cls = layers.classify("origin/main", ROOT, API)
+    except ValueError as e:  # сломанный файл профиля
+        rep.fail(name, [str(e)])
+        return
+    if cls is None:
+        rep.info(f"{name}: нет git или origin/main, пропуск")
+        return
+    folder = os.path.join(ROOT, API, "profiles")
+    active = os.path.isdir(folder) and any(n.endswith(".json") for n in os.listdir(folder))
+    rep.info(f"{name}: файлов {len(cls['files'])}, {layers.version_text(cls)}, механизм {len(cls['mechanism'])}, "
+             f"описаний {len(cls['descriptions'])}, пометок {len(cls['marks'])}")
+    for text in cls["marks"][:5]:
+        rep.info(f"{name}: пометка x-layer изменена у {text}")
+    if len(cls["marks"]) > 5:
+        rep.info(f"{name}: … и ещё {len(cls['marks']) - 5} пометок x-layer")
+    for layer, items in cls["layers"].items():
+        rep.info(f"{name}: слой {layer} — {len(items)}")
+    for who, what in cls["notify"].items():
+        rep.info(f"{name}: уведомить {who} ({', '.join(what)})")
+    for note in layers.version_notes(cls):
+        rep.info(f"{name}: {note}")
+    rep.check(name, layers.version_problems(cls, active))
 
 
 def check_backend_doc(rep, spec):
@@ -1041,6 +1611,105 @@ def check_breaking_doc(rep, spec):
               f"операций старого контракта снято {len(ops(base) - ops(spec))}, схем снято {len(set(sa) - set(sb))}")
 
 
+LAYER_FORM = re.compile(r"^(mechanism|video|profile:[A-Za-z0-9_.-]+/[0-9]+)$")
+SINCE_FORM = re.compile(r"^[0-9]+\.[0-9]+$")
+# условия needs, которые связывают тест с видом или профилем набора (часть 04 переносит такие тесты в слой профиля)
+KIND_NEEDS = ("kind:", "type:", "prop:", "cap:", "under:", "implements:")
+
+
+def check_test_layers(rep, tests=TESTS, api=API):
+    """У каждого теста API есть слой верной формы; слой профиля — id из файла api/profiles/; since — по версии профиля.
+    Реестр тестов — tools/api_tests_registry.mjs (без запуска тестов). Разбор id и версии — profile_files, путь — layers."""
+    name = "Слой у каждого теста API"
+    res = subprocess.run(["node", os.path.join(ROOT, "tools", "api_tests_registry.mjs"), "--api", api, "--tests", tests],
+                         capture_output=True, text=True, cwd=ROOT)
+    if res.returncode != 0:
+        rep.fail(name, ["реестр тестов не напечатан: " + (res.stderr.strip() or f"код {res.returncode}")])
+        return
+    reg = json.loads(res.stdout)
+    problems = []
+    versions = {}  # id профиля → версия из файла (None — файла нет или он не читается)
+
+    def profile_version(pid):
+        if pid not in versions:
+            path = os.path.join(ROOT, layers.profile_file(pid, api))
+            try:
+                doc = json.load(open(path, encoding="utf-8"))
+            except (OSError, ValueError):
+                doc = None
+            versions[pid] = doc if isinstance(doc, dict) and doc.get("id") == pid else None
+            if doc is None:
+                versions[pid] = "no-file"
+        return versions[pid]
+
+    count = {"mechanism": 0, "video": 0}
+    profiles_used = set()
+    for file, layer in sorted(reg["files"].items()):
+        if not layer:
+            problems.append(f"{file}: у файла нет слоя (ApiTest.fileLayer)")
+    for t in reg["tests"]:
+        where = f"{t['file']}.js «{t['name'][:60]}»"
+        layer, since = t["layer"], t["since"]
+        if not layer:
+            problems.append(f"{where}: тест без слоя")
+            continue
+        if not LAYER_FORM.match(layer):
+            problems.append(f"{where}: неизвестный слой «{layer}» (mechanism, video или profile:<id>/N)")
+            continue
+        if layer in count:
+            count[layer] += 1
+            if since is not None:
+                problems.append(f"{where}: since — только у теста профиля, а слой — {layer}")
+            continue
+        pid = layer[len("profile:"):]
+        profiles_used.add(pid)
+        doc = profile_version(pid)
+        if doc == "no-file" or doc is None:
+            fname = layers.profile_file(pid, api)
+            problems.append(f"{where}: нет файла профиля {fname}" if doc == "no-file" else f"{where}: id в {layers.profile_file(pid, api)} не {pid}")
+            continue
+        if since is None:
+            continue
+        try:
+            sv = profile_files.parse_version(since)
+        except ValueError:
+            problems.append(f"{where}: since — вида M.m, а не «{since}»")
+            continue
+        if sv[0] != profile_files.major_of(pid):
+            problems.append(f"{where}: старшая версия since не совпадает с /{profile_files.major_of(pid)}: «{since}»")
+        try:
+            cur = profile_files.parse_version(doc.get("version"))
+        except ValueError:
+            problems.append(f"{where}: в {layers.profile_file(pid, api)} version не вида M.m")
+            continue
+        if sv > cur:
+            problems.append(f"{where}: since «{since}» старше версии профиля {doc.get('version')}")
+    profile_tests = sum(1 for t in reg["tests"] if t["layer"] and t["layer"].startswith("profile:"))
+    note = f"механизм {count['mechanism']}, API видео {count['video']}, профилей {len(profiles_used)} ({profile_tests} тестов)"
+    rep.check(name, problems, note)
+    if problems:
+        return
+    known = {}
+    for t in reg["tests"]:
+        if t["layer"] != "mechanism":
+            continue
+        hits = [n for n in t["needs"] if n.startswith(KIND_NEEDS) and not n.split(":", 1)[1].startswith("test.")]
+        if hits:
+            known[t["file"] + ".js"] = known.get(t["file"] + ".js", 0) + 1
+    if known:
+        rep.info(f"Тесты механизма на видах набора: {sum(known.values())} — "
+                 + ", ".join(f"{f}: {n}" for f, n in sorted(known.items())))
+    tested = set(profiles_used)
+    for t in reg["tests"]:
+        tested.update(n[len("implements:"):] for n in t["needs"] if n.startswith("implements:"))
+    folder = os.path.join(ROOT, api, "profiles")
+    names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+    ids = [i for i in (profile_files.id_of_file(n) for n in names) if i]
+    untested = [i for i in ids if i not in tested]
+    if untested:
+        rep.info("Профили без тестов: " + ", ".join(untested))
+
+
 def main():
     rep = Report()
     spec = load(f"{API}/openapi.json")
@@ -1050,23 +1719,36 @@ def main():
     fx = with_tables(load(f"{API}/fixtures/demo.json"))
     profile = with_tables(load(f"{API}/fixtures/one-domain.json"))
     large = with_tables(load(f"{API}/fixtures/large.json"))
+    agents = with_tables(load(f"{API}/fixtures/agents.json"))
     check_contract(rep, spec)
+    check_bridge(rep, bridge_specs())
     check_fixture(rep, spec, fx)
     check_fixture(rep, spec, profile, "Набор one-domain")
     check_fixture(rep, spec, large, "Набор large")
+    check_fixture(rep, spec, agents, "Набор agents")
     check_units(rep, spec, fx)
     check_units(rep, spec, profile, "Набор one-domain")
     check_units(rep, spec, large, "Набор large")
-    check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large})
+    check_units(rep, spec, agents, "Набор agents")
+    check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
+    check_agents_mechanism(rep, spec, agents)
+    check_rule_catalog(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
+    check_profile_files(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "profile_fixture.py"), "--check", "--api", API], capture_output=True, text=True)
     rep.check("one-domain.json собран из нынешнего demo.json", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_api.py"), "--check", "--api", API], capture_output=True, text=True)
     rep.check("openapi.js и fixture.js собраны из нынешних JSON", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     check_prototype(rep)
     check_server(rep, spec)
+    check_test_layers(rep)
     check_core_field(rep, spec)
+    check_setup_ui(rep, spec)
+    check_layers(rep, spec)
+    check_mechanism(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
+    check_versions_by_layer(rep, spec)
     check_backend_doc(rep, spec)
     check_breaking_doc(rep, spec)
+    check_layer_diff(rep, spec)
     if "--lint" in sys.argv[1:]:
         res = subprocess.run(["npx", "-y", "@redocly/cli@1.34.0", "lint", os.path.join(ROOT, API, "openapi.json")],
                              capture_output=True, text=True, cwd=ROOT)

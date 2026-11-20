@@ -17,7 +17,9 @@
    ],
    "createParents": [],
    "implements": [
-    "vms.domain/1"
+    "core.domain/1",
+    "vms.scenarios/1",
+    "vms.relays/1"
    ],
    "capabilities": [
     "rename"
@@ -25,18 +27,7 @@
    "schema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {
-     "license": {
-      "x-label": {
-       "key": "field.license",
-       "text": "Лицензия",
-       "lang": "ru"
-      },
-      "type": "string",
-      "description": "Устарело в 0.20.0: ключ лицензии — GET /licenses/keys, домены ключа — domainIds. Сервер принимает поле как раньше",
-      "deprecated": true
-     }
-    }
+    "properties": {}
    }
   },
   {
@@ -91,7 +82,8 @@
        "text": "Порт",
        "lang": "ru"
       },
-      "type": "integer"
+      "type": "integer",
+      "default": 20111
      },
      "role": {
       "x-label": {
@@ -159,7 +151,12 @@
       },
       "type": "array",
       "items": {
-       "type": "string"
+       "type": "string",
+       "examples": [
+        "gpu",
+        "edge",
+        "archive"
+       ]
       },
       "description": "Метки сервера: по ним размещаются камеры, детекторы, записи, правила"
      },
@@ -826,7 +823,7 @@
     "folder"
    ],
    "implements": [
-    "vms.folder/1"
+    "core.folder/1"
    ],
    "capabilities": [
     "create",
@@ -2166,7 +2163,7 @@
         },
         "labels": {
          "type": "array",
-         "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт",
+         "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт",
          "items": {
           "type": "string"
          }
@@ -2270,7 +2267,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+      "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
      },
      "lat": {
       "x-label": {
@@ -2660,7 +2657,357 @@
        "lang": "ru"
       },
       "type": "string",
-      "x-search": true
+      "x-search": true,
+      "examples": [
+       "360Vision",
+       "3S",
+       "Abron",
+       "ABUS",
+       "ACTi",
+       "Acumen",
+       "Adino",
+       "Advantech",
+       "Aebell",
+       "AEVision",
+       "AGRG",
+       "AiMobile",
+       "Alinking",
+       "AlphaOTM",
+       "Amatek",
+       "AMG",
+       "Ampleye B.V.",
+       "AMTK",
+       "Andy",
+       "Arecont Vision",
+       "ARH",
+       "Arlotto",
+       "Asoni",
+       "ASTR",
+       "Astra",
+       "Astrohn",
+       "Aver",
+       "AverDVR",
+       "Avgit",
+       "AVIGILON",
+       "AVIGILON generic",
+       "AVIOSYS",
+       "AVTech",
+       "AVTS",
+       "Avycon",
+       "Axis",
+       "AxyCam",
+       "Balter",
+       "Basler",
+       "BCS",
+       "BestDigital",
+       "BestDVR",
+       "BestNVR",
+       "Beward",
+       "BikInform",
+       "BlacklineSafety",
+       "BOLID",
+       "Bolin Technology",
+       "Bosch",
+       "Bosch Generic",
+       "Brickcom",
+       "BSP",
+       "Byterg",
+       "Cametron",
+       "Canon",
+       "CaptureDevice",
+       "Cellinx",
+       "CERTIS",
+       "Cisco",
+       "CloudClient",
+       "CNB",
+       "Commax",
+       "Commax Complex Server",
+       "Commax generic",
+       "Commbox",
+       "ComOnyx",
+       "Compotrol",
+       "Corwus",
+       "CP Plus",
+       "D-Link",
+       "Dahua",
+       "DahuaDSS",
+       "DahuaNetSDK",
+       "DahuaSDK",
+       "Digiever",
+       "DiGieyes",
+       "DigitalWatchdog",
+       "DSSL",
+       "Dynacolor",
+       "EasyN",
+       "ECHD",
+       "Eneo",
+       "EPI",
+       "Ericsson",
+       "Etrovision",
+       "Etz",
+       "EverFocus",
+       "Everview",
+       "EVG",
+       "eVidence",
+       "EVS",
+       "FFMPEG",
+       "FINE",
+       "FineCCTV",
+       "FlexWatch",
+       "Flir",
+       "FlirAXSeries",
+       "G4S",
+       "GAI-Tronics",
+       "Ganz",
+       "GBT28181",
+       "Geovision",
+       "GFE",
+       "GIGA",
+       "GIT",
+       "Glosav",
+       "Grandstream",
+       "Grundig",
+       "Grundig CVion",
+       "Grundig SMART Line",
+       "Gunnebo",
+       "Hanwha Techwin",
+       "Hanwha Techwin generic",
+       "HawkEye",
+       "HikCentralPro",
+       "HikConnect",
+       "Hikvision",
+       "HiWatch",
+       "Holowits",
+       "Homeland Safety Systems",
+       "Honeywell",
+       "HttpListener",
+       "Huawei",
+       "HuaweiIVS",
+       "Hunda",
+       "Hunt",
+       "IDIS",
+       "iFlow",
+       "IMOU",
+       "Inaxsys Legend",
+       "Inaxsys STORM",
+       "IndigoVision",
+       "Infiniti",
+       "Infinity",
+       "Infinova",
+       "Infralan",
+       "InHot",
+       "InMotion",
+       "Intel",
+       "Intelbras",
+       "Intellico",
+       "Intelliko",
+       "Interop",
+       "Intralogic Solutions",
+       "InVid",
+       "IOBoard",
+       "IPDROM",
+       "IPDROM generic",
+       "IPS",
+       "IPTRONIC",
+       "IPux",
+       "IPV Halo Smart Sensors",
+       "IPVideo Corporation",
+       "IQeye",
+       "IRLab",
+       "iZett",
+       "J2000IP",
+       "Jasamarga",
+       "Jassun",
+       "Jovision",
+       "JVC",
+       "JVC NVR",
+       "K-New",
+       "KernelChip",
+       "KONEKT",
+       "LegacySDK",
+       "Legrand",
+       "Lesohranitel",
+       "LevelOne",
+       "LG",
+       "Li-Lin",
+       "LILIN",
+       "Linceo",
+       "Live Eye",
+       "Logitech",
+       "LTS",
+       "LTS Platinum",
+       "LTV",
+       "Luminys Basic",
+       "Luminys generic",
+       "LuminysSDK",
+       "Luna",
+       "Mago",
+       "Mango",
+       "March",
+       "Master",
+       "Mediatronix",
+       "MeritLilin",
+       "Messoa",
+       "MicroDigital",
+       "Milesight",
+       "MilesightToF",
+       "Mitsubishi",
+       "Mobotix",
+       "MOXA",
+       "Naziraty",
+       "NexusIP",
+       "NIC Tehnologii",
+       "NicTechGeneric",
+       "Nikiret",
+       "Novicam",
+       "Novus",
+       "Olvia",
+       "OlviaFTP",
+       "OMNY",
+       "OncamGrandeye",
+       "ONVIF 2.X",
+       "ONVIF generic",
+       "Optelecom",
+       "OTN Systems",
+       "Panasonic",
+       "Panasonic generic",
+       "Partizan",
+       "Patronus Laboratories Corporation",
+       "Pelco",
+       "Perfect-4",
+       "Pinetron",
+       "Pixeye",
+       "Pixord",
+       "Planet",
+       "POSLegacy",
+       "PosXml",
+       "PRESENTCO",
+       "Probe",
+       "Probe Digital",
+       "PROENG",
+       "Promelit",
+       "Provision",
+       "PSIA",
+       "Q-cam",
+       "QNAP",
+       "REDLINE",
+       "RIVA",
+       "ROKA",
+       "Rostec",
+       "RS",
+       "RTP stream device",
+       "RTSP",
+       "Rubetek",
+       "RVi",
+       "Samsung",
+       "SamsungTW",
+       "Santec",
+       "Sanyo",
+       "SCS",
+       "SEEnergy",
+       "Selea",
+       "SenstarSymphony",
+       "Sentry360",
+       "Sentryway",
+       "SenturianServerGeneric",
+       "SERVICE TELEMATIKA",
+       "SerVision",
+       "Sieza",
+       "SightlineApplications",
+       "SimpleIP",
+       "Singtel",
+       "Sinkross",
+       "SIP",
+       "SIP and RTSP",
+       "SIP Device",
+       "SIP with RTSP",
+       "SIP with Video",
+       "Smartec",
+       "SMAVID",
+       "SNR",
+       "Sony",
+       "Sophus",
+       "Spark",
+       "Spezvision",
+       "Sprut",
+       "ST",
+       "StarDot",
+       "Stkomplex",
+       "STORM",
+       "StreamLabs",
+       "Stretch",
+       "Sunell",
+       "Sunkwang",
+       "Svplus",
+       "Takex",
+       "Tamron",
+       "Tantos",
+       "Targa Systems",
+       "TARGET",
+       "Tattile",
+       "TBK",
+       "TcpListener",
+       "Teb",
+       "Techpro Security",
+       "Tecnosens",
+       "TEDD",
+       "TeleEye",
+       "Tiandy",
+       "Tibbo",
+       "Tibet",
+       "TrendNet",
+       "Trezor",
+       "True IP",
+       "TruVision",
+       "TVHelp",
+       "TVT",
+       "Tyco",
+       "Typhoon",
+       "UDP",
+       "Uniarch",
+       "Uniview",
+       "V1netIP",
+       "Vandi",
+       "Veilux",
+       "Verint",
+       "Vesta",
+       "Video Intelligent",
+       "Videosec",
+       "Videotec",
+       "ViDigi",
+       "Vido",
+       "VidoNet",
+       "Vigilate",
+       "Virtual",
+       "Virtual bench",
+       "Virtual Generic",
+       "Visiocom",
+       "Vision",
+       "VisionTek",
+       "VisioWave",
+       "VisualGate",
+       "Visualint",
+       "VITEK",
+       "Vivotek",
+       "VivotekNVR",
+       "VMsistemos",
+       "VniiaRadiation",
+       "VWEB",
+       "WatchNET",
+       "Webgate",
+       "WebPlayer",
+       "Witson",
+       "WuT",
+       "Xenics",
+       "XeronVision",
+       "Y-cam",
+       "Youngkook",
+       "Yuan",
+       "Yudor",
+       "Zavio",
+       "Zenosys",
+       "Zet"
+      ]
      },
      "videoChannel": {
       "x-label": {
@@ -2724,7 +3071,324 @@
       },
       "description": "С 0.17.0. Области маски приватности на кадре камеры: до 16 многоугольников, у каждого от 3 до 64 вершин. Маска закрывает области в живом видео и в архиве для тех, у кого нет права ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE (reference.access.features). Это право снимает маску и в живом видео, и в архиве. Сервер хранит архив без маски: маску накладывают при показе. Маска привязана к кадру, а не к положению PTZ. Нет поля или пустой список — маски нет"
      }
-    }
+    },
+    "allOf": [
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Axis"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic",
+          "P3245-LV",
+          "M3067-P",
+          "A1001",
+          "Q1656"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Bosch"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "NBN-73023",
+          "FLEXIDOME IP 3000i",
+          "AUTODOME IP 5000i"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Canon"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "VB-R11",
+          "VB-H47",
+          "VB-M641VE"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Dahua"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "IPC-HFW5241",
+          "IPC-HFW5831",
+          "NVR5216"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Grundig"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "GD-CI-AP4746P"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Hikvision"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic",
+          "DS-2CD2143G2",
+          "DS-2CD2347G2",
+          "DS-2DE7220IW-AE"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "IDIS"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "DC-S3538HRX",
+          "DC-S3583HRX"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "ONVIF generic"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Panasonic"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "WV-S1131",
+          "WV-SFN631L"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Sony"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "SNC-VB632D",
+          "SNC-EM632RC"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Uniview"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "IPC322LR3",
+          "IPC3615SB-ADF28KM-I0"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Virtual"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "Virtual IP server",
+          "TestDevice",
+          "generic"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Vivotek"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic",
+          "FD9387-HTV",
+          "IB9387-HT"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Zet"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "HR-FD2030C"
+         ]
+        }
+       }
+      }
+     }
+    ]
    },
    "actions": [
     {
@@ -4596,7 +5260,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+      "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
      },
      "params": {
       "type": "string",
@@ -6173,49 +6837,83 @@
  ],
  "profiles": [
   {
-   "id": "vms.domain/1",
+   "id": "core.domain/1",
    "label": {
-    "key": "profile.vms.domain/1",
-    "text": "Домен",
+    "key": "profile.core.domain/1",
+    "text": "Область системы",
     "lang": "ru"
    },
-   "properties": [
-    "license"
-   ]
+   "version": "1.0",
+   "properties": []
   },
   {
-   "id": "vms.server/1",
+   "id": "core.folder/1",
    "label": {
-    "key": "profile.vms.server/1",
-    "text": "Сервер",
-    "lang": "ru"
-   },
-   "properties": [
-    "allocated",
-    "dns",
-    "gateway",
-    "ip",
-    "labels",
-    "netmask",
-    "port",
-    "role"
-   ],
-   "status": [
-    "class",
-    "disks",
-    "fingerprint",
-    "gpu",
-    "telemetry"
-   ]
-  },
-  {
-   "id": "vms.folder/1",
-   "label": {
-    "key": "profile.vms.folder/1",
+    "key": "profile.core.folder/1",
     "text": "Папка",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": []
+  },
+  {
+   "id": "vms.acs/1",
+   "label": {
+    "key": "profile.vms.acs/1",
+    "text": "Единица СКУД с командами",
+    "lang": "ru"
+   },
+   "version": "1.1",
+   "properties": [
+    "enabled",
+    "identifier",
+    "ip",
+    "model",
+    "operations",
+    "path",
+    "properties",
+    "short",
+    "unitOptions",
+    "vendor"
+   ],
+   "status": [
+    "fault"
+   ]
+  },
+  {
+   "id": "vms.archive/1",
+   "label": {
+    "key": "profile.vms.archive/1",
+    "text": "Хранилище",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.server/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.volume/1",
+     "version": "1.0"
+    }
+   ],
+   "properties": [
+    "admits",
+    "encrypted",
+    "provider",
+    "recordMode",
+    "retentionDays",
+    "storage"
+   ]
   },
   {
    "id": "vms.camera/1",
@@ -6224,6 +6922,41 @@
     "text": "Камера",
     "lang": "ru"
    },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.detector/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.live/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.ptz/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.stream/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.talk/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.timeline/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "alarmKinds",
     "archiveId",
@@ -6289,19 +7022,294 @@
    ]
   },
   {
-   "id": "vms.archive/1",
+   "id": "vms.detector/1",
    "label": {
-    "key": "profile.vms.archive/1",
-    "text": "Хранилище",
+    "key": "profile.vms.detector/1",
+    "text": "Детектор",
     "lang": "ru"
    },
+   "version": "1.1",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.live/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
-    "admits",
-    "encrypted",
-    "provider",
+    "alarmKinds",
+    "builtin",
+    "detectorKind",
+    "enabled",
+    "labels",
+    "params",
+    "sensitivity",
+    "serverId",
+    "stream",
+    "template",
+    "zone"
+   ]
+  },
+  {
+   "id": "vms.discovery/1",
+   "label": {
+    "key": "profile.vms.discovery/1",
+    "text": "Поиск устройств в сети области",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "discovery"
+   ]
+  },
+  {
+   "id": "vms.edge/1",
+   "label": {
+    "key": "profile.vms.edge/1",
+    "text": "Встроенное хранилище устройства",
+    "lang": "ru"
+   },
+   "version": "1.1",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    }
+   ],
+   "properties": [
+    "replication",
+    "enabled",
     "recordMode",
-    "retentionDays",
-    "storage"
+    "short"
+   ],
+   "status": [
+    "replicationStatus",
+    "mediaOk",
+    "profileG"
+   ]
+  },
+  {
+   "id": "vms.live/1",
+   "label": {
+    "key": "profile.vms.live/1",
+    "text": "Живое видео",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "live"
+   ]
+  },
+  {
+   "id": "vms.pos/1",
+   "label": {
+    "key": "profile.vms.pos/1",
+    "text": "Источник событий (касса)",
+    "lang": "ru"
+   },
+   "version": "1.1",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.live/1",
+     "version": "1.0"
+    }
+   ],
+   "properties": [
+    "overlays",
+    "cameraId",
+    "overlayDelayMs",
+    "overlayDurationSec",
+    "overlayFont",
+    "overlayFontSize",
+    "overlayColor",
+    "overlayBg",
+    "overlayBgTransparency",
+    "receiptStartWords",
+    "receiptEndWords",
+    "receiptSplit",
+    "ignoreCase",
+    "billsOnly",
+    "eraseOnEnd",
+    "words",
+    "protocol",
+    "comPort",
+    "baudRate",
+    "parity",
+    "udpMaxPacket",
+    "encoding",
+    "terminalType",
+    "parserFile",
+    "processing",
+    "timeoutMs",
+    "timeOffsetMs",
+    "retalix",
+    "enabled",
+    "ip",
+    "model",
+    "port",
+    "short",
+    "vendor",
+    "serverId"
+   ],
+   "apis": [
+    "pos/raw"
+   ]
+  },
+  {
+   "id": "vms.ptz/1",
+   "label": {
+    "key": "profile.vms.ptz/1",
+    "text": "PTZ",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [
+    "ptz",
+    "presets",
+    "presetMax"
+   ],
+   "apis": [
+    "ptz",
+    "presets/{n}"
+   ]
+  },
+  {
+   "id": "vms.relays/1",
+   "label": {
+    "key": "profile.vms.relays/1",
+    "text": "Ретрансляторы",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "relays",
+    "relays/{name}"
+   ]
+  },
+  {
+   "id": "vms.scenarios/1",
+   "label": {
+    "key": "profile.vms.scenarios/1",
+    "text": "Сценарии между камерами",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "scenarios",
+    "scenarios/status"
+   ]
+  },
+  {
+   "id": "vms.server/1",
+   "label": {
+    "key": "profile.vms.server/1",
+    "text": "Сервер",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.webserver/1",
+     "version": "1.0"
+    }
+   ],
+   "properties": [
+    "allocated",
+    "dns",
+    "gateway",
+    "ip",
+    "labels",
+    "netmask",
+    "port",
+    "role"
+   ],
+   "status": [
+    "class",
+    "disks",
+    "fingerprint",
+    "gpu",
+    "telemetry"
+   ]
+  },
+  {
+   "id": "vms.stream/1",
+   "label": {
+    "key": "profile.vms.stream/1",
+    "text": "Поток",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    }
+   ],
+   "properties": [
+    "codec",
+    "fps",
+    "height",
+    "res",
+    "resOptions",
+    "streamId",
+    "width"
+   ]
+  },
+  {
+   "id": "vms.talk/1",
+   "label": {
+    "key": "profile.vms.talk/1",
+    "text": "Разговор",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [
+    "channel",
+    "enabled",
+    "short"
+   ],
+   "apis": [
+    "talk"
+   ]
+  },
+  {
+   "id": "vms.timeline/1",
+   "label": {
+    "key": "profile.vms.timeline/1",
+    "text": "Архив: шкала и записи",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "timeline",
+    "playback",
+    "holds",
+    "bookmarks",
+    "archive-fetch"
    ]
   },
   {
@@ -6311,6 +7319,17 @@
     "text": "Том",
     "lang": "ru"
    },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.server/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "account",
     "bucket",
@@ -6342,194 +7361,13 @@
    ]
   },
   {
-   "id": "vms.stream/1",
-   "label": {
-    "key": "profile.vms.stream/1",
-    "text": "Поток",
-    "lang": "ru"
-   },
-   "properties": [
-    "codec",
-    "fps",
-    "height",
-    "res",
-    "resOptions",
-    "streamId",
-    "width"
-   ]
-  },
-  {
-   "id": "vms.detector/1",
-   "label": {
-    "key": "profile.vms.detector/1",
-    "text": "Детектор",
-    "lang": "ru"
-   },
-   "properties": [
-    "alarmKinds",
-    "builtin",
-    "detectorKind",
-    "enabled",
-    "labels",
-    "params",
-    "sensitivity",
-    "serverId",
-    "stream",
-    "template",
-    "zone"
-   ]
-  },
-  {
-   "id": "vms.acs/1",
-   "label": {
-    "key": "profile.vms.acs/1",
-    "text": "Единица СКУД с командами",
-    "lang": "ru"
-   },
-   "properties": [
-    "enabled",
-    "identifier",
-    "ip",
-    "login",
-    "model",
-    "operations",
-    "password",
-    "path",
-    "port",
-    "properties",
-    "short",
-    "unitOptions",
-    "vendor"
-   ],
-   "status": [
-    "fault"
-   ]
-  },
-  {
-   "id": "vms.live/1",
-   "label": {
-    "key": "profile.vms.live/1",
-    "text": "Живое видео",
-    "lang": "ru"
-   },
-   "properties": [],
-   "apis": [
-    "live"
-   ]
-  },
-  {
-   "id": "vms.ptz/1",
-   "label": {
-    "key": "profile.vms.ptz/1",
-    "text": "PTZ",
-    "lang": "ru"
-   },
-   "properties": [
-    "ptz",
-    "presets",
-    "presetMax"
-   ],
-   "apis": [
-    "ptz",
-    "presets/{n}"
-   ]
-  },
-  {
-   "id": "vms.talk/1",
-   "label": {
-    "key": "profile.vms.talk/1",
-    "text": "Разговор",
-    "lang": "ru"
-   },
-   "properties": [
-    "channel",
-    "enabled",
-    "short"
-   ],
-   "apis": [
-    "talk"
-   ]
-  },
-  {
-   "id": "vms.timeline/1",
-   "label": {
-    "key": "profile.vms.timeline/1",
-    "text": "Архив: шкала и записи",
-    "lang": "ru"
-   },
-   "properties": [],
-   "apis": [
-    "timeline",
-    "playback",
-    "holds",
-    "bookmarks",
-    "archive-fetch"
-   ]
-  },
-  {
-   "id": "vms.pos/1",
-   "label": {
-    "key": "profile.vms.pos/1",
-    "text": "Источник событий (касса)",
-    "lang": "ru"
-   },
-   "properties": [
-    "overlays",
-    "cameraId",
-    "overlayDelayMs",
-    "overlayDurationSec",
-    "overlayFont",
-    "overlayFontSize",
-    "overlayColor",
-    "overlayBg",
-    "overlayBgTransparency",
-    "receiptStartWords",
-    "receiptEndWords",
-    "receiptSplit",
-    "ignoreCase",
-    "billsOnly",
-    "eraseOnEnd",
-    "words",
-    "protocol",
-    "comPort",
-    "baudRate",
-    "parity",
-    "udpMaxPacket",
-    "encoding",
-    "terminalType",
-    "parserFile",
-    "processing",
-    "timeoutMs",
-    "timeOffsetMs",
-    "retalix"
-   ],
-   "apis": [
-    "pos/raw"
-   ]
-  },
-  {
-   "id": "vms.edge/1",
-   "label": {
-    "key": "profile.vms.edge/1",
-    "text": "Встроенное хранилище устройства",
-    "lang": "ru"
-   },
-   "properties": [
-    "replication"
-   ],
-   "status": [
-    "replicationStatus",
-    "mediaOk",
-    "profileG"
-   ]
-  },
-  {
    "id": "vms.webserver/1",
    "label": {
     "key": "profile.vms.webserver/1",
     "text": "Веб-сервер и RTSP-сервер",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
     "webServer"
    ],
@@ -6537,6 +7375,220 @@
     "webCertificate",
     "webReservedPorts"
    ]
+  }
+ ],
+ "layouts": [
+  {
+   "id": "folders",
+   "label": {
+    "key": "layout.folders",
+    "text": "По папкам",
+    "lang": "ru"
+   },
+   "hint": {
+    "key": "layout.folders.hint",
+    "text": "Домен → папки → объекты",
+    "lang": "ru"
+   },
+   "icon": "folder",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "core.folder/1"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "core.folder/1"
+      ]
+     },
+     "by": "parent"
+    },
+    {
+     "by": "folders"
+    },
+    {
+     "root": false,
+     "by": "parent"
+    }
+   ],
+   "hide": {
+    "implements": [
+     "vms.stream/1"
+    ]
+   }
+  },
+  {
+   "id": "servers",
+   "label": {
+    "key": "layout.servers",
+    "text": "По серверам",
+    "lang": "ru"
+   },
+   "hint": {
+    "key": "layout.servers.hint",
+    "text": "Домен → серверы → камеры, хранилища и службы",
+    "lang": "ru"
+   },
+   "icon": "server",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "where": {
+      "property": "allocated",
+      "equals": true
+     },
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "by": "group",
+     "group": "unalloc"
+    },
+    {
+     "root": true,
+     "by": "ref",
+     "ref": {
+      "implements": [
+       "vms.server/1"
+      ]
+     }
+    },
+    {
+     "what": {
+      "implements": [
+       "core.folder/1",
+       "vms.archive/1",
+       "vms.volume/1"
+      ]
+     },
+     "by": "none"
+    },
+    {
+     "root": true,
+     "by": "area"
+    },
+    {
+     "by": "parent"
+    }
+   ],
+   "hide": {
+    "implements": [
+     "vms.stream/1"
+    ]
+   },
+   "groups": [
+    {
+     "id": "unalloc",
+     "label": {
+      "key": "layout.servers.unalloc",
+      "text": "Нераспределённые серверы",
+      "lang": "ru"
+     }
+    }
+   ]
+  },
+  {
+   "id": "archives",
+   "label": {
+    "key": "layout.archives",
+    "text": "Хранилища",
+    "lang": "ru"
+   },
+   "icon": "archive",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "where": {
+      "property": "allocated",
+      "equals": true
+     },
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.archive/1"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.archive/1",
+       "vms.volume/1"
+      ]
+     },
+     "root": false,
+     "by": "parent"
+    }
+   ]
+  },
+  {
+   "id": "detectors",
+   "label": {
+    "key": "layout.detectors",
+    "text": "Детекторы",
+    "lang": "ru"
+   },
+   "icon": "det",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "where": {
+      "property": "allocated",
+      "equals": true
+     },
+     "by": "area"
+    },
+    {
+     "root": true,
+     "by": "ref",
+     "ref": {
+      "implements": [
+       "vms.server/1"
+      ]
+     }
+    },
+    {
+     "root": false,
+     "by": "parent"
+    }
+   ],
+   "show": {
+    "implements": [
+     "vms.server/1",
+     "vms.detector/1"
+    ]
+   },
+   "hide": {
+    "implements": [
+     "vms.stream/1"
+    ]
+   }
   }
  ],
  "units": [
@@ -6547,9 +7599,7 @@
    "domainId": null,
    "name": "Домен 1",
    "version": "1",
-   "properties": {
-    "license": ""
-   },
+   "properties": {},
    "status": {
     "link": "online"
    }
@@ -25483,1516 +26533,6 @@
   }
  ],
  "reference": {
-  "deviceModels": [
-   {
-    "vendor": "360Vision",
-    "models": []
-   },
-   {
-    "vendor": "3S",
-    "models": []
-   },
-   {
-    "vendor": "Abron",
-    "models": []
-   },
-   {
-    "vendor": "ABUS",
-    "models": []
-   },
-   {
-    "vendor": "ACTi",
-    "models": []
-   },
-   {
-    "vendor": "Acumen",
-    "models": []
-   },
-   {
-    "vendor": "Adino",
-    "models": []
-   },
-   {
-    "vendor": "Advantech",
-    "models": []
-   },
-   {
-    "vendor": "Aebell",
-    "models": []
-   },
-   {
-    "vendor": "AEVision",
-    "models": []
-   },
-   {
-    "vendor": "AGRG",
-    "models": []
-   },
-   {
-    "vendor": "AiMobile",
-    "models": []
-   },
-   {
-    "vendor": "Alinking",
-    "models": []
-   },
-   {
-    "vendor": "AlphaOTM",
-    "models": []
-   },
-   {
-    "vendor": "Amatek",
-    "models": []
-   },
-   {
-    "vendor": "AMG",
-    "models": []
-   },
-   {
-    "vendor": "Ampleye B.V.",
-    "models": []
-   },
-   {
-    "vendor": "AMTK",
-    "models": []
-   },
-   {
-    "vendor": "Andy",
-    "models": []
-   },
-   {
-    "vendor": "Arecont Vision",
-    "models": []
-   },
-   {
-    "vendor": "ARH",
-    "models": []
-   },
-   {
-    "vendor": "Arlotto",
-    "models": []
-   },
-   {
-    "vendor": "Asoni",
-    "models": []
-   },
-   {
-    "vendor": "ASTR",
-    "models": []
-   },
-   {
-    "vendor": "Astra",
-    "models": []
-   },
-   {
-    "vendor": "Astrohn",
-    "models": []
-   },
-   {
-    "vendor": "Aver",
-    "models": []
-   },
-   {
-    "vendor": "AverDVR",
-    "models": []
-   },
-   {
-    "vendor": "Avgit",
-    "models": []
-   },
-   {
-    "vendor": "AVIGILON",
-    "models": []
-   },
-   {
-    "vendor": "AVIGILON generic",
-    "models": []
-   },
-   {
-    "vendor": "AVIOSYS",
-    "models": []
-   },
-   {
-    "vendor": "AVTech",
-    "models": []
-   },
-   {
-    "vendor": "AVTS",
-    "models": []
-   },
-   {
-    "vendor": "Avycon",
-    "models": []
-   },
-   {
-    "vendor": "Axis",
-    "models": [
-     "generic",
-     "P3245-LV",
-     "M3067-P",
-     "A1001",
-     "Q1656"
-    ]
-   },
-   {
-    "vendor": "AxyCam",
-    "models": []
-   },
-   {
-    "vendor": "Balter",
-    "models": []
-   },
-   {
-    "vendor": "Basler",
-    "models": []
-   },
-   {
-    "vendor": "BCS",
-    "models": []
-   },
-   {
-    "vendor": "BestDigital",
-    "models": []
-   },
-   {
-    "vendor": "BestDVR",
-    "models": []
-   },
-   {
-    "vendor": "BestNVR",
-    "models": []
-   },
-   {
-    "vendor": "Beward",
-    "models": []
-   },
-   {
-    "vendor": "BikInform",
-    "models": []
-   },
-   {
-    "vendor": "BlacklineSafety",
-    "models": []
-   },
-   {
-    "vendor": "BOLID",
-    "models": []
-   },
-   {
-    "vendor": "Bolin Technology",
-    "models": []
-   },
-   {
-    "vendor": "Bosch",
-    "models": [
-     "NBN-73023",
-     "FLEXIDOME IP 3000i",
-     "AUTODOME IP 5000i"
-    ]
-   },
-   {
-    "vendor": "Bosch Generic",
-    "models": []
-   },
-   {
-    "vendor": "Brickcom",
-    "models": []
-   },
-   {
-    "vendor": "BSP",
-    "models": []
-   },
-   {
-    "vendor": "Byterg",
-    "models": []
-   },
-   {
-    "vendor": "Cametron",
-    "models": []
-   },
-   {
-    "vendor": "Canon",
-    "models": [
-     "VB-R11",
-     "VB-H47",
-     "VB-M641VE"
-    ]
-   },
-   {
-    "vendor": "CaptureDevice",
-    "models": []
-   },
-   {
-    "vendor": "Cellinx",
-    "models": []
-   },
-   {
-    "vendor": "CERTIS",
-    "models": []
-   },
-   {
-    "vendor": "Cisco",
-    "models": []
-   },
-   {
-    "vendor": "CloudClient",
-    "models": []
-   },
-   {
-    "vendor": "CNB",
-    "models": []
-   },
-   {
-    "vendor": "Commax",
-    "models": []
-   },
-   {
-    "vendor": "Commax Complex Server",
-    "models": []
-   },
-   {
-    "vendor": "Commax generic",
-    "models": []
-   },
-   {
-    "vendor": "Commbox",
-    "models": []
-   },
-   {
-    "vendor": "ComOnyx",
-    "models": []
-   },
-   {
-    "vendor": "Compotrol",
-    "models": []
-   },
-   {
-    "vendor": "Corwus",
-    "models": []
-   },
-   {
-    "vendor": "CP Plus",
-    "models": []
-   },
-   {
-    "vendor": "D-Link",
-    "models": []
-   },
-   {
-    "vendor": "Dahua",
-    "models": [
-     "IPC-HFW5241",
-     "IPC-HFW5831",
-     "NVR5216"
-    ]
-   },
-   {
-    "vendor": "DahuaDSS",
-    "models": []
-   },
-   {
-    "vendor": "DahuaNetSDK",
-    "models": []
-   },
-   {
-    "vendor": "DahuaSDK",
-    "models": []
-   },
-   {
-    "vendor": "Digiever",
-    "models": []
-   },
-   {
-    "vendor": "DiGieyes",
-    "models": []
-   },
-   {
-    "vendor": "DigitalWatchdog",
-    "models": []
-   },
-   {
-    "vendor": "DSSL",
-    "models": []
-   },
-   {
-    "vendor": "Dynacolor",
-    "models": []
-   },
-   {
-    "vendor": "EasyN",
-    "models": []
-   },
-   {
-    "vendor": "ECHD",
-    "models": []
-   },
-   {
-    "vendor": "Eneo",
-    "models": []
-   },
-   {
-    "vendor": "EPI",
-    "models": []
-   },
-   {
-    "vendor": "Ericsson",
-    "models": []
-   },
-   {
-    "vendor": "Etrovision",
-    "models": []
-   },
-   {
-    "vendor": "Etz",
-    "models": []
-   },
-   {
-    "vendor": "EverFocus",
-    "models": []
-   },
-   {
-    "vendor": "Everview",
-    "models": []
-   },
-   {
-    "vendor": "EVG",
-    "models": []
-   },
-   {
-    "vendor": "eVidence",
-    "models": []
-   },
-   {
-    "vendor": "EVS",
-    "models": []
-   },
-   {
-    "vendor": "FFMPEG",
-    "models": []
-   },
-   {
-    "vendor": "FINE",
-    "models": []
-   },
-   {
-    "vendor": "FineCCTV",
-    "models": []
-   },
-   {
-    "vendor": "FlexWatch",
-    "models": []
-   },
-   {
-    "vendor": "Flir",
-    "models": []
-   },
-   {
-    "vendor": "FlirAXSeries",
-    "models": []
-   },
-   {
-    "vendor": "G4S",
-    "models": []
-   },
-   {
-    "vendor": "GAI-Tronics",
-    "models": []
-   },
-   {
-    "vendor": "Ganz",
-    "models": []
-   },
-   {
-    "vendor": "GBT28181",
-    "models": []
-   },
-   {
-    "vendor": "Geovision",
-    "models": []
-   },
-   {
-    "vendor": "GFE",
-    "models": []
-   },
-   {
-    "vendor": "GIGA",
-    "models": []
-   },
-   {
-    "vendor": "GIT",
-    "models": []
-   },
-   {
-    "vendor": "Glosav",
-    "models": []
-   },
-   {
-    "vendor": "Grandstream",
-    "models": []
-   },
-   {
-    "vendor": "Grundig",
-    "models": [
-     "GD-CI-AP4746P"
-    ]
-   },
-   {
-    "vendor": "Grundig CVion",
-    "models": []
-   },
-   {
-    "vendor": "Grundig SMART Line",
-    "models": []
-   },
-   {
-    "vendor": "Gunnebo",
-    "models": []
-   },
-   {
-    "vendor": "Hanwha Techwin",
-    "models": []
-   },
-   {
-    "vendor": "Hanwha Techwin generic",
-    "models": []
-   },
-   {
-    "vendor": "HawkEye",
-    "models": []
-   },
-   {
-    "vendor": "HikCentralPro",
-    "models": []
-   },
-   {
-    "vendor": "HikConnect",
-    "models": []
-   },
-   {
-    "vendor": "Hikvision",
-    "models": [
-     "generic",
-     "DS-2CD2143G2",
-     "DS-2CD2347G2",
-     "DS-2DE7220IW-AE"
-    ]
-   },
-   {
-    "vendor": "HiWatch",
-    "models": []
-   },
-   {
-    "vendor": "Holowits",
-    "models": []
-   },
-   {
-    "vendor": "Homeland Safety Systems",
-    "models": []
-   },
-   {
-    "vendor": "Honeywell",
-    "models": []
-   },
-   {
-    "vendor": "HttpListener",
-    "models": []
-   },
-   {
-    "vendor": "Huawei",
-    "models": []
-   },
-   {
-    "vendor": "HuaweiIVS",
-    "models": []
-   },
-   {
-    "vendor": "Hunda",
-    "models": []
-   },
-   {
-    "vendor": "Hunt",
-    "models": []
-   },
-   {
-    "vendor": "IDIS",
-    "models": [
-     "DC-S3538HRX",
-     "DC-S3583HRX"
-    ]
-   },
-   {
-    "vendor": "iFlow",
-    "models": []
-   },
-   {
-    "vendor": "IMOU",
-    "models": []
-   },
-   {
-    "vendor": "Inaxsys Legend",
-    "models": []
-   },
-   {
-    "vendor": "Inaxsys STORM",
-    "models": []
-   },
-   {
-    "vendor": "IndigoVision",
-    "models": []
-   },
-   {
-    "vendor": "Infiniti",
-    "models": []
-   },
-   {
-    "vendor": "Infinity",
-    "models": []
-   },
-   {
-    "vendor": "Infinova",
-    "models": []
-   },
-   {
-    "vendor": "Infralan",
-    "models": []
-   },
-   {
-    "vendor": "InHot",
-    "models": []
-   },
-   {
-    "vendor": "InMotion",
-    "models": []
-   },
-   {
-    "vendor": "Intel",
-    "models": []
-   },
-   {
-    "vendor": "Intelbras",
-    "models": []
-   },
-   {
-    "vendor": "Intellico",
-    "models": []
-   },
-   {
-    "vendor": "Intelliko",
-    "models": []
-   },
-   {
-    "vendor": "Interop",
-    "models": []
-   },
-   {
-    "vendor": "Intralogic Solutions",
-    "models": []
-   },
-   {
-    "vendor": "InVid",
-    "models": []
-   },
-   {
-    "vendor": "IOBoard",
-    "models": []
-   },
-   {
-    "vendor": "IPDROM",
-    "models": []
-   },
-   {
-    "vendor": "IPDROM generic",
-    "models": []
-   },
-   {
-    "vendor": "IPS",
-    "models": []
-   },
-   {
-    "vendor": "IPTRONIC",
-    "models": []
-   },
-   {
-    "vendor": "IPux",
-    "models": []
-   },
-   {
-    "vendor": "IPV Halo Smart Sensors",
-    "models": []
-   },
-   {
-    "vendor": "IPVideo Corporation",
-    "models": []
-   },
-   {
-    "vendor": "IQeye",
-    "models": []
-   },
-   {
-    "vendor": "IRLab",
-    "models": []
-   },
-   {
-    "vendor": "iZett",
-    "models": []
-   },
-   {
-    "vendor": "J2000IP",
-    "models": []
-   },
-   {
-    "vendor": "Jasamarga",
-    "models": []
-   },
-   {
-    "vendor": "Jassun",
-    "models": []
-   },
-   {
-    "vendor": "Jovision",
-    "models": []
-   },
-   {
-    "vendor": "JVC",
-    "models": []
-   },
-   {
-    "vendor": "JVC NVR",
-    "models": []
-   },
-   {
-    "vendor": "K-New",
-    "models": []
-   },
-   {
-    "vendor": "KernelChip",
-    "models": []
-   },
-   {
-    "vendor": "KONEKT",
-    "models": []
-   },
-   {
-    "vendor": "LegacySDK",
-    "models": []
-   },
-   {
-    "vendor": "Legrand",
-    "models": []
-   },
-   {
-    "vendor": "Lesohranitel",
-    "models": []
-   },
-   {
-    "vendor": "LevelOne",
-    "models": []
-   },
-   {
-    "vendor": "LG",
-    "models": []
-   },
-   {
-    "vendor": "Li-Lin",
-    "models": []
-   },
-   {
-    "vendor": "LILIN",
-    "models": []
-   },
-   {
-    "vendor": "Linceo",
-    "models": []
-   },
-   {
-    "vendor": "Live Eye",
-    "models": []
-   },
-   {
-    "vendor": "Logitech",
-    "models": []
-   },
-   {
-    "vendor": "LTS",
-    "models": []
-   },
-   {
-    "vendor": "LTS Platinum",
-    "models": []
-   },
-   {
-    "vendor": "LTV",
-    "models": []
-   },
-   {
-    "vendor": "Luminys Basic",
-    "models": []
-   },
-   {
-    "vendor": "Luminys generic",
-    "models": []
-   },
-   {
-    "vendor": "LuminysSDK",
-    "models": []
-   },
-   {
-    "vendor": "Luna",
-    "models": []
-   },
-   {
-    "vendor": "Mago",
-    "models": []
-   },
-   {
-    "vendor": "Mango",
-    "models": []
-   },
-   {
-    "vendor": "March",
-    "models": []
-   },
-   {
-    "vendor": "Master",
-    "models": []
-   },
-   {
-    "vendor": "Mediatronix",
-    "models": []
-   },
-   {
-    "vendor": "MeritLilin",
-    "models": []
-   },
-   {
-    "vendor": "Messoa",
-    "models": []
-   },
-   {
-    "vendor": "MicroDigital",
-    "models": []
-   },
-   {
-    "vendor": "Milesight",
-    "models": []
-   },
-   {
-    "vendor": "MilesightToF",
-    "models": []
-   },
-   {
-    "vendor": "Mitsubishi",
-    "models": []
-   },
-   {
-    "vendor": "Mobotix",
-    "models": []
-   },
-   {
-    "vendor": "MOXA",
-    "models": []
-   },
-   {
-    "vendor": "Naziraty",
-    "models": []
-   },
-   {
-    "vendor": "NexusIP",
-    "models": []
-   },
-   {
-    "vendor": "NIC Tehnologii",
-    "models": []
-   },
-   {
-    "vendor": "NicTechGeneric",
-    "models": []
-   },
-   {
-    "vendor": "Nikiret",
-    "models": []
-   },
-   {
-    "vendor": "Novicam",
-    "models": []
-   },
-   {
-    "vendor": "Novus",
-    "models": []
-   },
-   {
-    "vendor": "Olvia",
-    "models": []
-   },
-   {
-    "vendor": "OlviaFTP",
-    "models": []
-   },
-   {
-    "vendor": "OMNY",
-    "models": []
-   },
-   {
-    "vendor": "OncamGrandeye",
-    "models": []
-   },
-   {
-    "vendor": "ONVIF 2.X",
-    "models": []
-   },
-   {
-    "vendor": "ONVIF generic",
-    "models": [
-     "generic"
-    ]
-   },
-   {
-    "vendor": "Optelecom",
-    "models": []
-   },
-   {
-    "vendor": "OTN Systems",
-    "models": []
-   },
-   {
-    "vendor": "Panasonic",
-    "models": [
-     "WV-S1131",
-     "WV-SFN631L"
-    ]
-   },
-   {
-    "vendor": "Panasonic generic",
-    "models": []
-   },
-   {
-    "vendor": "Partizan",
-    "models": []
-   },
-   {
-    "vendor": "Patronus Laboratories Corporation",
-    "models": []
-   },
-   {
-    "vendor": "Pelco",
-    "models": []
-   },
-   {
-    "vendor": "Perfect-4",
-    "models": []
-   },
-   {
-    "vendor": "Pinetron",
-    "models": []
-   },
-   {
-    "vendor": "Pixeye",
-    "models": []
-   },
-   {
-    "vendor": "Pixord",
-    "models": []
-   },
-   {
-    "vendor": "Planet",
-    "models": []
-   },
-   {
-    "vendor": "POSLegacy",
-    "models": []
-   },
-   {
-    "vendor": "PosXml",
-    "models": []
-   },
-   {
-    "vendor": "PRESENTCO",
-    "models": []
-   },
-   {
-    "vendor": "Probe",
-    "models": []
-   },
-   {
-    "vendor": "Probe Digital",
-    "models": []
-   },
-   {
-    "vendor": "PROENG",
-    "models": []
-   },
-   {
-    "vendor": "Promelit",
-    "models": []
-   },
-   {
-    "vendor": "Provision",
-    "models": []
-   },
-   {
-    "vendor": "PSIA",
-    "models": []
-   },
-   {
-    "vendor": "Q-cam",
-    "models": []
-   },
-   {
-    "vendor": "QNAP",
-    "models": []
-   },
-   {
-    "vendor": "REDLINE",
-    "models": []
-   },
-   {
-    "vendor": "RIVA",
-    "models": []
-   },
-   {
-    "vendor": "ROKA",
-    "models": []
-   },
-   {
-    "vendor": "Rostec",
-    "models": []
-   },
-   {
-    "vendor": "RS",
-    "models": []
-   },
-   {
-    "vendor": "RTP stream device",
-    "models": []
-   },
-   {
-    "vendor": "RTSP",
-    "models": []
-   },
-   {
-    "vendor": "Rubetek",
-    "models": []
-   },
-   {
-    "vendor": "RVi",
-    "models": []
-   },
-   {
-    "vendor": "Samsung",
-    "models": []
-   },
-   {
-    "vendor": "SamsungTW",
-    "models": []
-   },
-   {
-    "vendor": "Santec",
-    "models": []
-   },
-   {
-    "vendor": "Sanyo",
-    "models": []
-   },
-   {
-    "vendor": "SCS",
-    "models": []
-   },
-   {
-    "vendor": "SEEnergy",
-    "models": []
-   },
-   {
-    "vendor": "Selea",
-    "models": []
-   },
-   {
-    "vendor": "SenstarSymphony",
-    "models": []
-   },
-   {
-    "vendor": "Sentry360",
-    "models": []
-   },
-   {
-    "vendor": "Sentryway",
-    "models": []
-   },
-   {
-    "vendor": "SenturianServerGeneric",
-    "models": []
-   },
-   {
-    "vendor": "SERVICE TELEMATIKA",
-    "models": []
-   },
-   {
-    "vendor": "SerVision",
-    "models": []
-   },
-   {
-    "vendor": "Sieza",
-    "models": []
-   },
-   {
-    "vendor": "SightlineApplications",
-    "models": []
-   },
-   {
-    "vendor": "SimpleIP",
-    "models": []
-   },
-   {
-    "vendor": "Singtel",
-    "models": []
-   },
-   {
-    "vendor": "Sinkross",
-    "models": []
-   },
-   {
-    "vendor": "SIP",
-    "models": []
-   },
-   {
-    "vendor": "SIP and RTSP",
-    "models": []
-   },
-   {
-    "vendor": "SIP Device",
-    "models": []
-   },
-   {
-    "vendor": "SIP with RTSP",
-    "models": []
-   },
-   {
-    "vendor": "SIP with Video",
-    "models": []
-   },
-   {
-    "vendor": "Smartec",
-    "models": []
-   },
-   {
-    "vendor": "SMAVID",
-    "models": []
-   },
-   {
-    "vendor": "SNR",
-    "models": []
-   },
-   {
-    "vendor": "Sony",
-    "models": [
-     "SNC-VB632D",
-     "SNC-EM632RC"
-    ]
-   },
-   {
-    "vendor": "Sophus",
-    "models": []
-   },
-   {
-    "vendor": "Spark",
-    "models": []
-   },
-   {
-    "vendor": "Spezvision",
-    "models": []
-   },
-   {
-    "vendor": "Sprut",
-    "models": []
-   },
-   {
-    "vendor": "ST",
-    "models": []
-   },
-   {
-    "vendor": "StarDot",
-    "models": []
-   },
-   {
-    "vendor": "Stkomplex",
-    "models": []
-   },
-   {
-    "vendor": "STORM",
-    "models": []
-   },
-   {
-    "vendor": "StreamLabs",
-    "models": []
-   },
-   {
-    "vendor": "Stretch",
-    "models": []
-   },
-   {
-    "vendor": "Sunell",
-    "models": []
-   },
-   {
-    "vendor": "Sunkwang",
-    "models": []
-   },
-   {
-    "vendor": "Svplus",
-    "models": []
-   },
-   {
-    "vendor": "Takex",
-    "models": []
-   },
-   {
-    "vendor": "Tamron",
-    "models": []
-   },
-   {
-    "vendor": "Tantos",
-    "models": []
-   },
-   {
-    "vendor": "Targa Systems",
-    "models": []
-   },
-   {
-    "vendor": "TARGET",
-    "models": []
-   },
-   {
-    "vendor": "Tattile",
-    "models": []
-   },
-   {
-    "vendor": "TBK",
-    "models": []
-   },
-   {
-    "vendor": "TcpListener",
-    "models": []
-   },
-   {
-    "vendor": "Teb",
-    "models": []
-   },
-   {
-    "vendor": "Techpro Security",
-    "models": []
-   },
-   {
-    "vendor": "Tecnosens",
-    "models": []
-   },
-   {
-    "vendor": "TEDD",
-    "models": []
-   },
-   {
-    "vendor": "TeleEye",
-    "models": []
-   },
-   {
-    "vendor": "Tiandy",
-    "models": []
-   },
-   {
-    "vendor": "Tibbo",
-    "models": []
-   },
-   {
-    "vendor": "Tibet",
-    "models": []
-   },
-   {
-    "vendor": "TrendNet",
-    "models": []
-   },
-   {
-    "vendor": "Trezor",
-    "models": []
-   },
-   {
-    "vendor": "True IP",
-    "models": []
-   },
-   {
-    "vendor": "TruVision",
-    "models": []
-   },
-   {
-    "vendor": "TVHelp",
-    "models": []
-   },
-   {
-    "vendor": "TVT",
-    "models": []
-   },
-   {
-    "vendor": "Tyco",
-    "models": []
-   },
-   {
-    "vendor": "Typhoon",
-    "models": []
-   },
-   {
-    "vendor": "UDP",
-    "models": []
-   },
-   {
-    "vendor": "Uniarch",
-    "models": []
-   },
-   {
-    "vendor": "Uniview",
-    "models": [
-     "IPC322LR3",
-     "IPC3615SB-ADF28KM-I0"
-    ]
-   },
-   {
-    "vendor": "V1netIP",
-    "models": []
-   },
-   {
-    "vendor": "Vandi",
-    "models": []
-   },
-   {
-    "vendor": "Veilux",
-    "models": []
-   },
-   {
-    "vendor": "Verint",
-    "models": []
-   },
-   {
-    "vendor": "Vesta",
-    "models": []
-   },
-   {
-    "vendor": "Video Intelligent",
-    "models": []
-   },
-   {
-    "vendor": "Videosec",
-    "models": []
-   },
-   {
-    "vendor": "Videotec",
-    "models": []
-   },
-   {
-    "vendor": "ViDigi",
-    "models": []
-   },
-   {
-    "vendor": "Vido",
-    "models": []
-   },
-   {
-    "vendor": "VidoNet",
-    "models": []
-   },
-   {
-    "vendor": "Vigilate",
-    "models": []
-   },
-   {
-    "vendor": "Virtual",
-    "models": [
-     "Virtual IP server",
-     "TestDevice",
-     "generic"
-    ]
-   },
-   {
-    "vendor": "Virtual bench",
-    "models": []
-   },
-   {
-    "vendor": "Virtual Generic",
-    "models": []
-   },
-   {
-    "vendor": "Visiocom",
-    "models": []
-   },
-   {
-    "vendor": "Vision",
-    "models": []
-   },
-   {
-    "vendor": "VisionTek",
-    "models": []
-   },
-   {
-    "vendor": "VisioWave",
-    "models": []
-   },
-   {
-    "vendor": "VisualGate",
-    "models": []
-   },
-   {
-    "vendor": "Visualint",
-    "models": []
-   },
-   {
-    "vendor": "VITEK",
-    "models": []
-   },
-   {
-    "vendor": "Vivotek",
-    "models": [
-     "generic",
-     "FD9387-HTV",
-     "IB9387-HT"
-    ]
-   },
-   {
-    "vendor": "VivotekNVR",
-    "models": []
-   },
-   {
-    "vendor": "VMsistemos",
-    "models": []
-   },
-   {
-    "vendor": "VniiaRadiation",
-    "models": []
-   },
-   {
-    "vendor": "VWEB",
-    "models": []
-   },
-   {
-    "vendor": "WatchNET",
-    "models": []
-   },
-   {
-    "vendor": "Webgate",
-    "models": []
-   },
-   {
-    "vendor": "WebPlayer",
-    "models": []
-   },
-   {
-    "vendor": "Witson",
-    "models": []
-   },
-   {
-    "vendor": "WuT",
-    "models": []
-   },
-   {
-    "vendor": "Xenics",
-    "models": []
-   },
-   {
-    "vendor": "XeronVision",
-    "models": []
-   },
-   {
-    "vendor": "Y-cam",
-    "models": []
-   },
-   {
-    "vendor": "Youngkook",
-    "models": []
-   },
-   {
-    "vendor": "Yuan",
-    "models": []
-   },
-   {
-    "vendor": "Yudor",
-    "models": []
-   },
-   {
-    "vendor": "Zavio",
-    "models": []
-   },
-   {
-    "vendor": "Zenosys",
-    "models": []
-   },
-   {
-    "vendor": "Zet",
-    "models": [
-     "HR-FD2030C"
-    ]
-   }
-  ],
-  "serviceTypes": [
-   "export",
-   "email",
-   "sms"
-  ],
-  "supportLevels": [
-   "ok",
-   "manual",
-   "bad"
-  ],
-  "recordModes": [
-   "none",
-   "always",
-   "motion",
-   "sched",
-   "replica",
-   "backup"
-  ],
-  "cloudProviders": [
-   {
-    "id": "s3",
-    "regions": [
-     "eu-central-1",
-     "eu-west-1",
-     "us-east-1",
-     "us-west-1",
-     "ap-southeast-1"
-    ]
-   },
-   {
-    "id": "s3c",
-    "regions": []
-   },
-   {
-    "id": "minio",
-    "regions": []
-   },
-   {
-    "id": "wasabi",
-    "regions": [
-     "eu-central-1",
-     "eu-west-1",
-     "us-east-1",
-     "us-west-1"
-    ]
-   },
-   {
-    "id": "huawei",
-    "regions": [
-     "ru-moscow-1",
-     "ap-southeast-1",
-     "cn-north-4"
-    ]
-   },
-   {
-    "id": "lyve",
-    "regions": [
-     "us-east-1",
-     "us-west-1",
-     "eu-west-1"
-    ]
-   },
-   {
-    "id": "azure",
-    "regions": []
-   }
-  ],
   "ruleActions": [
    {
     "source": "rule",
@@ -27028,6 +26568,31 @@
    {
     "kind": "online",
     "target": true
+   }
+  ],
+  "ruleChecks": [
+   {
+    "what": "record",
+    "implements": [
+     "vms.camera/1"
+    ],
+    "depth": true
+   },
+   {
+    "what": "safe",
+    "implements": [
+     "vms.camera/1"
+    ],
+    "depth": true
+   },
+   {
+    "what": "armed",
+    "implements": [
+     "vms.camera/1"
+    ]
+   },
+   {
+    "what": "online"
    }
   ],
   "ruleControls": [
@@ -27073,38 +26638,6 @@
    "whenAny",
    "condAny",
    "every"
-  ],
-  "layouts": [
-   {
-    "id": "f0000001-0006-4000-8000-000000000000",
-    "name": "Вход"
-   },
-   {
-    "id": "f0000002-0006-4000-8000-000000000000",
-    "name": "Периметр"
-   },
-   {
-    "id": "f0000003-0006-4000-8000-000000000000",
-    "name": "Склад"
-   }
-  ],
-  "monitors": [
-   {
-    "id": "f0000001-0007-4000-8000-000000000000",
-    "name": "Монитор 1"
-   },
-   {
-    "id": "f0000002-0007-4000-8000-000000000000",
-    "name": "Монитор 2"
-   },
-   {
-    "id": "f0000003-0007-4000-8000-000000000000",
-    "name": "Монитор 3"
-   },
-   {
-    "id": "f0000004-0007-4000-8000-000000000000",
-    "name": "Монитор 4"
-   }
   ],
   "access": {
    "features": [
@@ -27387,14 +26920,11 @@
    ]
   },
   "limits": {
-   "ipScanMax": 1024,
-   "defaultServerPort": 20111,
    "pageMax": 1000,
    "idsMax": 200,
    "selectMax": 500,
    "watchMax": 200,
    "scanPartsMax": 8,
-   "scenariosMax": 1000,
    "fileMaxBytes": 10485760,
    "filesPerTurnMax": 5,
    "fileTypes": [
@@ -27516,6 +27046,7 @@
     "checkExport",
     "listExports",
     "createExport",
+    "getExportReference",
     "getExport",
     "deleteExport",
     "cancelExport",
@@ -27540,13 +27071,28 @@
     "exportPassword",
     "journalSearch",
     "journalAudit"
+   ],
+   "sections": [
+    {
+     "id": "objects"
+    },
+    {
+     "id": "automation"
+    },
+    {
+     "id": "access"
+    },
+    {
+     "id": "settings"
+    },
+    {
+     "id": "vms.export"
+    },
+    {
+     "id": "journal"
+    }
    ]
   },
-  "serverLabels": [
-   "gpu",
-   "edge",
-   "archive"
-  ],
   "ruleStarts": [
    "event",
    "schedule",
@@ -27562,8 +27108,76 @@
    "areaRight": {
     "class": "cam",
     "level": "FULL"
+   },
+   "areaLayouts": {
+    "folder": "folders",
+    "server": "servers"
+   }
+  }
+ },
+ "streamAccounts": [
+  {
+   "name": "videowall",
+   "disabled": false,
+   "at": "2026-10-20T09:00:00Z",
+   "by": "root"
+  },
+  {
+   "name": "export-old",
+   "disabled": true,
+   "at": "2026-09-02T12:00:00Z",
+   "by": "root"
+  }
+ ],
+ "archiveWatches": [],
+ "archiveScans": [
+  {
+   "id": "f0000001-0007-4000-8000-000000000000",
+   "deviceId": "30000013-0000-4000-8000-000000000000",
+   "archiveId": "50000001-0000-4000-8000-000000000000",
+   "detectorKind": "lpr",
+   "from": "2026-10-28T10:00:00Z",
+   "to": "2026-10-28T11:00:00Z",
+   "alarms": [
+    "lpr"
+   ],
+   "labels": [
+    "gpu"
+   ],
+   "state": "done",
+   "result": {
+    "end": "done",
+    "covered": 3540,
+    "asked": 3600,
+    "events": 7,
+    "partial": []
+   },
+   "version": "1"
+  }
+ ],
+ "relays": {
+  "10000001-0000-4000-8000-000000000000": {
+   "Периметр": [
+    "Парк",
+    "Логистика",
+    "cam-gate-1"
+   ]
+  }
+ },
+ "stand": {
+  "journal": {
+   "count": 2000,
+   "days": 30,
+   "seed": 20261110
+  },
+  "deviceConfig": {
+   "$comment": "Стенд: что сообщает камера, если её перенастроили в её веб-интерфейсе (команда readConfig). Ключ — uid потока, значения — res и fps. Потока нет в списке — камера сообщает то, что хранит сервер",
+   "30000013-0001-4000-8000-000000000000": {
+    "fps": 15
    }
   },
+  "ipScanMax": 1024,
+  "scenariosMax": 1000,
   "scenarioKinds": [
    "motion",
    "linecross",
@@ -27572,22 +27186,7 @@
    "crowd",
    "lpr"
   ],
-  "analyticsConflicts": [
-   {
-    "analyticsKind": "faceTV",
-    "conflicts": [
-     "faceVA",
-     "faceVL"
-    ]
-   },
-   {
-    "analyticsKind": "faceVA",
-    "conflicts": [
-     "faceVL"
-    ]
-   }
-  ],
-  "export": {
+  "exportReference": {
    "formats": [
     {
      "id": "mkv",
@@ -27796,68 +27395,6 @@
     "keepSec": 86400,
     "linkTtlSec": 120,
     "bookmarkPadSec": 30
-   }
-  }
- },
- "streamAccounts": [
-  {
-   "name": "videowall",
-   "disabled": false,
-   "at": "2026-10-20T09:00:00Z",
-   "by": "root"
-  },
-  {
-   "name": "export-old",
-   "disabled": true,
-   "at": "2026-09-02T12:00:00Z",
-   "by": "root"
-  }
- ],
- "archiveWatches": [],
- "archiveScans": [
-  {
-   "id": "f0000001-0007-4000-8000-000000000000",
-   "deviceId": "30000013-0000-4000-8000-000000000000",
-   "archiveId": "50000001-0000-4000-8000-000000000000",
-   "detectorKind": "lpr",
-   "from": "2026-10-28T10:00:00Z",
-   "to": "2026-10-28T11:00:00Z",
-   "alarms": [
-    "lpr"
-   ],
-   "labels": [
-    "gpu"
-   ],
-   "state": "done",
-   "result": {
-    "end": "done",
-    "covered": 3540,
-    "asked": 3600,
-    "events": 7,
-    "partial": []
-   },
-   "version": "1"
-  }
- ],
- "relays": {
-  "10000001-0000-4000-8000-000000000000": {
-   "Периметр": [
-    "Парк",
-    "Логистика",
-    "cam-gate-1"
-   ]
-  }
- },
- "stand": {
-  "journal": {
-   "count": 2000,
-   "days": 30,
-   "seed": 20261110
-  },
-  "deviceConfig": {
-   "$comment": "Стенд: что сообщает камера, если её перенастроили в её веб-интерфейсе (команда readConfig). Ключ — uid потока, значения — res и fps. Потока нет в списке — камера сообщает то, что хранит сервер",
-   "30000013-0001-4000-8000-000000000000": {
-    "fps": 15
    }
   }
  }

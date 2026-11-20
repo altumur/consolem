@@ -1,4 +1,4 @@
-/* Помощники сценариев интерфейса (tests/ui-*.js): ok, until, sleep, confirmWith и UiCheck(fn).
+/* Помощники сценариев интерфейса (tests/ui-*.js): ok, until, sleep, confirmWith, absent и UiCheck(fn).
    Сценарий выполняется на загруженной странице прототипа после старта (appReady). Итог — строки PASS/FAIL:
    tools/check_ui.py читает их из <script id="__ui">, самопроверка прототипа (?selftest) получает их
    сообщением от страницы-сценария. */
@@ -63,12 +63,20 @@
     document.body.appendChild(el);
     if (window.parent !== window) window.parent.postMessage({ uiCheck: true, name: window.UI_CHECK_NAME || "", log }, "*");
   }
+  // Охрана сценария: на странице нет нужной функции. На index.html это сбой: функция там есть, а пропуск прятал бы её потерю.
+  // На прототипе, скопированном с index.html до переноса функции, — пропуск (строка PASS с причиной). Имя файла страницы —
+  // UI_PAGE_FILE (tools/check_ui.py кладёт страницу во временную папку) или последний шаг адреса (самопроверка, Pages: «/» — index.html)
+  const pageFile = () => window.UI_PAGE_FILE || decodeURIComponent(location.pathname.split("/").pop()) || "index.html";
+  const absent = (what) => {
+    const main = pageFile() === "index.html";
+    ok(!main, main ? `на index.html нет ${what}: на основном макете это сбой, а не пропуск` : `${pageFile()}: нет ${what}, прототип старше функции — проверять нечего`);
+  };
   window.UiCheck = (fn) =>
     (window.UI_CHECK_STARTED = true) && window.appReady
       .then(() => (window.UI_RAW_CACHE ? null : window.uiCacheAll()))
       // Черновики мастеров лежат в localStorage: чужой сценарий самопроверки не должен оставить свой этому
       .then(() => { if (typeof WZD !== "undefined") { Object.keys(WZD).forEach(wzDrop); dcDrop(); } })
-      .then(() => fn({ ok, until, sleep, confirmWith }))
+      .then(() => fn({ ok, until, sleep, confirmWith, absent }))
       .catch((e) => ok(false, "исключение: " + (e.message || JSON.stringify(e)) + " " + (e.stack || "").split("\n")[1]))
       .then(report);
 })();
@@ -85,7 +93,8 @@ const uiUnitsAll = async (q) => {
   } while (cursor);
   return out;
 };
-const uiIsDevice = (u) => { const t = screenType(u.kind); return HAND_SCREENS.has(t) && !INFRA_SCREENS.has(t); };
+// Ручной экран — по isSchemaKind, а не по HAND_SCREENS: вид с кодом экрана без своего профиля — форма по схеме (часть 07)
+const uiIsDevice = (u) => !isSchemaKind(u.kind) && !INFRA_SCREENS.has(screenType(u.kind));
 window.uiUnitsAll = uiUnitsAll;
 window.uiIsDevice = uiIsDevice;
 /* Запись объекта плоско, для сверки с кэшем экранов: свойства и наблюдаемое сверху, id ↔ uid, type ↔ вид, online ↔

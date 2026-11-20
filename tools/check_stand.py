@@ -14,6 +14,8 @@ one-domain на настоящих часах (так, как их гоняет 
   python3 tools/check_stand.py                       против образца стенда
   python3 tools/check_stand.py https://адрес-стенда  против стенда бэкенда (отчёты — на локальный приёмник)
   python3 tools/check_stand.py https://адрес-стенда --fixture one-domain --clock real
+  python3 tools/check_stand.py https://адрес-стенда --layer mechanism,profile:vms.camera/1
+                                                     только тесты этих слоёв (покрытие тогда не проверяется)
                                                      стенд с набором профиля и часами, которые не остановить
 Код выхода 1, если что-то не прошло или отчёт не пришёл.
 """
@@ -108,14 +110,14 @@ def run_page(page, stand, report):
     text = got[-1].rstrip()
     lines = [l for l in text.splitlines() if not l.startswith("PASS")]
     # Отказы — всегда: подпись проверки может занять несколько строк и вытеснить их из хвоста
-    fails = [l for l in lines[:-12] if l.startswith("FAIL")]
+    fails = [l for l in lines[:-12] if l.startswith(("FAIL", "LAYER"))]
     return text.endswith("RESULT pass"), "\n".join(fails + lines[-12:]) + f"\n({time.time() - started:.0f} с)"
 
 
 def main():
     args = sys.argv[1:]
     flags = {}
-    for flag in ("fixture", "clock"):
+    for flag in ("fixture", "clock", "layer"):
         if f"--{flag}" in args:
             i = args.index(f"--{flag}")
             flags[flag] = args[i + 1]
@@ -132,7 +134,7 @@ def main():
     try:
         if flags:
             pages = [(f"Тесты API ({', '.join(f'{k} {v}' for k, v in flags.items())})", f"{TESTS}/api.html?" + urllib.parse.urlencode(flags))]
-            if flags.get("fixture", "demo") == "demo":
+            if flags.get("fixture", "demo") == "demo" and "layer" not in flags:
                 pages.append(("Макет ?selftest", f"{PAGE}?selftest"))
         else:
             pages = [

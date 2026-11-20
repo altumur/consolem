@@ -2,6 +2,15 @@
    групповое исключение с «Отменить», опрос адресов, удаление с вводом числа и отсчётом. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until, confirmWith }) => {
   goApp("hw");
+  // Блок «Общие» домена VMS: заголовок — подпись вида области («Домен»; у оркестратора — «Рабочее пространство», ui-bez-vms.js).
+  // Свойства license у домена нет (снято в 0.32.0): ключ и его серийный номер — на вкладке «Лицензии», поля номера нет
+  pick(domains[0].id);goTab("gen");
+  ok(await until(()=>[...document.querySelectorAll("#main .card .ch")].some(h=>h.textContent.trim().startsWith("Домен"))),"блок области на demo — «Домен»: "+[...document.querySelectorAll("#main .card .ch")].map(h=>h.textContent.trim()).join(" | "));
+  ok(!/Серийный номер лицензии/.test(document.getElementById("main").textContent),"в «Общих» домена нет поля номера лицензии");
+  if(tabsFor(find(domains[0].id).n).some(([id])=>id==="lic")){
+    goTab("lic");
+    ok(await until(()=>/Лиценз/.test(document.getElementById("main").textContent))&&!/Серийный номер лицензии/.test(document.getElementById("main").textContent),"на вкладке «Лицензии» нет поля номера: ключ — в карточке ключа");
+  }
   // Домен: создать, переименовать в дереве, занятое имя
   const before=domains.length;
   addDomain();

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.23.0",
+    "version": "0.34.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -159,11 +159,13 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/reference": {
       "get": {
         "operationId": "getReference",
+        "x-bridge": "read",
         "tags": [
           "reference"
         ],
@@ -192,6 +194,7 @@
     "/operations": {
       "get": {
         "operationId": "listOperations",
+        "x-bridge": "read",
         "tags": [
           "operations"
         ],
@@ -256,6 +259,7 @@
       },
       "post": {
         "operationId": "createOperation",
+        "x-bridge": "draft",
         "tags": [
           "operations"
         ],
@@ -319,6 +323,7 @@
     "/operations/{operationId}": {
       "get": {
         "operationId": "getOperation",
+        "x-bridge": "read",
         "tags": [
           "operations"
         ],
@@ -452,6 +457,7 @@
     "/operations/{operationId}/cancel": {
       "post": {
         "operationId": "cancelOperation",
+        "x-bridge": "act",
         "tags": [
           "operations"
         ],
@@ -629,9 +635,10 @@
         }
       }
     },
-    "/domains/{domainId}/discovery": {
+    "/units/{uid}/discovery": {
       "get": {
         "operationId": "getDiscovery",
+        "x-bridge": "read",
         "tags": [
           "discovery"
         ],
@@ -653,19 +660,22 @@
           "404": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
         },
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.discovery/1"
           },
           {
             "name": "limit",
@@ -688,24 +698,25 @@
             "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
         ],
-        "description": "Страницы у candidates: limit, cursor. Форма читает только в окне поиска."
+        "description": "Предметный API объекта по uid (профиль vms.discovery/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.discovery/1 — 422 NOT_SUPPORTED, field /kind.\n\nСтраницы у candidates: limit, cursor. Форма читает только в окне поиска."
       },
       "post": {
         "operationId": "startDiscovery",
+        "x-bridge": "act",
         "tags": [
           "discovery"
         ],
         "summary": "Запустить поиск устройств в сети домена",
-        "description": "Найденное приходит в поток по одному (discovery.progress), конец — discovery.finished. Новый поиск заменяет итог прежнего. Уже идёт — 409 BUSY Поиск идёт на всех серверах кластера, через который вошли: устройство сети другого кластера находится входом через него. Один поиск на домен, второй — 409 BUSY. Заводских логина и пароля система не подбирает: login, password у кандидата пусты. support: ok значит «драйвер есть», а не «вошли». progress — доля времени поиска.",
+        "description": "Предметный API объекта по uid (профиль vms.discovery/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.discovery/1 — 422 NOT_SUPPORTED, field /kind.\n\nНайденное приходит в поток по одному (discovery.progress), конец — discovery.finished. Новый поиск заменяет итог прежнего. Уже идёт — 409 BUSY Поиск идёт на всех серверах кластера, через который вошли: устройство сети другого кластера находится входом через него. Один поиск на домен, второй — 409 BUSY. Заводских логина и пароля система не подбирает: login, password у кандидата пусты. support: ok значит «драйвер есть», а не «вошли». progress — доля времени поиска.",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.discovery/1"
           }
         ],
         "responses": {
@@ -728,6 +739,9 @@
           "401": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -735,20 +749,21 @@
       },
       "delete": {
         "operationId": "stopDiscovery",
+        "x-bridge": "act",
         "tags": [
           "discovery"
         ],
         "summary": "Остановить поиск",
-        "description": "Найденное до остановки остаётся",
+        "description": "Предметный API объекта по uid (профиль vms.discovery/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.discovery/1 — 422 NOT_SUPPORTED, field /kind.\n\nНайденное до остановки остаётся",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.discovery/1"
           }
         ],
         "responses": {
@@ -768,15 +783,20 @@
           "401": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.discovery/1"
     },
     "/rules": {
       "get": {
         "operationId": "listRules",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -863,6 +883,7 @@
     "/rules/{ruleId}": {
       "get": {
         "operationId": "getRule",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1383,6 +1404,7 @@
     "/schedules": {
       "get": {
         "operationId": "listSchedules",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1465,6 +1487,7 @@
     "/schedules/{scheduleId}": {
       "get": {
         "operationId": "getSchedule",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1891,6 +1914,7 @@
     "/modes": {
       "get": {
         "operationId": "getModes",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1987,6 +2011,7 @@
     "/modes/current": {
       "get": {
         "operationId": "getModeCurrent",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -2438,6 +2463,7 @@
     "/licenses": {
       "get": {
         "operationId": "listLicenses",
+        "x-bridge": "read",
         "tags": [
           "settings"
         ],
@@ -2484,7 +2510,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Счётчики одного домена"
+            "description": "Счётчики одной области системы (домена)"
           }
         ]
       }
@@ -2748,6 +2774,7 @@
     "/journal": {
       "get": {
         "operationId": "listJournal",
+        "x-bridge": "read",
         "tags": [
           "journal"
         ],
@@ -2986,6 +3013,7 @@
     "/journal/facets": {
       "get": {
         "operationId": "listJournalFacets",
+        "x-bridge": "read",
         "tags": [
           "journal"
         ],
@@ -3379,6 +3407,7 @@
     "/journal/kinds": {
       "get": {
         "operationId": "listJournalKinds",
+        "x-bridge": "read",
         "tags": [
           "journal"
         ],
@@ -3419,6 +3448,7 @@
     "/files": {
       "post": {
         "operationId": "uploadFile",
+        "x-bridge": "act",
         "tags": [
           "files"
         ],
@@ -3710,6 +3740,7 @@
     "/objects/delete": {
       "post": {
         "operationId": "deleteObjects",
+        "x-bridge": "draft",
         "tags": [
           "hardware"
         ],
@@ -3940,7 +3971,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/stream-accounts/{name}": {
       "patch": {
@@ -4024,7 +4056,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/stream-accounts/{name}/password": {
       "post": {
@@ -4065,7 +4098,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/archive-watches": {
       "get": {
@@ -4190,7 +4224,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/archive-watches/{id}": {
       "patch": {
@@ -4319,7 +4354,8 @@
           }
         },
         "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
-      }
+      },
+      "x-layer": "video"
     },
     "/archive-scans": {
       "get": {
@@ -4444,7 +4480,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/archive-scans/{id}": {
       "delete": {
@@ -4482,7 +4519,8 @@
           }
         },
         "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
-      }
+      },
+      "x-layer": "video"
     },
     "/rule-prompts": {
       "get": {
@@ -4581,11 +4619,12 @@
     "/tree/children": {
       "get": {
         "operationId": "getTreeChildren",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
         "summary": "Дети узла дерева, страницами",
-        "description": "Без parentId — верхний уровень. Порядок детей — по имени внутри одного члена; на верхнем уровне и в папках порядок сервера: неизменный между страницами, не алфавитный. Камера-кластер в раскладке servers лежит под доменом: serverId в виде нет. Её детекторы видны только при раскрытии, сводного списка по домену в detectors нет. Под детектором раскладка detectors показывает и его поддетекторы (вид subdet, с 0.12.0). Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "description": "Без parentId — верхний уровень. Где лежит объект, решают правила раскладки (TreeLayout.place). Порядок детей: у области, группы и папки — по номеру правила, затем порядок бэкенда: неизменный между страницами, не алфавитный; у остальных узлов — по номеру правила, затем по имени. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
         "parameters": [
           {
             "name": "layout",
@@ -4593,14 +4632,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": [
-                "folders",
-                "servers",
-                "archives",
-                "detectors"
-              ]
+              "pattern": "^[a-z][A-Za-z0-9_.-]*$"
             },
-            "description": "Раскладка"
+            "description": "Код раскладки из GET /kinds → layouts. Другой — 422 VALIDATION_FAILED, field: layout"
           },
           {
             "name": "parentId",
@@ -4684,6 +4718,7 @@
     "/tree/paths": {
       "get": {
         "operationId": "getTreePaths",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
@@ -4696,14 +4731,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": [
-                "folders",
-                "servers",
-                "archives",
-                "detectors"
-              ]
+              "pattern": "^[a-z][A-Za-z0-9_.-]*$"
             },
-            "description": "Раскладка"
+            "description": "Код раскладки из GET /kinds → layouts. Другой — 422 VALIDATION_FAILED, field: layout"
           },
           {
             "name": "ids",
@@ -5222,23 +5252,24 @@
         }
       }
     },
-    "/domains/{domainId}/scenarios": {
+    "/units/{uid}/scenarios": {
       "get": {
         "operationId": "getScenarios",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
         "summary": "Документ сценариев между камерами",
-        "description": "Один документ на домен, целиком, до limits.scenariosMax. Не Rule, вне отката, истории версий нет",
+        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nОдин документ на домен, целиком, до maxItems документа. Не Rule, вне отката, истории версий нет",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.scenarios/1"
           }
         ],
         "responses": {
@@ -5263,6 +5294,9 @@
           "404": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -5274,16 +5308,16 @@
           "automation"
         ],
         "summary": "Записать документ сценариев целиком",
-        "description": "If-Match — версия документа. Чужая правка — 412 VERSION_MISMATCH, без admin домена — 403, без связи с доменом — 409 SERVER_OFFLINE. Повтор имени — 409 NAME_TAKEN. Форма: 422 VALIDATION_FAILED, field: items[i].…: n и port вместе, цель не камера, срок вне границ. Что умеет цель, форма не судит: это отказ цели, он виден в состоянии",
+        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nIf-Match — версия документа. Чужая правка — 412 VERSION_MISMATCH, без admin домена — 403, без связи с доменом — 409 SERVER_OFFLINE. Повтор имени — 409 NAME_TAKEN. Форма: 422 VALIDATION_FAILED, field — JSON Pointer в теле: /items/{i}/…: n и port вместе, цель не камера, срок вне границ. Что умеет цель, форма не судит: это отказ цели, он виден в состоянии",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.scenarios/1"
           },
           {
             "name": "If-Match",
@@ -5346,25 +5380,27 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.scenarios/1"
     },
-    "/domains/{domainId}/scenarios/status": {
+    "/units/{uid}/scenarios/status": {
       "get": {
         "operationId": "getScenariosStatus",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
         "summary": "Состояние сценариев из пульса исполнителя",
-        "description": "Только чтение, версию документа не двигает",
+        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nТолько чтение, версию документа не двигает",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.scenarios/1"
           }
         ],
         "responses": {
@@ -5396,28 +5432,33 @@
           "404": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.scenarios/1"
     },
-    "/domains/{domainId}/relays": {
+    "/units/{uid}/relays": {
       "get": {
         "operationId": "listRelays",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
         "summary": "Ретрансляторы домена",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.relays/1"
           }
         ],
         "responses": {
@@ -5449,28 +5490,34 @@
           "404": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
-      }
+        },
+        "description": "Предметный API объекта по uid (профиль vms.relays/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.relays/1 — 422 NOT_SUPPORTED, field /kind."
+      },
+      "x-layer": "vms.relays/1"
     },
-    "/domains/{domainId}/relays/{name}": {
+    "/units/{uid}/relays/{name}": {
       "get": {
         "operationId": "getRelay",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
         "summary": "Кто за ретранслятором",
         "parameters": [
           {
-            "name": "domainId",
+            "name": "uid",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+              "type": "string"
+            },
+            "description": "uid объекта области (у VMS — домен), вид которого объявил vms.relays/1"
           },
           {
             "name": "name",
@@ -5498,11 +5545,16 @@
           "404": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
-      }
+        },
+        "description": "Предметный API объекта по uid (профиль vms.relays/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.relays/1 — 422 NOT_SUPPORTED, field /kind."
+      },
+      "x-layer": "vms.relays/1"
     },
     "/test/stream-elsewhere": {
       "post": {
@@ -5557,7 +5609,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/holds/{holdId}/verify": {
       "post": {
@@ -5604,11 +5657,13 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/kinds": {
       "get": {
         "operationId": "listKinds",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -5667,6 +5722,7 @@
     "/kinds/{kind}": {
       "get": {
         "operationId": "getKind",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -5737,6 +5793,7 @@
     "/kinds/{kind}/actions/{action}": {
       "post": {
         "operationId": "runKindAction",
+        "x-bridge": "act",
         "tags": [
           "units"
         ],
@@ -5803,6 +5860,7 @@
     "/units": {
       "get": {
         "operationId": "listUnits",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -5881,7 +5939,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Домен"
+            "description": "Область системы (домен): uid объекта области"
           },
           {
             "name": "parentId",
@@ -6008,6 +6066,7 @@
       },
       "post": {
         "operationId": "createUnits",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6049,6 +6108,7 @@
     "/units/{uid}": {
       "get": {
         "operationId": "getUnit",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -6093,6 +6153,7 @@
       },
       "patch": {
         "operationId": "patchUnit",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6169,11 +6230,12 @@
       },
       "delete": {
         "operationId": "deleteUnit",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
         "summary": "Удалить объект",
-        "description": "С дочерними по описаниям видов и смыслу профиля; откат — стопкой операций. moveTo — перенос содержимого (домен)",
+        "description": "С дочерними по описаниям видов и смыслу профиля; откат — стопкой операций. moveTo — перенос содержимого (область системы, домен)",
         "parameters": [
           {
             "name": "uid",
@@ -6200,7 +6262,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Куда перенести содержимое перед удалением: uid объекта того же вида. Смысл задаёт профиль (у vms.domain/1 — обязателен, если домен не пуст: 422 DOMAIN_NOT_EMPTY)"
+            "description": "Куда перенести содержимое перед удалением: uid объекта того же вида. Смысл задаёт профиль (у core.domain/1 — обязателен, если область системы (домен) не пуста: 422 DOMAIN_NOT_EMPTY)"
           }
         ],
         "responses": {
@@ -6234,6 +6296,7 @@
     "/units/{uid}/move": {
       "post": {
         "operationId": "moveUnit",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6312,6 +6375,7 @@
     "/units/{uid}/actions/{action}": {
       "post": {
         "operationId": "runUnitAction",
+        "x-bridge": "act",
         "tags": [
           "units"
         ],
@@ -6499,7 +6563,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.live/1"
     },
     "/units/{uid}/talk": {
       "post": {
@@ -6553,7 +6618,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.talk/1"
     },
     "/units/{uid}/timeline": {
       "get": {
@@ -6638,7 +6704,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/playback": {
       "get": {
@@ -6702,7 +6769,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/holds": {
       "get": {
@@ -6833,7 +6901,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/bookmarks": {
       "get": {
@@ -6980,7 +7049,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/archive-fetch": {
       "post": {
@@ -7041,7 +7111,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/ptz": {
       "put": {
@@ -7132,7 +7203,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.ptz/1"
     },
     "/units/{uid}/presets/{n}": {
       "put": {
@@ -7264,7 +7336,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.ptz/1"
     },
     "/units/{uid}/recording-target": {
       "put": {
@@ -7322,7 +7395,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.camera/1"
     },
     "/units/{uid}/recording-days": {
       "get": {
@@ -7385,11 +7459,13 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.camera/1"
     },
     "/units/{uid}/pos/raw": {
       "get": {
         "operationId": "listUnitPosRaw",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -7442,7 +7518,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.pos/1"
     },
     "/exports/check": {
       "post": {
@@ -7483,7 +7560,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports": {
       "get": {
@@ -7609,7 +7687,37 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
+    },
+    "/exports/reference": {
+      "get": {
+        "operationId": "getExportReference",
+        "tags": [
+          "export"
+        ],
+        "summary": "Справочник окна выгрузки",
+        "description": "С 0.30.0. Форматы, кодеки, ступени сжатия, разрешения, поля титров, шрифты, режимы приватности, места сохранения и пределы окна выгрузки (ExportReference): чего нет в справочнике, того нет в окне. Путь API видео: есть у системы, которая объявила createExport",
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportReference"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}": {
       "get": {
@@ -7689,7 +7797,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}/cancel": {
       "post": {
@@ -7737,7 +7846,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}/retry-failed": {
       "post": {
@@ -7823,7 +7933,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}/files/{fileId}/link": {
       "post": {
@@ -7879,11 +7990,13 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/units/{uid}/creatable": {
       "get": {
         "operationId": "getCreatable",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -7925,6 +8038,7 @@
     "/units/{uid}/schema": {
       "get": {
         "operationId": "getUnitSchema",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -7979,7 +8093,7 @@
           "units"
         ],
         "summary": "Адрес страницы плагина",
-        "description": "Сервер выдаёт адрес страницы плагина (UnitKind.setupUi) для одного открытия: в адресе — объект, язык и разовый ключ. Нужно право edit класса доступа вида; нет права — 403. У вида нет setupUi или setupUi.kinds не называет вид объекта — 404. Отметка setupUi в Unit.capabilities говорит, что путь ответит 200",
+        "description": "Бэкенд выдаёт адрес страницы плагина (UnitKind.setupUi) для одного открытия: в адресе — объект, язык и разовый ключ. Нужное право класса доступа вида зависит от setupUi.mode: у iframe — view (readOnly в ответе — нет права edit), у tab — edit; нет права — 403. У mode: iframe клиент берёт адрес этим путём и при постоянном url. У вида нет setupUi или setupUi.kinds не называет вид объекта — 404. Отметка setupUi в Unit.capabilities говорит, что путь ответит 200",
         "parameters": [
           {
             "name": "uid",
@@ -8020,6 +8134,7 @@
     "/units/validate": {
       "post": {
         "operationId": "validateUnits",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -8288,7 +8403,8 @@
               "detector": {
                 "type": "string",
                 "format": "uuid",
-                "description": "С 0.18.0. Один детектор: uid объекта профиля vms.detector/1, событие которого ловит правило; нет поля — любой детектор этого вида. С 0.23.0 сервер проверяет при сохранении правила (POST /rules, PUT /rules/{id}): объекта нет или он не детектор, а при цели события из одной камеры — детектор стоит на другой камере — 422 VALIDATION_FAILED, field: match.detector, params.uid. Детектор удалили позже — сервер убирает поле и ставит имя детектора в target.gone"
+                "description": "С 0.18.0. Один детектор: uid объекта профиля vms.detector/1, событие которого ловит правило; нет поля — любой детектор этого вида. С 0.23.0 сервер проверяет при сохранении правила (POST /rules, PUT /rules/{id}): объекта нет или он не детектор, а при цели события из одной камеры — детектор стоит на другой камере — 422 VALIDATION_FAILED, field: match.detector, params.uid. Детектор удалили позже — сервер убирает поле и ставит имя детектора в target.gone",
+                "x-layer": "vms.detector/1"
               }
             },
             "additionalProperties": true,
@@ -8678,7 +8794,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -9021,14 +9137,16 @@
           "model",
           "support"
         ],
-        "description": "Устройство, найденное поиском в сети домена"
+        "description": "Устройство, найденное поиском в сети домена",
+        "x-layer": "vms.discovery/1"
       },
       "Discovery": {
         "type": "object",
         "properties": {
           "domainId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Область поиска. Имя поля прежнее; на пути профиля GET /units/{uid}/discovery значение — uid объекта области (тот же uid, что в адресе)"
           },
           "state": {
             "type": "string",
@@ -9072,6 +9190,12 @@
             "type": "integer",
             "minimum": 0,
             "description": "Сколько найдено всего"
+          },
+          "ipScanMax": {
+            "type": "integer",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "С 0.30.0, обязательно с 0.32.0. Сколько адресов самое большее проверяет один поиск в сети области"
           }
         },
         "additionalProperties": false,
@@ -9079,9 +9203,11 @@
           "domainId",
           "state",
           "progress",
-          "candidates"
+          "candidates",
+          "ipScanMax"
         ],
-        "description": "Поиск устройств в сети домена: последний или идущий"
+        "description": "Поиск устройств в сети домена: последний или идущий",
+        "x-layer": "vms.discovery/1"
       },
       "RoleGlobal": {
         "type": "object",
@@ -9202,7 +9328,7 @@
               },
               "description": "Класс доступа → уровень"
             },
-            "description": "Права на папки «Оборудования»: uid папки или домена (корень) → класс доступа → уровень"
+            "description": "Права на папки «Оборудования»: uid папки или области системы (домена, корень) → класс доступа → уровень"
           },
           "objectAccess": {
             "type": "object",
@@ -9766,7 +9892,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Что считать тревогой на весь домен: коды событий из описаний видов (UnitKind.events). Другое значение — 422 VALIDATION_FAILED, field: alarms.domain"
+                "description": "Что считать тревогой на всю область системы (домен): коды событий из описаний видов (UnitKind.events). Другое значение — 422 VALIDATION_FAILED, field: alarms.domain"
               }
             },
             "additionalProperties": false,
@@ -9796,14 +9922,14 @@
           },
           "used": {
             "type": "integer",
-            "description": "Занято. С domainId — в этом домене"
+            "description": "Занято. С domainId — в этой области системы (домене)"
           },
           "total": {
             "type": [
               "integer",
               "null"
             ],
-            "description": "Всего; null — без предела. С domainId — лимит домена, если он задан, иначе пул ключа"
+            "description": "Всего; null — без предела. С domainId — лимит области системы (домена), если он задан, иначе пул ключа"
           },
           "label": {
             "$ref": "#/components/schemas/Text",
@@ -9814,11 +9940,11 @@
             "items": {
               "type": "string"
             },
-            "description": "Только с domainId: uid объектов, которые используют функцию в домене. Длинный список сервер отдаёт частью: всего — ownersTotal"
+            "description": "Только с domainId: uid объектов, которые используют функцию в области системы (домене). Длинный список сервер отдаёт частью: всего — ownersTotal"
           },
           "ownersTotal": {
             "type": "integer",
-            "description": "Только с domainId: сколько объектов используют функцию в домене"
+            "description": "Только с domainId: сколько объектов используют функцию в области системы (домене)"
           }
         },
         "additionalProperties": false,
@@ -9827,7 +9953,7 @@
           "used",
           "total"
         ],
-        "description": "Счётчик функции лицензии. Без domainId — по всей системе (сумма ключей), с domainId — по одному домену"
+        "description": "Счётчик функции лицензии. Без domainId — по всей системе (сумма ключей), с domainId — по одной области системы (домену)"
       },
       "JournalEvent": {
         "type": "object",
@@ -9969,69 +10095,6 @@
       "Reference": {
         "type": "object",
         "properties": {
-          "deviceModels": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "vendor": {
-                  "type": "string"
-                },
-                "models": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "vendor",
-                "models"
-              ]
-            },
-            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками"
-          },
-          "serviceTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "supportLevels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "recordModes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecordMode"
-            }
-          },
-          "cloudProviders": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "regions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "regions"
-              ]
-            }
-          },
           "ruleActions": {
             "type": "array",
             "items": {
@@ -10046,25 +10109,7 @@
                 "fields": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "options": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "optional": {
-                        "type": "boolean"
-                      }
-                    },
-                    "additionalProperties": false,
-                    "required": [
-                      "id"
-                    ]
+                    "$ref": "#/components/schemas/RuleActionField"
                   }
                 }
               },
@@ -10075,7 +10120,7 @@
                 "fields"
               ]
             },
-            "description": "Каталог «Автоматизации» — то, что система исполняет: вместе с командами и событиями видов (UnitKind.actions с ruleAction, UnitKind.events), ruleConditions, ruleControls, ruleStarts, ruleTargets объявляет, что она умеет. Здесь — действия системы, не объекта: раскладка, почта, Telegram, HTTP, другое правило. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия: у поля options — его значения. С 0.3.0: ntf.push, client.sound, client.voice, client.view, client.program; поля attach (email, push), auth, headers, body (http)"
+            "description": "Каталог «Автоматизации» — то, что система исполняет: вместе с командами и событиями видов (UnitKind.actions с ruleAction, UnitKind.events), ruleConditions, ruleControls, ruleStarts, ruleTargets объявляет, что она умеет. Здесь — действия системы, не объекта: раскладка, почта, Telegram, HTTP, другое правило. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия (RuleActionField): значения поля — его schema (с 0.31.0; раньше — options). С 0.3.0: ntf.push, client.sound, client.voice, client.view, client.program; поля attach (email, push), auth, headers, body (http)"
           },
           "access": {
             "type": "object",
@@ -10277,12 +10322,6 @@
           "limits": {
             "type": "object",
             "properties": {
-              "ipScanMax": {
-                "type": "integer"
-              },
-              "defaultServerPort": {
-                "type": "integer"
-              },
               "pageMax": {
                 "type": "integer",
                 "description": "Наибольший limit страницы"
@@ -10302,10 +10341,6 @@
               "scanPartsMax": {
                 "type": "integer",
                 "description": "Сколько разделов вида запрос ограниченного прохода (фильтр /units без члена) смотрит самое меньшее, если страница не набралась раньше. Дальше сервер вправе дописывать страницу до limit или до своего бюджета времени (рекомендация — ~100–200 мс) и только тогда отдать nextCursor; пустая страница с nextCursor законна. Значение на замер: форма его не вшивает и на него не опирается"
-              },
-              "scenariosMax": {
-                "type": "integer",
-                "description": "Сценариев в документе домена"
               },
               "fileMaxBytes": {
                 "type": "integer",
@@ -10327,14 +10362,11 @@
             },
             "additionalProperties": false,
             "required": [
-              "ipScanMax",
-              "defaultServerPort",
               "pageMax",
               "idsMax",
               "selectMax",
               "watchMax",
-              "scanPartsMax",
-              "scenariosMax"
+              "scanPartsMax"
             ]
           },
           "capabilities": {
@@ -10402,55 +10434,6 @@
             },
             "description": "Что из логики и расписания правила исполняет система: whenAny — Rule.whenLogic: any, condAny — Rule.condLogic: any, every — Rule.runAt.everyMin и randomShift. Чего нет в списке, того форма не предлагает; включённое правило с этим — 422 NOT_SUPPORTED, params.issue.code rule.featureNotDeclared, params.issue.params.feature. Нет поля — ничего из перечисленного не исполняется"
           },
-          "layouts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "name"
-              ]
-            },
-            "description": "Раскладки клиента — для «Открыть раскладку»"
-          },
-          "monitors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "name"
-              ]
-            },
-            "description": "Мониторы видеостены — для «Показать на видеостене»"
-          },
-          "serverLabels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Известные метки серверов: то, что можно выбрать"
-          },
           "ruleStarts": {
             "type": "array",
             "items": {
@@ -10475,12 +10458,7 @@
               "areas": {
                 "type": "array",
                 "items": {
-                  "type": "string",
-                  "enum": [
-                    "folder",
-                    "server",
-                    "domain"
-                  ]
+                  "type": "string"
                 },
                 "description": "Какие области бывают в RuleTarget.include ({area, uid}); объект {uid} — всегда"
               },
@@ -10491,6 +10469,13 @@
               "areaRight": {
                 "$ref": "#/components/schemas/Right",
                 "description": "Право назвать область (папку, сервер, домен) в цели правила: уровень класса на самой папке или домене (folderAccess по uid), иначе Role.kindAccess; у сервера — только kindAccess. Нет поля — область правом не судится"
+              },
+              "areaLayouts": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "С 0.31.0. Что входит в область цели: {код области: id раскладки} (TreeLayout.id из GET /kinds → layouts). Область {area, uid} — вся ветка узла uid в этой раскладке, как её отдаёт /tree/children вглубь, без предела limits.selectMax: правило доходит до каждого объекта ветки. Нет строки для области — область целиком: всё, что лежит под объектом uid (дочерние, объекты в папке, объекты со ссылкой на него), а у области системы — все её объекты"
               }
             }
           },
@@ -10501,61 +10486,47 @@
             },
             "description": "Что исполняет правило с целями из нескольких доменов: виды действий. Другой шаг в таком включённом правиле — 422 NOT_SUPPORTED, field: steps, params.issue: rule.crossDomain. Поля нет — ограничения нет"
           },
-          "scenarioKinds": {
+          "ruleChecks": {
             "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: события вида камеры (UnitKind.events) шире"
-          },
-          "analyticsConflicts": {
-            "type": "array",
-            "description": "С 0.21.0. Несовместимые виды серверных детекторов (analyticsKind вида det при detectorKind: other), по образцу detectorOptions[].conflicts встроенных. Охват — сервер расчёта детектора (свой serverId детектора или сервер камеры): пакет распознавания лиц ставят на компьютер сервера, один на компьютер. Связь двусторонняя: достаточно строки у одного из видов. Сервер не создаёт и не включает детектор, если на том же сервере включён детектор несовместимого вида, не меняет analyticsKind, detectorKind или serverId включённого детектора на такой и не переносит туда камеру (её serverId) с включённым детектором: 409 BUSY, params {reason: incompatible, with: [uid мешающих детекторов]}; field — enabled при включении, analyticsKind при создании, иначе изменённое поле (у переноса камеры — serverId). Новая камера с дочерними детекторами в одной строке POST /units: сервер — serverId камеры, соседние строки тоже считаются (у них нет uid — with пуст). Шаг операции — fail BUSY с теми же params. Нет ключа или пусто — несовместимых видов нет",
+            "description": "С 0.31.0. Что проверяет шаг check (RuleCheck.what), который исполняет система. Что не объявлено, форма не предлагает; включённое правило с другой проверкой — 422 NOT_SUPPORTED, field steps, params.issue: {code: control.notDeclared, params: {control: check, what}}. С 0.32.0 поле обязательно: проверки, которых система не объявила, движок не исполняет",
             "items": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "analyticsKind",
-                "conflicts"
+                "what"
               ],
               "properties": {
-                "analyticsKind": {
+                "what": {
                   "type": "string",
-                  "description": "Вид серверного детектора — значение analyticsKind"
+                  "description": "Код проверки (RuleCheck.what)"
                 },
-                "conflicts": {
+                "implements": {
                   "type": "array",
                   "items": {
                     "type": "string"
                   },
-                  "description": "Виды, которые не работают с этим на одном сервере"
+                  "description": "Цель — объекты с этими профилями (UnitKind.implements). Нет поля — любой объект правил"
+                },
+                "depth": {
+                  "type": "boolean",
+                  "description": "Шагу с этой проверкой нужна глубина RuleCheck.depthSec (1…86400; у включённого правила без неё — 422 RULE_INVALID, control.depth). Нет поля — глубины у проверки нет"
                 }
               }
             }
-          },
-          "export": {
-            "$ref": "#/components/schemas/ExportReference",
-            "description": "Выгрузка: есть, если система объявила createExport"
           }
         },
         "additionalProperties": false,
         "description": "Справочники: коды и строение. Подписи к кодам — в интерфейсе",
         "required": [
-          "deviceModels",
-          "serviceTypes",
-          "supportLevels",
-          "recordModes",
-          "cloudProviders",
           "ruleActions",
           "access",
           "limits",
           "capabilities",
           "ruleConditions",
           "ruleControls",
-          "layouts",
-          "monitors",
           "ruleStarts",
-          "ruleTargets"
+          "ruleTargets",
+          "ruleChecks"
         ]
       },
       "Feature": {
@@ -10626,12 +10597,36 @@
           "journalAudit": "Аудит в журнале (с 0.9.0): у каждой записи actor (логин или «система»); каждое изменение через API с ответом 2xx — запись level audit, kind api.<operationId>, с fields.ip, operation, method, path и «было → стало»; в ответе GET /journal — prevCursor и offset. Без неё клиент не ждёт ни автора у каждой записи, ни записей аудита, ни prevCursor"
         }
       },
+      "AppSection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "description": "Раздел приложения, который система показывает в консоли. Код из таблицы в описании Capabilities.sections — известный раздел; незнакомый код клиент пропускает",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$",
+            "description": "Код раздела"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text",
+            "description": "Подпись раздела на рельсе: заменяет подпись консоли"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Имя значка раздела: заменяет значок консоли. Незнакомое имя клиент заменяет значком по умолчанию"
+          }
+        }
+      },
       "Capabilities": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "operations",
-          "features"
+          "features",
+          "sections"
         ],
         "description": "Что умеет эта система. Контракт один для всех систем, но система может поддерживать его часть: интерфейс прячет неподдержанное, тесты API его пропускают, покрытие считается по объявленному. Объявленное обязано работать по контракту целиком",
         "properties": {
@@ -10648,6 +10643,13 @@
               "$ref": "#/components/schemas/Feature"
             },
             "description": "Необязательные возможности, которые есть. Незнакомый код клиент пропускает"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppSection"
+            },
+            "description": "Разделы приложения, которые система показывает в консоли, в порядке рельса. Раздел можно объявлять, только если система выполняет его операции. Код → нужные операции: objects — listKinds, listUnits, getTreeChildren; automation — listRules; access — getAccess; settings — getSettings; journal — listJournal. Незнакомый код клиент пропускает. Поле обязательное с 0.32.0: рельс клиент строит только из sections"
           }
         }
       },
@@ -10689,12 +10691,12 @@
               "test.reset": "Стенд загрузил эталонный набор заново: клиент перечитывает всё",
               "operation.progress": "Шаг операции завершён: kind=operation, entityId — операция, payload — шаг (OperationItem) и счётчики",
               "operation.finished": "Операция завершена: payload — итог (state, ok, failed, cancelled)",
-              "discovery.progress": "Поиск в сети нашёл устройство: kind=discovery, entityId — домен, payload — progress и candidate",
-              "discovery.finished": "Поиск в сети закончился или остановлен: payload — state",
+              "discovery.progress": "Поиск в сети нашёл устройство: kind=discovery, entityId — uid объекта области (путь /units/{uid}/discovery), payload — progress и candidate",
+              "discovery.finished": "Поиск в сети закончился или остановлен: entityId — uid объекта области, payload — state",
               "prompt.opened": "Открыт вопрос оператору: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, roleId, level. Клиент перечитывает GET /rule-prompts",
               "prompt.closed": "Вопрос закрыт: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, reason: answered, expired, reset, stopped; при answered ещё answer и by — кто ответил",
               "stream.hello": "Первое сообщение потока: clientId — для PUT /stream/{clientId}/watch",
-              "tree.changed": "Ветка изменилась вне наблюдения: layout, parentIds. Частота постоянная и не зависит от размера домена. Клиент перечитывает эти ветки, если они у него загружены",
+              "tree.changed": "Ветка изменилась вне наблюдения: layout, parentIds. Приходит по каждой раскладке из GET /kinds → layouts; незнакомую раскладку клиент пропускает. Частота постоянная и не зависит от размера домена. Клиент перечитывает эти ветки, если они у него загружены",
               "journal.event": "Новая запись журнала об устройстве: entityId — устройство, payload — JournalEvent. Наблюдающим устройство, его родителя или камеру, к которой привязан источник событий: лента и титры закладки «Просмотр»",
               "kinds.changed": "Описания видов изменились: payload.kinds — коды. Подсказка, а не гарантия: после stream.reset клиент сам перечитывает GET /kinds с If-None-Match",
               "export.progress": "Ход выгрузки: kind=exportJob, entityId — задание, payload — progress и part. Только автору",
@@ -10732,12 +10734,8 @@
           },
           "layout": {
             "type": "string",
-            "enum": [
-              "folders",
-              "servers",
-              "archives",
-              "detectors"
-            ]
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$",
+            "description": "tree.changed: код раскладки из GET /kinds → layouts. Незнакомую раскладку клиент пропускает"
           },
           "parentIds": {
             "type": "array",
@@ -10764,9 +10762,10 @@
               "demo",
               "one-domain",
               "large",
-              "xl"
+              "xl",
+              "agents"
             ],
-            "description": "Набор: demo — эталонный, весь контракт (api/fixtures/demo.json); one-domain — профиль «один домен, камеры и детекторы, хранилища, правила, пользователи» (api/fixtures/one-domain.json); large — большой домен, 250 000 камер и 500 серверов (api/fixtures/large.json, записи считает стенд из чисел stand.large); xl — тот же large с 1 000 000 камер, 2 000 серверов, 1 200 папок (api/fixtures/xl.json — наложение на large). large и xl — для замеров формы на большом домене, бэкенду их уметь не обязательно. Стенд, который не умеет набор, отвечает 404 NOT_FOUND"
+            "description": "Набор: demo — эталонный, весь контракт (api/fixtures/demo.json); one-domain — профиль «один домен, камеры и детекторы, хранилища, правила, пользователи» (api/fixtures/one-domain.json); large — большой домен, 250 000 камер и 500 серверов (api/fixtures/large.json, записи считает стенд из чисел stand.large); xl — тот же large с 1 000 000 камер, 2 000 серверов, 1 200 папок (api/fixtures/xl.json — наложение на large). large и xl — для замеров формы на большом домене, бэкенду их уметь не обязательно; agents — система без видео: оркестратор агентов, только операции механизма (api/fixtures/agents.json). Стенд, который не умеет набор, отвечает 404 NOT_FOUND"
           },
           "fixturePatch": {
             "type": "object",
@@ -10877,7 +10876,8 @@
               "edge.gap",
               "edge.check",
               "edge.fail"
-            ]
+            ],
+            "x-layer": "vms"
           },
           "deviceId": {
             "type": "string",
@@ -10945,7 +10945,8 @@
             "description": "scenario.outcome: имя сценария"
           },
           "status": {
-            "$ref": "#/components/schemas/ScenarioStatus"
+            "$ref": "#/components/schemas/ScenarioStatus",
+            "x-layer": "vms"
           },
           "event": {
             "type": "object",
@@ -10955,7 +10956,8 @@
           },
           "eventId": {
             "type": "string",
-            "description": "unit.event: код события из UnitKind.events. С 0.18.0 deviceId может быть детектором (профиль vms.detector/1) под камерой: событие поднимает камера, eventId — detectorKind детектора или его нет (другое — 422 VALIDATION_FAILED, field: eventId; событие, которое объявил сам вид детектора, остаётся событием детектора); сервер пишет в match поле detector (uid детектора), у other — и template встроенного детектора. Детектор не под камерой — 422 VALIDATION_FAILED, field: deviceId"
+            "description": "unit.event: код события из UnitKind.events. С 0.18.0 deviceId может быть детектором (профиль vms.detector/1) под камерой: событие поднимает камера, eventId — detectorKind детектора или его нет (другое — 422 VALIDATION_FAILED, field: eventId; событие, которое объявил сам вид детектора, остаётся событием детектора); сервер пишет в match поле detector (uid детектора), у other — и template встроенного детектора. Детектор не под камерой — 422 VALIDATION_FAILED, field: deviceId",
+            "x-layer": "vms"
           },
           "match": {
             "type": "object",
@@ -11379,7 +11381,7 @@
           "SERVER_OFFLINE": "Сервер без связи: изменение не применено (409, или по объекту в групповой операции). С params: {targetId, kept} — не отказ: правка принята, хранится и применится с периодом камеры, kept — её имя, откатить её нельзя. Повтор той же правки новую не заводит, другая правка до применения первой — 412 VERSION_MISMATCH",
           "DEVICE_OFFLINE": "Устройство без связи: команда не дошла (409, или по объекту в групповой операции). Встроенный сервер так отказывает живому видео и PTZ; учётные данные и видео к устройству без связи применяет — см. api/BACKEND.md",
           "LICENSE_EXCEEDED": "Лицензия превышена (по объекту в групповой операции)",
-          "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту). Ещё: включение детектора, несовместимого с уже включённым на том же канале, или несовместимого вида серверного детектора на том же сервере (reference.analyticsConflicts, с 0.21.0) — params.reason: incompatible, params.with — массив uid мешающих детекторов (с 0.22.0 и у встроенных; до 0.22.0 у встроенных была строка); у соседней строки той же новой камеры uid ещё нет — массив пуст",
+          "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту). Ещё: включение детектора, несовместимого с уже включённым на том же канале, или несовместимого вида серверного детектора на том же сервере (x-conflicts у analyticsKind вида детектора, с 0.30.0; до того — reference.analyticsConflicts, с 0.21.0) — params.reason: incompatible, params.with — массив uid мешающих детекторов (с 0.22.0 и у встроенных; до 0.22.0 у встроенных была строка); у соседней строки той же новой камеры uid ещё нет — массив пуст",
           "LOGIN_TAKEN": "Логин уже занят (409)",
           "PASSWORD_POLICY": "Пароль не соответствует политике reference.access.passwordPolicy (422, field: password)",
           "SELF_LOCKOUT": "Изменение оставит систему без включённого бессрочного администратора или лишит вас входа (409). Администратор со сроком учётной записи, назначения или ролей группы последним не считается",
@@ -11680,7 +11682,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -11763,7 +11765,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Что считать тревогой на весь домен: коды событий из описаний видов (UnitKind.events). Другое значение — 422 VALIDATION_FAILED, field: alarms.domain"
+                "description": "Что считать тревогой на всю область системы (домен): коды событий из описаний видов (UnitKind.events). Другое значение — 422 VALIDATION_FAILED, field: alarms.domain"
               }
             }
           }
@@ -11801,7 +11803,7 @@
           },
           "key": {
             "type": "string",
-            "description": "Папка, домен или объект (ключ folderAccess / objectAccess)"
+            "description": "Папка, область системы (домен) или объект (ключ folderAccess / objectAccess)"
           },
           "field": {
             "type": "string"
@@ -11869,7 +11871,7 @@
           },
           "key": {
             "type": "string",
-            "description": "Папка, домен или объект (ключ folderAccess / objectAccess)"
+            "description": "Папка, область системы (домен) или объект (ключ folderAccess / objectAccess)"
           },
           "field": {
             "type": "string"
@@ -12025,12 +12027,7 @@
               "properties": {
                 "area": {
                   "type": "string",
-                  "enum": [
-                    "folder",
-                    "server",
-                    "domain"
-                  ],
-                  "description": "Область; нет поля — объект"
+                  "description": "Код области из каталога reference.ruleTargets.areas; нет поля — объект. Что входит в область — reference.ruleTargets.areaLayouts"
                 },
                 "uid": {
                   "type": "string",
@@ -12073,14 +12070,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "time",
-              "mode",
-              "armed",
-              "recording",
-              "online"
-            ],
-            "description": "Справочник ruleConditions. mode — устарело в 0.4.0: связь правила с режимом задаёт режим (ObjectMode.off), а не правило. Интерфейс 0.4.0 условие не показывает"
+            "description": "Код условия из каталога reference.ruleConditions. Механизм — time, mode, online; остальные (armed, recording) — условия профилей, их объявляет система в ruleConditions с implements. mode — устарело в 0.4.0: связь правила с режимом задаёт режим (ObjectMode.off), а не правило. Интерфейс 0.4.0 условие не показывает"
           },
           "scheduleId": {
             "type": "string",
@@ -12496,7 +12486,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -12725,7 +12715,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -14252,7 +14242,8 @@
           },
           "export": {
             "$ref": "#/components/schemas/AssistExport",
-            "description": "План выгрузки: тело POST /exports/check и POST /exports. Ход ничего не пишет: форма открывает окно выгрузки, проверяет заказ, пароль и супервизора вводит человек. Бывает, только если объявлен createExport"
+            "description": "План выгрузки: тело POST /exports/check и POST /exports. Ход ничего не пишет: форма открывает окно выгрузки, проверяет заказ, пароль и супервизора вводит человек. Бывает, только если объявлен createExport",
+            "x-layer": "video"
           },
           "ids": {
             "type": "array",
@@ -14356,7 +14347,8 @@
             "type": "string",
             "description": "Выбранный поток: DeviceStream.id этой камеры"
           }
-        }
+        },
+        "x-layer": "vms.live/1"
       },
       "LiveResult": {
         "type": "object",
@@ -14384,7 +14376,8 @@
             "type": "string",
             "description": "Через какой шлюз идёт видео: подпись для оператора"
           }
-        }
+        },
+        "x-layer": "vms.live/1"
       },
       "DetectorZone": {
         "type": "object",
@@ -14416,7 +14409,8 @@
             },
             "description": "Точки [x, y], доли кадра от 0 до 1"
           }
-        }
+        },
+        "x-layer": "vms.detector/1"
       },
       "PresetWrite": {
         "type": "object",
@@ -14427,7 +14421,8 @@
             "description": "Только имя. Записи нет — создаётся, есть — имя заменяется, пустое снимает подпись, запись остаётся"
           }
         },
-        "description": "Без name — запомнить нынешнее положение камеры, записи нет — создаётся с пустым именем. С name, пустым тоже, — только имя: положение не меняется никогда"
+        "description": "Без name — запомнить нынешнее положение камеры, записи нет — создаётся с пустым именем. С name, пустым тоже, — только имя: положение не меняется никогда",
+        "x-layer": "vms.ptz/1"
       },
       "PtzMove": {
         "type": "object",
@@ -14463,7 +14458,8 @@
             "maximum": 5,
             "description": "Срок аренды, с. Нет продления — камера останавливается сама"
           }
-        }
+        },
+        "x-layer": "vms.ptz/1"
       },
       "PtzLease": {
         "type": "object",
@@ -14476,7 +14472,8 @@
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "x-layer": "vms.ptz/1"
       },
       "StreamAccount": {
         "type": "object",
@@ -14502,7 +14499,8 @@
             "type": "string",
             "description": "Кем"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "StreamAccountCreate": {
         "type": "object",
@@ -14514,7 +14512,8 @@
           "name": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "StreamAccountPatch": {
         "type": "object",
@@ -14526,7 +14525,8 @@
           "disabled": {
             "type": "boolean"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "StreamAccountSecret": {
         "type": "object",
@@ -14543,7 +14543,8 @@
             "type": "string",
             "description": "Показывается один раз"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "ArchiveWatch": {
         "type": "object",
@@ -14652,7 +14653,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           },
           "through": {
             "type": [
@@ -14672,7 +14673,8 @@
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveWatchCreate": {
         "type": "object",
@@ -14762,9 +14764,10 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveWatchPatch": {
         "type": "object",
@@ -14843,9 +14846,10 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveScanResult": {
         "type": "object",
@@ -14889,7 +14893,8 @@
             "type": "string",
             "description": "Почему не вышло"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveScan": {
         "type": "object",
@@ -14961,7 +14966,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           },
           "state": {
             "type": "string",
@@ -14987,7 +14992,8 @@
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveScanCreate": {
         "type": "object",
@@ -15049,9 +15055,10 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "AccessUserWrite": {
         "type": "object",
@@ -15379,7 +15386,7 @@
           },
           "domainId": {
             "type": "string",
-            "description": "Домен: uid объекта домена"
+            "description": "Область системы (домен): uid объекта области"
           },
           "noFolder": {
             "type": "boolean",
@@ -15393,14 +15400,16 @@
             "enum": [
               true
             ],
-            "description": "Только без записи (профиль vms.camera/1)"
+            "description": "Только без записи (профиль vms.camera/1)",
+            "x-layer": "vms.camera/1"
           },
           "noDetector": {
             "type": [
               "boolean",
               "string"
             ],
-            "description": "true — без детекторов; код вида детектора (перечень свойства detectorKind видов профиля vms.detector/1) — без детектора этого вида"
+            "description": "true — без детекторов; код вида детектора (перечень свойства detectorKind видов профиля vms.detector/1) — без детектора этого вида",
+            "x-layer": "vms.detector/1"
           }
         }
       },
@@ -15489,15 +15498,15 @@
           "parentId",
           "hasChildren"
         ],
-        "description": "Узел дерева. Счётчиков у узлов нет. Объект узла — краткий (unit): строка дерева берёт из него имя, вид, связь, выключенность, сервер, сбой",
+        "description": "Узел дерева. Счётчиков у узлов нет. Объект узла — краткий (unit): строка дерева берёт из него имя, вид, связь, выключенность, сбой. Узел группы раскладки (group: true) объекта за собой не имеет",
         "properties": {
           "id": {
             "type": "string",
-            "description": "id записи; у нераспределённых unalloc:<domainId>"
+            "description": "id записи; у узла группы — <id группы>:<uid области> (TreeLayout.groups)"
           },
           "kind": {
             "type": "string",
-            "description": "Вид объекта из GET /kinds (unalloc — виртуальный узел нераспределённых серверов). Незнакомый вид клиент показывает с общим значком"
+            "description": "Код вида из GET /kinds; у узла группы — код группы раскладки (TreeLayout.groups). Незнакомый вид клиент показывает с общим значком"
           },
           "name": {
             "type": "string"
@@ -15510,6 +15519,10 @@
           },
           "hasChildren": {
             "type": "boolean"
+          },
+          "group": {
+            "type": "boolean",
+            "description": "true: виртуальный узел группы, объекта за ним нет"
           },
           "icon": {
             "type": "string"
@@ -15544,7 +15557,7 @@
                 "$ref": "#/components/schemas/TreePathStep"
               }
             },
-            "description": "Цепочки от корня (домен) до объекта, у объекта любого вида: по parentId, у корня домена — по раскладке (папки объекта, хранилища записи, сервер). Объект в нескольких папках — несколько цепочек"
+            "description": "Цепочки от корня (области системы) до объекта, у объекта любого вида: по parentId, а у корня области — по правилам раскладки (TreeLayout.place: папки объекта, цель ссылки). Объект в нескольких папках — несколько цепочек. Шага группы в цепочке нет"
           }
         }
       },
@@ -15562,10 +15575,159 @@
           },
           "kind": {
             "type": "string",
-            "description": "Вид объекта шага — код из GET /kinds (UnitKind.kind), как TreeNode.kind: domain, folder, server, archive.local, volume, camera, security_controller/CONTROLLER… Перечень открыт: незнакомый вид клиент показывает с общим значком"
+            "description": "Вид объекта шага — код из GET /kinds (UnitKind.kind), как TreeNode.kind: domain, folder, agent.model, security_controller/CONTROLLER… Перечень открыт: незнакомый вид клиент показывает с общим значком"
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "TreeLayout": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "place"
+        ],
+        "description": "Раскладка дерева, которую объявила система (GET /kinds → layouts). Раскладка — список правил «где лежит объект»: первое подходящее правило решает место объекта. Порядок раскладок в списке — порядок кнопок срезов. folders — раскладка механизма (папки); свои раскладки система называет с префиксом системы (agent.models). Незнакомые поля клиент пропускает",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$",
+            "description": "Код раскладки: параметр layout у GET /tree/children и GET /tree/paths, поле layout у tree.changed"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "hint": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Значок кнопки среза. Незнакомый клиент заменяет общим"
+          },
+          "place": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PlaceRule"
+            },
+            "description": "Правила места по порядку: первое подходящее решает, где объект лежит. Не подошло ни одно — объекта в раскладке нет. Объект вида с shape: document в дереве не бывает никогда"
+          },
+          "show": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Объект виден, если подходит сам или у него в этой раскладке есть подходящий потомок. Нет поля — видны все"
+          },
+          "hide": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Объекты этих видов не видны вместе со своим поддеревом"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreeGroup"
+            },
+            "description": "Виртуальные узлы под областью. Правило by: group кладёт объект в такой узел"
+          }
+        }
+      },
+      "PlaceRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "by"
+        ],
+        "description": "Правило места объекта в раскладке. Правило подходит, если подходят what, root и where и правило даёт место: у folders у объекта есть папки, у ref есть значение ссылки, у parent у дочернего объекта есть родитель",
+        "properties": {
+          "what": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Каким видам правило годится. Нет поля — любому виду"
+          },
+          "root": {
+            "type": "boolean",
+            "description": "true — только корни (parentId: null), false — только дочерние объекты. Нет поля — все"
+          },
+          "where": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "property",
+              "equals"
+            ],
+            "description": "Значение свойства объекта (Unit.properties)",
+            "properties": {
+              "property": {
+                "type": "string"
+              },
+              "equals": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "area",
+              "parent",
+              "folders",
+              "ref",
+              "group",
+              "none"
+            ],
+            "description": "Где лежит объект. area — прямо под областью объекта (Unit.domainId). parent — под parentId, корень — под областью. folders — под каждой папкой из Unit.folders. ref — под объектом, на который ссылается первое свойство вида с x-ref, подходящим под ref; значение из status.observed под тем же именем главнее значения из properties. group — под узлом группы. none — объекта в раскладке нет"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Для by: ref — обязательно: на объекты каких видов ведёт ссылка"
+          },
+          "group": {
+            "type": "string",
+            "description": "Для by: group — обязательно: id группы из TreeLayout.groups"
+          }
+        }
+      },
+      "KindSelector": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Отбор видов, как x-ref: вид подходит, если его код есть в kinds или он объявил профиль из implements. Пустой отбор — любой вид",
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Коды видов (UnitKind.kind)"
+          },
+          "implements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Профили (UnitKind.implements)"
+          }
+        }
+      },
+      "TreeGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "description": "Виртуальный узел раскладки под областью. Узел группы в GET /tree/children: id — <id группы>:<uid области>, kind — id группы, name — label.text, parentId — uid области, hasChildren: true, group: true. В GET /tree/paths шага группы нет: шаг — всегда объект",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text"
           }
         }
       },
@@ -15626,7 +15788,7 @@
               },
               "description": "Класс доступа → уровень"
             },
-            "description": "Права на папки «Оборудования»: uid папки или домена (корень) → класс доступа → уровень"
+            "description": "Права на папки «Оборудования»: uid папки или области системы (домена, корень) → класс доступа → уровень"
           },
           "objectAccessCount": {
             "type": "integer",
@@ -15823,9 +15985,10 @@
           },
           "kind": {
             "type": "string",
-            "description": "Вид события камеры: из reference.scenarioKinds"
+            "description": "Вид события камеры: из kinds документа сценариев (ScenarioDoc.kinds)"
           }
-        }
+        },
+        "x-layer": "vms.scenarios/1"
       },
       "ScenarioThen": {
         "type": "object",
@@ -15862,7 +16025,8 @@
             "maximum": 600,
             "description": "Срок просьбы, умолчание 30"
           }
-        }
+        },
+        "x-layer": "vms.scenarios/1"
       },
       "Scenario": {
         "type": "object",
@@ -15894,14 +16058,17 @@
             "type": "boolean",
             "description": "Нет поля — включён"
           }
-        }
+        },
+        "x-layer": "vms.scenarios/1"
       },
       "ScenarioDoc": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "version",
-          "items"
+          "items",
+          "kinds",
+          "maxItems"
         ],
         "description": "Документ сценариев домена, целиком: конфликт правок разных сценариев — 412, это предел",
         "properties": {
@@ -15914,8 +16081,23 @@
             "items": {
               "$ref": "#/components/schemas/Scenario"
             }
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "description": "С 0.30.0, обязательно с 0.32.0. Виды событий камеры, которые система берёт в сценарий (ScenarioWhen.kind). Отдельный список: события вида камеры (UnitKind.events) шире."
+          },
+          "maxItems": {
+            "type": "integer",
+            "minimum": 0,
+            "readOnly": true,
+            "description": "С 0.30.0, обязательно с 0.32.0. Сколько сценариев в документе самое большее: больше в PUT — 422 VALIDATION_FAILED, field: /items."
           }
-        }
+        },
+        "x-layer": "vms.scenarios/1"
       },
       "ScenarioDocWrite": {
         "type": "object",
@@ -15930,7 +16112,8 @@
               "$ref": "#/components/schemas/Scenario"
             }
           }
-        }
+        },
+        "x-layer": "vms.scenarios/1"
       },
       "ScenarioStatus": {
         "type": "object",
@@ -15999,7 +16182,8 @@
             "type": "integer",
             "minimum": 0
           }
-        }
+        },
+        "x-layer": "vms.scenarios/1"
       },
       "RelayMember": {
         "type": "object",
@@ -16011,7 +16195,8 @@
           "name": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.relays/1"
       },
       "Relay": {
         "type": "object",
@@ -16031,7 +16216,8 @@
             },
             "description": "Имена членов за ретранслятором по возрастанию, до 5000"
           }
-        }
+        },
+        "x-layer": "vms.relays/1"
       },
       "RecordingTargetRequest": {
         "type": "object",
@@ -16057,7 +16243,8 @@
             },
             "description": "Дополнительные приёмники, без основного, порядок значимый. Копия — это кластер: на кластер один сервер. Повтор, несуществующий сервер, два сервера одного кластера, сервер кластера основного приёмника — 422 VALIDATION_FAILED, field: copies. Пусто — копий нет"
           }
-        }
+        },
+        "x-layer": "vms.camera/1"
       },
       "AssistWorld": {
         "type": "object",
@@ -16166,7 +16353,8 @@
               "outside": "Извне: шлюз с публичным адресом"
             }
           }
-        }
+        },
+        "x-layer": "vms.live/1"
       },
       "TalkResult": {
         "type": "object",
@@ -16192,7 +16380,8 @@
           "gateway": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.talk/1"
       },
       "TimelineSpan": {
         "type": "object",
@@ -16255,7 +16444,8 @@
             "type": "boolean",
             "description": "Отсечённая эпоха: играет, если выбрана сама или момент не покрыт другими; кадры — дубль, не порча"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "TimelineUnavailable": {
         "type": "object",
@@ -16313,7 +16503,8 @@
             },
             "description": "Что не ответило: архив не утрачен, лента может быть неполной"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "PlaybackResult": {
         "type": "object",
@@ -16346,7 +16537,8 @@
             "type": "string",
             "description": "Какой спан выбран: без spanId в запросе его выбрал сервер"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldState": {
         "type": "object",
@@ -16366,7 +16558,8 @@
           "why": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "Hold": {
         "type": "object",
@@ -16428,7 +16621,8 @@
               "$ref": "#/components/schemas/HoldState"
             }
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldCreate": {
         "type": "object",
@@ -16456,7 +16650,8 @@
             },
             "description": "Записи, не тома"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldPage": {
         "type": "object",
@@ -16474,7 +16669,8 @@
           "nextCursor": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldVerifyResult": {
         "type": "object",
@@ -16516,7 +16712,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "Bookmark": {
         "type": "object",
@@ -16569,7 +16766,8 @@
             "format": "date-time",
             "description": "Конец отрезка: только у span"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "BookmarkCreate": {
         "type": "object",
@@ -16602,7 +16800,8 @@
             "format": "date-time",
             "description": "span: конец отрезка, позже occurred; нет или не позже — 422 VALIDATION_FAILED, field: /to"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "BookmarkPage": {
         "type": "object",
@@ -16620,7 +16819,8 @@
           "nextCursor": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "ExportArea": {
         "type": "object",
@@ -16653,7 +16853,8 @@
             "minimum": 0,
             "maximum": 1
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportCamera": {
         "type": "object",
@@ -16673,7 +16874,8 @@
           "area": {
             "$ref": "#/components/schemas/ExportArea"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportPeriod": {
         "type": "object",
@@ -16692,7 +16894,8 @@
             "format": "date-time",
             "description": "Конец не позже начала — 422 VALIDATION_FAILED, field: /periods/i/to"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportQuality": {
         "type": "object",
@@ -16701,15 +16904,15 @@
         "properties": {
           "codec": {
             "type": "string",
-            "description": "Из reference.export.formats[].codecs; source — как в архиве, без перекодирования"
+            "description": "Из GET /exports/reference → formats[].codecs; source — как в архиве, без перекодирования"
           },
           "compression": {
             "type": "string",
-            "description": "Ступень из reference.export.compression"
+            "description": "Ступень из GET /exports/reference → compression"
           },
           "resolution": {
             "type": "string",
-            "description": "Из reference.export.resolutions; source — как у камеры"
+            "description": "Из GET /exports/reference → resolutions; source — как у камеры"
           },
           "fpsDivisor": {
             "type": "integer",
@@ -16725,7 +16928,8 @@
             "minimum": 1,
             "description": "Ускорение: время в файле сжимается в speed раз"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportTitles": {
         "type": "object",
@@ -16737,7 +16941,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Из reference.export.titleFields"
+            "description": "Из GET /exports/reference → titleFields"
           },
           "font": {
             "type": "object",
@@ -16801,7 +17005,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportCreate": {
         "type": "object",
@@ -16866,7 +17071,7 @@
           },
           "format": {
             "type": "string",
-            "description": "id из reference.export.formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
+            "description": "id из GET /exports/reference → formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
           },
           "singleFile": {
             "type": "boolean",
@@ -16974,7 +17179,8 @@
           "titles": {
             "$ref": "#/components/schemas/ExportTitles"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "AssistExport": {
         "type": "object",
@@ -17035,7 +17241,7 @@
           },
           "format": {
             "type": "string",
-            "description": "id из reference.export.formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
+            "description": "id из GET /exports/reference → formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
           },
           "singleFile": {
             "type": "boolean",
@@ -17120,7 +17326,8 @@
           "titles": {
             "$ref": "#/components/schemas/ExportTitles"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportCheck": {
         "type": "object",
@@ -17205,7 +17412,8 @@
             },
             "description": "В каких отрезках у какой камеры записи нет совсем (номера в заказе)"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportPart": {
         "type": "object",
@@ -17278,7 +17486,8 @@
             "type": "boolean",
             "description": "В отрезке дыры: отдано то, что есть"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportFile": {
         "type": "object",
@@ -17316,7 +17525,8 @@
             "format": "date-time",
             "description": "Файл удаляется по сроку, потом ссылка — 410 EXPORT_EXPIRED"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "Export": {
         "type": "object",
@@ -17438,7 +17648,8 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportPage": {
         "type": "object",
@@ -17456,7 +17667,8 @@
           "nextCursor": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportFileLink": {
         "type": "object",
@@ -17474,7 +17686,8 @@
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportGrant": {
         "type": "object",
@@ -17544,7 +17757,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "video"
       },
       "RecordingDays": {
         "type": "object",
@@ -17582,7 +17796,8 @@
             },
             "description": "Что не ответило: дней может быть больше"
           }
-        }
+        },
+        "x-layer": "vms.camera/1"
       },
       "ExportReference": {
         "type": "object",
@@ -17830,7 +18045,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveFetchRequest": {
         "type": "object",
@@ -17857,7 +18073,8 @@
             "type": "boolean",
             "description": "Только пропуски встроенного хранилища (vms.edge/1): сервер заказывает забор пропусков камеры внутри периода, просьбы «закрепить» не подаёт и квоту на человека не тратит; accepted 0. Нет поля — false"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "ArchiveFetchResult": {
         "type": "object",
@@ -17902,7 +18119,8 @@
             "minimum": 0,
             "description": "Сколько пропусков встроенного хранилища камеры или регистратора внутри периода сервер заказал к забору (vms.edge/1). Не зависит от квоты на человека: refused о них не говорит. Нет встроенного хранилища или пропусков — 0"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "Text": {
         "type": "object",
@@ -17930,7 +18148,7 @@
         "type": "object",
         "properties": {},
         "additionalProperties": true,
-        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-hidden (форма поле не рисует; сервер отдаёт поле в properties, PATCH без поля его не меняет), x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
+        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, examples (с 0.30.0: подсказки значений — форма предлагает их и принимает ввод руками; сервер по ним не проверяет), deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-hidden (форма поле не рисует; сервер отдаёт поле в properties, PATCH без поля его не меняет), x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
       },
       "AccessClass": {
         "type": "object",
@@ -18139,12 +18357,17 @@
         "required": [
           "id"
         ],
-        "description": "Профиль: опубликованный контрактом набор свойств с известным смыслом (vms.camera/1). Вид объявляет implements; ручной экран интерфейса привязан к профилю, а не к виду. Профиль задаёт имена свойств (properties), имена состояния (status) и предметные пути (apis); тип и смысл каждого свойства профиль фиксирует: у стандартных профилей vms.* — таблица «Стандартные профили» в BACKEND.md, её источник — схемы видов эталонного набора (GET /kinds/{kind}: camera, archive.local, volume…). Вид, объявивший профиль, несёт свойство под тем же именем, того же типа и с тем же смыслом; своё сверх профиля — под своими именами. Несовместимая правка профиля — новая версия (vms.camera/2), а не правка /1. Незнакомый профиль клиент пропускает",
+        "description": "Профиль: опубликованный контрактом набор свойств с известным смыслом (vms.camera/1). Вид объявляет implements; ручной экран интерфейса привязан к профилю, а не к виду. Профиль задаёт имена свойств (properties), имена состояния (status) и предметные пути (apis); тип и смысл каждого свойства профиль фиксирует: файл профиля api/profiles/<имя>.json, таблица — api/profiles/<имя>.md; образец — схемы видов эталонного набора (GET /kinds/{kind}). Вид, объявивший профиль, несёт свойство под тем же именем, того же типа и с тем же смыслом; своё сверх профиля — под своими именами. Несовместимая правка профиля — новая версия (vms.camera/2), а не правка /1. Незнакомый профиль клиент пропускает",
         "properties": {
           "id": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_.-]+/[0-9]+$",
             "description": "Код и версия: <имя>/<версия>, vms.camera/1. Профили vms.* публикует контракт, свои — с префиксом своей системы"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "description": "Младшая версия профиля, которую сделал сервер: 1.5. Старшая — в id. Нет поля — клиент считает M.0. Файл профиля — api/profiles/<имя>.json"
           },
           "label": {
             "$ref": "#/components/schemas/Text"
@@ -18154,14 +18377,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Имена свойств профиля (Unit.properties). Тип, перечень значений и смысл каждого имени — у профиля (BACKEND.md «Стандартные профили»), образец — схема вида эталонного набора. Вид, объявивший профиль, несёт те из них, что у него есть, с типом и смыслом из профиля; у каждого имени есть хотя бы один такой вид"
+            "description": "Имена свойств профиля (Unit.properties). Тип, перечень значений и смысл каждого имени — у профиля (файл профиля api/profiles/<имя>.json, таблица — api/profiles/<имя>.md), образец — схема вида эталонного набора. Вид, объявивший профиль, несёт те из них, что у него есть, с типом и смыслом из профиля; у каждого имени есть хотя бы один такой вид"
           },
           "status": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Имена в status.observed объектов видов профиля: что система говорит о состоянии; тип и смысл — у профиля, как у properties"
+            "description": "Имена в status.observed объектов видов профиля: что система говорит о состоянии; тип и смысл — у профиля (файл профиля api/profiles/<имя>.json), как у properties"
           },
           "apis": {
             "type": "array",
@@ -18169,6 +18392,34 @@
               "type": "string"
             },
             "description": "Предметные пути /units/{uid}/…, которые есть у объекта видов профиля"
+          },
+          "uses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileUse"
+            },
+            "description": "От каких профилей и с какой младшей версии зависит профиль: поле ссылается на профиль или ручной экран читает его объект. Нет поля — зависимостей нет"
+          }
+        }
+      },
+      "ProfileUse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version"
+        ],
+        "description": "Зависимость профиля: профиль и наименьшая младшая версия, с которой зависимость работает",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+/[0-9]+$",
+            "description": "Код и версия профиля, от которого зависит этот"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "description": "Наименьшая младшая версия того профиля: 1.0"
           }
         }
       },
@@ -18273,7 +18524,7 @@
               "unit",
               "document"
             ],
-            "description": "document — один объект на домен, запись целиком (общие настройки домена)"
+            "description": "document — один объект на область системы (домен), запись целиком (общие настройки области)"
           },
           "actions": {
             "type": "array",
@@ -18296,7 +18547,7 @@
             "properties": {
               "url": {
                 "type": "string",
-                "description": "Постоянный адрес страницы плагина; параметры ?type=&id=&lang= добавляет клиент. Нет url — клиент на каждое открытие берёт адрес из POST /units/{uid}/setup-ui"
+                "description": "Постоянный адрес страницы плагина. У mode: tab параметры ?type=&id=&lang= добавляет клиент; нет url — клиент на каждое открытие берёт адрес из POST /units/{uid}/setup-ui. У mode: iframe клиент всегда берёт адрес из POST /units/{uid}/setup-ui, даже при url: бэкенд дописывает к нему объект, язык и разовый ключ"
               },
               "kinds": {
                 "type": "array",
@@ -18311,10 +18562,19 @@
                   "tab",
                   "iframe"
                 ],
-                "description": "tab — ссылка в новой вкладке; iframe — потом"
+                "description": "tab — ссылка в новой вкладке; iframe — страница в карточке по протоколу protocol"
+              },
+              "protocol": {
+                "type": "string",
+                "pattern": "^setup/[0-9]+$",
+                "description": "Версия протокола страницы mode iframe. Нет поля — setup/1. Незнакомую версию клиент не встраивает и показывает свой экран или форму по схеме"
+              },
+              "origin": {
+                "type": "string",
+                "description": "Происхождение страницы после перенаправлений двери и прокси, если оно другое, чем у адреса. Клиент принимает сообщения только с него. Нет поля — происхождение адреса"
               }
             },
-            "description": "Необязательная страница плагина рядом с формой по схеме. Страница открывается на другом происхождении (origin), чем консоль: она не получает куки и токен консоли и не обращается к /api/* консоли. Ссылку на страницу интерфейс показывает, только когда в Unit.capabilities объекта есть setupUi"
+            "description": "Своя страница подсистемы. mode: iframe — страница внутри карточки по протоколу setup/1 (api/SETUP-UI.md), правку записывает клиент. mode: tab — ссылка в новой вкладке, страница пишет сама. Какой экран видит человек: есть страница iframe — она, иначе ручной экран по профилю, иначе форма по схеме. Страница открывается на другом происхождении (origin), чем консоль: она не получает куки и токен консоли и не обращается к /api/* консоли. Ссылку на страницу интерфейс показывает, только когда в Unit.capabilities объекта есть setupUi. Шаг 2: мост к механизму — api/SETUP-UI.md: страница вызывает операции с x-bridge через consolem"
           },
           "createParents": {
             "type": "array",
@@ -18409,7 +18669,8 @@
                 "type": "boolean",
                 "description": "false — хранилище этого вида записи камер не принимает никогда: его свойство admits всегда false"
               }
-            }
+            },
+            "x-layer": "vms.archive/1"
           },
           "x-ui-category": {
             "type": "array",
@@ -18517,11 +18778,13 @@
               "replicaLagSec": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "Камера (vms.camera/1) в режиме replica: на сколько секунд архив отстаёт от источника. Нет значения — сервер не знает"
+                "description": "Камера (vms.camera/1) в режиме replica: на сколько секунд архив отстаёт от источника. Нет значения — сервер не знает",
+                "x-layer": "vms.camera/1"
               },
               "replicationStatus": {
                 "$ref": "#/components/schemas/EdgeReplicationStatus",
-                "description": "Встроенное хранилище (vms.edge/1): состояние репликации"
+                "description": "Встроенное хранилище (vms.edge/1): состояние репликации",
+                "x-layer": "vms.edge/1"
               },
               "mediaOk": {
                 "type": "boolean",
@@ -18540,11 +18803,13 @@
                     "type": "null"
                   }
                 ],
-                "description": "Сервер (vms.webserver/1): сертификат HTTPS; null — сертификата нет"
+                "description": "Сервер (vms.webserver/1): сертификат HTTPS; null — сертификата нет",
+                "x-layer": "vms.webserver/1"
               },
               "webReservedPorts": {
                 "$ref": "#/components/schemas/WebReservedPorts",
-                "description": "Сервер (vms.webserver/1): порты видео для браузера"
+                "description": "Сервер (vms.webserver/1): порты видео для браузера",
+                "x-layer": "vms.webserver/1"
               }
             },
             "additionalProperties": true,
@@ -18590,7 +18855,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Область системы (домен) объекта: uid объекта области. null — объект самой области или объект вне области"
           },
           "folders": {
             "type": "array",
@@ -18659,7 +18925,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Что можно с объектом сейчас, с учётом прав и состояния: rename, delete, move, action:ARM…; setupUi — пользователь может открыть страницу плагина (право edit, UnitKind.setupUi). Незнакомое значение клиент пропускает"
+            "description": "Что можно с объектом сейчас, с учётом прав и состояния: rename, delete, move, action:ARM…; setupUi — пользователь может открыть страницу (UnitKind.setupUi; у mode iframe — право view, у mode tab — edit). Незнакомое значение клиент пропускает"
           },
           "hasChildren": {
             "type": "boolean"
@@ -18926,7 +19192,8 @@
             "type": "object",
             "properties": {},
             "additionalProperties": true,
-            "description": "Параметры переноса по профилю вида. vms.server/1: parentId — домен приёма, null — исключить: в свой домен или в домен params.domainId (только при null; домена нет — 404 NOT_FOUND); fingerprint — отпечаток, который видел администратор (не тот — 409 FINGERPRINT_MISMATCH). Перенос сервера — в стопке отката: откат возвращает его в прежний домен в прежнем состоянии (распределён или нет). Приём камеры w2c (сервер становится объектом camera) назад не вернуть"
+            "description": "Параметры переноса по профилю вида. vms.server/1: parentId — домен приёма, null — исключить: в свой домен или в домен params.domainId (только при null; домена нет — 404 NOT_FOUND); fingerprint — отпечаток, который видел администратор (не тот — 409 FINGERPRINT_MISMATCH). Перенос сервера — в стопке отката: откат возвращает его в прежний домен в прежнем состоянии (распределён или нет). Приём камеры w2c (сервер становится объектом camera) назад не вернуть",
+            "x-layer": "vms.server/1"
           }
         }
       },
@@ -19032,7 +19299,8 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "items"
+          "items",
+          "layouts"
         ],
         "properties": {
           "items": {
@@ -19045,7 +19313,15 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Profile"
-            }
+            },
+            "description": "Профили набора. Источник каждого — файл профиля api/profiles/<имя>.json; у записи версия (version) и зависимости (uses)"
+          },
+          "layouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreeLayout"
+            },
+            "description": "Раскладки дерева, которые объявила система (с 0.26.0, обязательно с 0.32.0). Порядок — порядок кнопок срезов. Система без дерева (нет getTreeChildren) отдаёт пустой список"
           }
         }
       },
@@ -19079,14 +19355,15 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Область системы (домен) объекта: uid объекта области. null — объект самой области или объект вне области"
           },
           "version": {
             "type": "string"
           },
           "subtype": {
             "type": "string",
-            "description": "Подвид объекта (свойство subtype), как DeviceRow.subtype: nvr, io… Нет свойства — нет поля"
+            "description": "Подвид объекта: значение свойства subtype из properties (Unit.properties.subtype), например nvr, io у вида ipsrv. Нет свойства — нет поля"
           },
           "status": {
             "type": "object",
@@ -19173,13 +19450,7 @@
           },
           "what": {
             "type": "string",
-            "enum": [
-              "record",
-              "safe",
-              "armed",
-              "online"
-            ],
-            "description": "Что проверить: record — камера пишет в архив, safe — запись защищена, armed — камера на охране, online — устройство на связи"
+            "description": "Код проверки из каталога reference.ruleChecks (с 0.31.0). Механизм — online (объект на связи). Остальные — проверки профилей: система объявляет их в ruleChecks с implements (у VMS — record: запись идёт, safe: запись защищена, armed: объект на охране)"
           },
           "target": {
             "anyOf": [
@@ -19196,7 +19467,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 86400,
-            "description": "record, safe: за сколько последних секунд, 1…86400 (у включённого правила 0 — 422 RULE_INVALID, control.depth). armed, online: поля нет"
+            "description": "Проверки с depth: true в reference.ruleChecks (у VMS — record, safe): за сколько последних секунд, 1…86400 (у включённого правила 0 — 422 RULE_INVALID, control.depth). У остальных проверок поля нет"
           },
           "yes": {
             "type": "array",
@@ -19274,7 +19545,8 @@
             }
           }
         },
-        "description": "Последние сырые строки источника событий, от старых к новым"
+        "description": "Последние сырые строки источника событий, от старых к новым",
+        "x-layer": "vms.pos/1"
       },
       "PosRawLine": {
         "type": "object",
@@ -19293,7 +19565,8 @@
             "type": "string",
             "description": "Строка как есть, без перевода строки в конце"
           }
-        }
+        },
+        "x-layer": "vms.pos/1"
       },
       "EdgeReplicationStatus": {
         "type": "object",
@@ -19408,7 +19681,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "vms.edge/1"
       },
       "EdgeReplicationGap": {
         "type": "object",
@@ -19442,7 +19716,8 @@
             ],
             "description": "queued — сервер ещё не забрал; done — забрал; lost — устройство записало поверх раньше, чем сервер забрал: минут нет нигде"
           }
-        }
+        },
+        "x-layer": "vms.edge/1"
       },
       "JournalLevel": {
         "type": "string",
@@ -19621,7 +19896,8 @@
             "default": 8554,
             "description": "Порт RTSP через HTTP (туннель RTSP over HTTP)"
           }
-        }
+        },
+        "x-layer": "vms.webserver/1"
       },
       "WebCertificate": {
         "type": "object",
@@ -19689,7 +19965,8 @@
             "format": "date-time",
             "description": "Когда сервер принял сертификат"
           }
-        }
+        },
+        "x-layer": "vms.webserver/1"
       },
       "WebReservedPorts": {
         "type": "object",
@@ -19710,7 +19987,8 @@
             "minimum": 1,
             "maximum": 65535
           }
-        }
+        },
+        "x-layer": "vms.webserver/1"
       },
       "SetupUiLink": {
         "type": "object",
@@ -19722,12 +20000,20 @@
         "properties": {
           "url": {
             "type": "string",
-            "description": "Адрес страницы плагина для одного открытия. Клиент открывает его как есть и ничего к нему не дописывает"
+            "description": "Адрес страницы плагина для одного открытия. Клиент открывает его как есть и ничего к нему не дописывает. Разовый ключ бэкенд кладёт в запрос или в путь адреса. Относительный адрес клиент разрешает от адреса своей страницы (так встроенный сервер отдаёт тестовую страницу)"
           },
           "expiresAt": {
             "type": "string",
             "format": "date-time",
             "description": "До этого времени адрес открывает страницу. Потом клиент просит новый адрес"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Происхождение страницы после перенаправлений двери и прокси, если оно другое, чем у адреса. Клиент принимает сообщения только с него. Нет поля — происхождение адреса"
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Только у mode iframe, бэкенд ставит всегда: true — у человека право view без edit. Клиент передаёт странице readOnly и не показывает «Применить»"
           }
         },
         "description": "Адрес страницы плагина на одно открытие (POST /units/{uid}/setup-ui)"
@@ -19971,6 +20257,28 @@
           }
         },
         "description": "Назначить домены и лимиты одним вызовом. Отмена снятия — тот же PATCH с прежними доменами и лимитами"
+      },
+      "RuleActionField": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "description": "Поле действия правила без объекта (Reference.ruleActions[].fields). Значение поля — в шаге правила под именем id. С 0.31.0 значения поля задаёт schema: значение вне её enum у включённого правила — 422 NOT_SUPPORTED, params.issue.code action.fieldNotDeclared. Нет schema — значение поля любое (options снято в 0.32.0)",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Имя поля в шаге правила (RuleStep)"
+          },
+          "optional": {
+            "type": "boolean",
+            "description": "Поле можно не заполнять. Нет — поле обязательно"
+          },
+          "schema": {
+            "$ref": "#/components/schemas/JsonSchema",
+            "description": "С 0.31.0. Схема значения поля — то же подмножество, что у схем видов: enum — допустимые значения, x-enum-labels — их подписи (Text). Так система отдаёт значения, которые знает только она (id раскладок клиента у client.layout)."
+          }
+        }
       }
     }
   }

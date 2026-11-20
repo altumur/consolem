@@ -4,7 +4,12 @@
    Время идёт по часам стенда (POST /test/clock), пропуск, проверку носителя и отказ подкладывает POST /test/events
    (edge.gap, edge.check, edge.fail). Забор шагом правила — команда камеры replicate; руками — POST /units/{uid}/archive-fetch. */
 (() => {
-  const { test, makeEnv, assert, FX } = ApiTest;
+  ApiTest.fileLayer("profile:vms.edge/1");
+  const { makeEnv, assert, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const test = ApiTest.prefixLayers([
+    ["Ручной забор периода", "video"],
+  ]);
   const id = (n) => `${n}-0000-4000-8000-000000000000`;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const U = (uid) => `/units/${uid}`;

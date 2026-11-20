@@ -121,7 +121,9 @@ def main():
     broken(re.sub(r'\["([\w-]+)","', r"['\1','", text), "вкладки в одинарных кавычках", "вкладок")
     broken(re.sub(r"\btab(\s*===?\s*[\"'])", r"curTab\1", text), "вкладки проверяются не через tab===",
            "где рисуется, только")
-    t = re.sub(r'(if\(n\.type==="(camera|domain)"\)return)\[\[.*', r'\1 TAB_TABLE.\2(n);', text)
+    # Вкладки камеры и домена: с части 07 домен узнаётся по профилю (handOf(n,"domain")), у камеры список начинается с «(»
+    t = re.sub(r'(if\((?:n\.type==="(camera|domain)"|handOf\(n,"(camera|domain)"\))\)return)[\[(].*',
+               lambda m: f'{m.group(1)} TAB_TABLE.{m.group(2) or m.group(3)}(n);', text)
     broken(t, "вкладки камеры и домена ушли в таблицу", "без списка")
     broken(before_paint(text, "function zzOpen(){return `<div>${x}</div>;}"), "незакрытая шаблонная строка",
            "лексер сбился")

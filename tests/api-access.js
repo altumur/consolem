@@ -1,6 +1,11 @@
 /* Тесты API: права — применение черновика пакетом, проверки, защита от самоблокировки, синхронизация каталога. */
 (() => {
-  const { test, makeEnv, assert, FX } = ApiTest;
+  ApiTest.fileLayer("mechanism");
+  const { makeEnv, assert, FX, FOLDER } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const test = ApiTest.prefixLayers([
+    ["PTZ — как в базе", "video"],
+  ]);
   const A = FX.access;
   const meId = FX.me.userId;
   const draft = () => {
@@ -59,7 +64,7 @@
     assert.eq([a.history[0].text, a.history[0].actor, a.history.length], ["Создан пользователь new.user", login, A.history.length + 1], "история: сверху, с автором");
     assert.eq([a.cellHistory.length, a.cellHistory[0].to], [1, "FULL"], "история ячеек");
     assert.eq((await env.access()).version, a.version, "перечитано");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Права: dryRun — проверка без записи", async () => {
     const env = await makeEnv();
@@ -126,7 +131,7 @@
     const res = await apply(env, spoil((d) => d.users.find((u) => u.id === other.id).roleIds.push(adm.id)));
     assert.status(res, 200);
     assert.ok(res.body.access.users.find((u) => u.id === other.id).roleIds.includes(adm.id), "назначение меняется");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Последний администратор: срок учётной записи, назначения, ролей группы не считается — 409 SELF_LOCKOUT", async () => {
     const env = await makeEnv();
@@ -153,13 +158,13 @@
     me.roleIds = me.roleIds.filter((x) => x !== adm.id);
     d.groups.forEach((g) => (g.memberIds = g.roleIds.includes(adm.id) ? g.memberIds.filter((x) => x !== meId) : g.memberIds));
     assert.status(await apply(env, d), 409, "SELF_LOCKOUT");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Справочник: joins — «Просмотр» и «Просмотр архива» вместе дают «Просмотр и архив»", async () => {
     const env = await makeEnv();
     const j = (await env.ok("GET", "/reference")).access.joins;
     assert.eq(j, [{ kind: "cam", levels: ["MON", "ONLY_ARCHIVE"], level: "ARCHIVE" }], "пара объявлена");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Пароль: новый пользователь и смена, в ответах нет; политика — 422 PASSWORD_POLICY", async () => {
     const env = await makeEnv();
@@ -190,7 +195,7 @@
     const ok = await bad("Zyxwvu98");
     assert.status(ok, 200);
     assert.eq(ok.body.access.users.find((u) => u.id === NEW_ID).hasPassword, true, "смена пароля");
-  });
+  }, { needs: ["kind:camera"] });
 
   // Управляющий: роль с USERS_RIGHTS_SETUP, человек не администратор
   const managerEnv = async () => {
@@ -228,7 +233,7 @@
     const fine = copy();
     fine.users.find((u) => u.id === plain.id).name = "Новое имя";
     assert.status(await wr(fine), 200);
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Управляющий: снимок целиком без изменений у администратора проходит; пароль, заданный им, не даёт назначить «Администратора»", async () => {
     const { env, a, adm, man, wr, copy } = await managerEnv();
@@ -240,7 +245,7 @@
     assert.eq(res.body.access.users.find((u) => u.id === plain.id).passwordByAdmin, false, "задал не администратор");
     const db = await env.access();
     assert.eq(db.users.find((u) => u.id === plain.id).passwordByAdmin, false, "сохранено");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Повышение: «Администратор» пользователю с чужим паролем — 409 PASSWORD_NOT_ADMIN, после смены пароля можно", async () => {
     const env = await makeEnv();
@@ -264,7 +269,7 @@
     const done = await apply(env, d);
     assert.status(done, 200);
     assert.eq(done.body.access.users.find((x) => x.id === u.id).passwordByAdmin, true, "пароль сменил администратор");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Почта: администратор и управляющий видят всех, остальные — только свою", async () => {
     const adm = A.roles.find((r) => r.global.unr);
@@ -276,7 +281,7 @@
     assert.eq(a.users.find((u) => u.id === reader.id).email, reader.email, "своя есть");
     const { a: b } = await managerEnv();
     assert.eq(b.users.filter((u) => u.email).length, withMail.length, "управляющий видит всех");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Без функции «Настройка прав пользователей» применить нельзя — 403", async () => {
     const adm = A.roles.find((r) => r.global.unr);
@@ -290,7 +295,7 @@
     x.users.find((u) => u.id === reader.id).name = reader.name;
     assert.status(await send(x, a.version), 200, undefined, "снимок без правок: чужая пустая почта правкой не считается");
     assert.eq((await env.access()).users.length, a.users.length, "на месте");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Папки ведёт только «Администратор»: функция роли и права на папку этого не дают — 403", async () => {
     const adm = A.roles.find((r) => r.global.unr);
@@ -313,7 +318,7 @@
       assert.eq(op.items.map((x) => [x.state, x.code]), [["fail", "PERMISSION_DENIED"]], `состав папки: шаг ${item.folders ? "folders" : "patch {folders}"}`);
     }
     assert.eq((await env.ok("GET", `/units/${dev.uid}`)).folders, dev.folders, "папки объекта на месте");
-  }, { needs: ["createUnits", "patchUnit", "deleteUnit", "createOperation", "implements:vms.folder/1"] });
+  }, { needs: ["createUnits", "patchUnit", "deleteUnit", "createOperation", `implements:${FOLDER}`, "kind:camera"] });
 
   test("Учётки потоков: доступ к камерам через Access; ссылки проверяются; удаление учётки, камеры и папки убирает доступ", async () => {
     const env = await makeEnv();
@@ -405,7 +410,7 @@
       assert.eq(res.body.field, field, "путь поля");
     }
     assert.status(await send(fresh()), 200);
-  });
+  }, { needs: ["kind:camera"] });
 
   // Уровни класса cam без ONLY_ARCHIVE: и в описаниях видов, и в справочнике
   const camLess = (levels) => levels.filter((x) => x !== "ONLY_ARCHIVE");
@@ -436,7 +441,7 @@
       assert.status(res, 422, "NOT_SUPPORTED", field);
       assert.eq(res.body.field, field, "путь поля");
     }
-  });
+  }, { needs: ["kind:camera"] });
 
   /* ----- Права по описаниям видов: Role.kindAccess, классы и уровни из UnitKind.access, право команды и предметного API ----- */
 
@@ -549,7 +554,7 @@
     assert.status(await env.call("DELETE", "/stream-accounts/wall-2"), 204);
     assert.eq((await env.list("/stream-accounts")).length, was, "удалена");
     assert.status(await env.call("PATCH", "/stream-accounts/wall-2", { disabled: false }), 404, "NOT_FOUND");
-  });
+  }, { needs: ["listStreamAccounts"] });
 
   test("Роль на весь домен: запись одна, отказ одного кластера не откатывает прочие, расхождение видно, повтор", async () => {
     const names = (i) => (i % 2 ? `Кластер2/Сервер ${i}` : `Кластер1/Сервер ${i}`);
@@ -576,7 +581,7 @@
     const plain = await apply(healed, x, { base: h });
     assert.status(plain, 200);
     assert.ok(!plain.body.notApplied, "сама роль пишется одной записью");
-  });
+  }, { needs: ["kind:camera"] });
 
   ApiTest.loaded("api-access.js");
 })();

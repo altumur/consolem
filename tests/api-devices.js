@@ -4,7 +4,45 @@
    команды — /units/{uid}/actions/… (probe, output, команды единиц СКУД), живое видео и PTZ — /units/{uid}/live, ptz, presets.
    Поле отказа — JSON Pointer. */
 (() => {
-  const { test, makeEnv, assert, key, FX } = ApiTest;
+  ApiTest.fileLayer("profile:vms.camera/1");
+  const { makeEnv, assert, key, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const test = ApiTest.prefixLayers([
+    ["Добавить:", "mechanism"],
+    ["Добавить из найденного", "mechanism"],
+    ["Удалить камеру: строки незнакомых видов", "mechanism"],
+    ["Детектор из карточки камеры", "mechanism"],
+    ["Профиль при добавлении", "mechanism"],
+    ["Поиск в сети", "profile:vms.discovery/1"],
+    ["Схемы видов:", "mechanism"],
+    ["Потоки:", "profile:vms.stream/1"],
+    ["Разрешение:", "profile:vms.stream/1"],
+    ["Живое видео", "video"],
+    ["Переразместить", "video"],
+    ["Пресеты", "video"],
+    ["Аренда PTZ", "video"],
+    ["Поддетектор", "profile:vms.subdetector/1"],
+    ["Удаление детектора удаляет поддетекторы", "profile:vms.subdetector/1"],
+    ["План одной операцией", "profile:vms.subdetector/1"],
+    ["/tree/children: у трекера", "profile:vms.subdetector/1"],
+    ["Правило по subdet.triggered", "profile:vms.subdetector/1"],
+    ["Встроенный детектор", "profile:vms.detector/1"],
+    ["Несовместимые", "profile:vms.detector/1"],
+    ["Зона:", "profile:vms.detector/1"],
+    ["Детектор без полей", "profile:vms.detector/1"],
+    ["objectSize", "profile:vms.detector/1"],
+    ["extraZones", "profile:vms.detector/1"],
+    ["direction", "profile:vms.detector/1"],
+    ["recordMask", "profile:vms.detector/1"],
+    ["analyticsKind", "profile:vms.detector/1"],
+    ["Свойства детектора и поддетектора", "profile:vms.detector/1"],
+    ["Источник:", "profile:vms.pos/1"],
+    ["Правило: событие text", "profile:vms.pos/1"],
+    ["Единица СКУД", "profile:vms.acs/1"],
+    ["Реле: в СКУД", "profile:vms.acs/1"],
+    ["Команда единицы", "profile:vms.acs/1"],
+    ["Правило: действие unit", "profile:vms.acs/1"],
+  ]);
   const d1 = FX.domains[0];
   const folder = FX.folders.find((f) => f.domainId === d1.id && !f.parentId);
   const cam = FX.devices.find((d) => d.type === "camera" && d.name === "Главный вход");
@@ -82,16 +120,18 @@
     const disc = FX.discovery[0];
     const c = FX.network.find((x) => x.id === disc.candidateIds[0]);
     const [u] = await made(env, newCam({ ip: c.ip, mac: c.mac }, { domainId: disc.domainId, candidateId: c.id }));
-    const now = await env.ok("GET", `/domains/${disc.domainId}/discovery`);
+    const now = await env.ok("GET", `/units/${disc.domainId}/discovery`);
     assert.ok(!now.candidates.some((x) => x.id === c.id), "добавленное — не в найденных");
     assert.eq(u.properties.mac, c.mac, "MAC из поиска сохранён");
-  }, { needs: ["getDiscovery", "createUnits"] });
+  }, { needs: ["getDiscovery", "createUnits", "implements:vms.discovery/1"] });
 
   test("Определить модель: команда probe камеры и регистратора; повторяется; неизвестный производитель — null", async () => {
     const env = await makeEnv();
     const probe = async (uid, params) => (await env.ok("POST", `${U(uid)}/actions/probe`, { params })).result;
     const m = await probe(cam.id, { ip: "10.1.2.3", port: 80, vendor: "Axis" });
-    assert.ok(FX.reference.deviceModels.find((x) => x.vendor === "Axis").models.includes(m.model), `модель Axis: ${m.model}`);
+    // Модели производителя — allOf вида камеры: if vendor = Axis → then model.examples (с 0.30.0)
+    const axis = ((await env.ok("GET", "/kinds/camera")).schema.allOf || []).find((x) => x.if && x.if.properties && x.if.properties.vendor && x.if.properties.vendor.const === "Axis");
+    assert.ok(axis && axis.then.properties.model.examples.includes(m.model), `модель Axis: ${m.model}`);
     assert.eq(await probe(cam.id, { ip: "10.1.2.3", port: 80, vendor: "Axis" }), m, "повторяется");
     assert.eq((await probe(cam.id, { ip: "10.1.2.3", port: 80, vendor: "Noname" })).model, null, "неизвестный");
     const nvr = FX.devices.find((d) => d.type === "ipsrv" && d.online !== false);
@@ -161,22 +201,22 @@
     const seen = [];
     const stop = ApiTest.subscribeForTest((m) => m.kind === "discovery" && m.entityId === did && seen.push(m.type));
     await ApiTest.settle();
-    const res = await env.call("POST", `/domains/${did}/discovery`);
+    const res = await env.call("POST", `/units/${did}/discovery`);
     assert.status(res, 202);
     assert.eq([res.body.state, res.body.candidates.map((c) => c.id)], ["searching", expect.slice(0, 1)], "начат, прежний итог сброшен, первая находка — сразу");
-    assert.status(await env.call("POST", `/domains/${did}/discovery`), 409, "BUSY");
+    assert.status(await env.call("POST", `/units/${did}/discovery`), 409, "BUSY");
     const done = await env.until(async () => {
-      const x = await env.ok("GET", `/domains/${did}/discovery`);
+      const x = await env.ok("GET", `/units/${did}/discovery`);
       return x.state === "done" && x;
     }, "поиск закончился");
     assert.eq([done.state, done.progress, done.candidates.map((c) => c.id)], ["done", 100, expect], "найдено всё, по порядку");
     await ApiTest.settle();
     stop();
     assert.eq([seen.filter((t) => t === "discovery.progress").length, seen.filter((t) => t === "discovery.finished").length], [expect.length, 1], "в потоке");
-    await env.ok("POST", `/domains/${did}/discovery`);
-    const stopped = await env.ok("DELETE", `/domains/${did}/discovery`);
+    await env.ok("POST", `/units/${did}/discovery`);
+    const stopped = await env.ok("DELETE", `/units/${did}/discovery`);
     assert.eq(stopped.state, "stopped", "остановлен");
-    assert.status(await env.call("DELETE", "/domains/10009999-0000-4000-8000-000000000000/discovery"), 404, "NOT_FOUND");
+    assert.status(await env.call("DELETE", "/units/10009999-0000-4000-8000-000000000000/discovery"), 404, "NOT_FOUND");
   }, { needs: ["startDiscovery", "getDiscovery", "stopDiscovery"] });
 
   /* ===== Виды, которые находит сервер ===== */
@@ -427,11 +467,32 @@
     assert.eq((await env.ok("PATCH", U(face.uid), { properties: { enabled: true } }, v(face))).properties.enabled, true, "теперь можно");
   }, { needs: ["createUnits", "patchUnit", "kind:det"] });
 
-  test("Несовместимые виды серверных детекторов (с 0.21.0): reference.analyticsConflicts; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
+  // С 0.30.0 несовместимые виды — x-conflicts {значение: [значения]} у свойства analyticsKind вида (расширение vms.detector/1);
+  // reference.analyticsConflicts снят в 0.32.0. Связь двусторонняя: у всех видов детектора — те же пары без порядка
+  test("Несовместимые детекторы: x-conflicts у analyticsKind — значения analyticsKind, у видов детектора те же пары", async () => {
     const env = await makeEnv();
-    const ref = await env.ok("GET", "/reference");
-    const tv = (ref.analyticsConflicts || []).find((c) => c.analyticsKind === "faceTV");
-    assert.ok(tv && tv.conflicts.includes("faceVA"), "лица TV и VA — в справочнике");
+    const pairs = (list) => [...new Set(list.flatMap(([a, cs]) => cs.map((b) => [a, b].sort().join("|"))))].sort();
+    const dets = (await env.ok("GET", "/kinds")).items.filter((k) => (k.implements || []).includes("vms.detector/1"));
+    let want = null;
+    for (const k of dets) {
+      const ak = k.schema.properties.analyticsKind;
+      if (!ak || !ak["x-conflicts"]) continue;
+      const xc = ak["x-conflicts"];
+      if (want === null) want = pairs(Object.entries(xc));
+      assert.eq(pairs(Object.entries(xc)), want, `${k.kind}: x-conflicts — те же пары`);
+      Object.entries(xc).forEach(([a, cs]) => [a, ...cs].forEach((x) => assert.ok(ak.enum.includes(x), `${k.kind}: ${x} — значение analyticsKind`)));
+    }
+    // x-conflicts необязательно: система без несовместимых видов (набор one-domain) его не объявляет. Тест тогда ничего
+    // не проверяет и говорит об этом в строке PASS
+    if (want === null) return `x-conflicts нет ни у одного из ${dets.length} видов детектора — проверять нечего`;
+    assert.ok(want.length > 0, "x-conflicts объявлено — в нём есть пары");
+    return `пар ${want.length}`;
+  }, { needs: ["listKinds", "implements:vms.detector/1"] });
+
+  test("Несовместимые виды серверных детекторов (с 0.21.0): x-conflicts у analyticsKind; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
+    const env = await makeEnv();
+    const xc = (((await env.ok("GET", "/kinds/det")).schema.properties.analyticsKind || {})["x-conflicts"]) || {};
+    assert.ok((xc.faceTV || []).includes("faceVA") || (xc.faceVA || []).includes("faceTV"), "лица TV и VA — в x-conflicts");
     const FACE = ["faceTV", "faceVA", "faceVL"];
     // Чистый стенд: включённые детекторы лиц из набора выключены
     for (const d of (await env.pages("/units?kind=det&limit=1000")).filter((u) => FACE.includes(u.properties.analyticsKind) && u.properties.enabled !== false)) {
@@ -495,7 +556,7 @@
 
   /* ===== Настройки детектора и поддетекторы (контракт 0.12.0) ===== */
 
-  const camU = { uid: cam.id };
+  const camU = { uid: cam && cam.id };
   const NEW_DET = ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec"];
   const TRI = [[0.2, 0.2], [0.5, 0.2], [0.5, 0.5]];
   const tracker = (c, name, over) => det(c, name || "Трекер", Object.assign({ detectorKind: "other", analyticsKind: "tracker", sensitivity: 60 }, over));
@@ -839,7 +900,7 @@
       const flat = (await env.pages(`/tree/children?layout=${layout}&parentId=${cam.id}&limit=1000`)).find((x) => x.id === plain.uid);
       assert.eq(flat && flat.hasChildren, false, `${layout}: у детектора без детей их нет`);
     }
-  }, { needs: ["createUnits", "kind:det", "kind:subdet", "getTreeChildren"] });
+  }, { needs: ["createUnits", "kind:det", "kind:subdet", "getTreeChildren", "layout:detectors", "layout:servers"] });
 
   test("Правило по subdet.triggered (kinds: [subdet]) проходит проверку; событие не тревога и не в «Что считать тревогой»", async () => {
     const env = await makeEnv();
@@ -1203,13 +1264,14 @@
     const c = (await env.pages("/units?kind=camera&limit=1000")).find((u) => u.properties.archiveId);
     const res = await env.ok("PATCH", U(c.uid), { properties: { labels: ["gpu"], alarmKinds: ["motion"] } }, v(c));
     assert.eq([res.properties.labels, res.properties.alarmKinds], [["gpu"], ["motion"]], "камера");
-    const ref = await env.ok("GET", "/reference");
-    assert.ok((await env.ok("GET", "/kinds/camera")).events.some((e) => e.id === "motion") && ref.serverLabels.length > 0, "варианты: события вида, метки — справочник");
+    const srv = (await env.ok("GET", "/kinds")).items.find((k) => (k.implements || []).includes("vms.server/1"));
+    const labels = srv ? (((srv.schema.properties.labels || {}).items || {}).examples || []) : [];
+    assert.ok((await env.ok("GET", "/kinds/camera")).events.some((e) => e.id === "motion") && labels.length > 0, "варианты: события вида, метки — examples у labels сервера");
     const a = FX.archives.find((x) => x.id !== c.properties.archiveId);
     const x = await env.ok("PATCH", U(c.uid), { properties: { extraArchives: [{ archiveId: a.id, recordMode: "always", labels: ["archive"] }] } }, v(res));
     assert.eq(x.properties.extraArchives[0].labels, ["archive"], "метка строки записи");
     field(await props(env, x, { recordState: "ok" }), "VALIDATION_FAILED", P("recordState"), "состояние — status.observed, не свойство");
-  }, { needs: ["patchUnit", "kind:camera"] });
+  }, { needs: ["patchUnit", "kind:camera", "testEvent"] });
 
   ApiTest.loaded("api-devices.js");
 })();

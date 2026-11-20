@@ -6,6 +6,7 @@
    Встроенный сервер X.509 не разбирает: сведения берёт из заголовка openssl x509 -text перед блоком PEM, «ключ не подходит» —
    ключ стенда со словом mismatch вне блока. */
 (() => {
+  ApiTest.fileLayer("profile:vms.webserver/1");
   const { test, makeEnv, assert } = ApiTest;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const U = (uid) => `/units/${uid}`;

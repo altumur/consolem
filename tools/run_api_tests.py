@@ -5,9 +5,10 @@
 Итог берётся из data-apitest у <html> и текста отчёта. Петля по HTTP — tools/check_loopback.py.
 
 Запуск из корня репозитория:
-  python3 tools/run_api_tests.py [--only "имя теста"] [--fixture one-domain] [--clock real] [--tests DIR]
+  python3 tools/run_api_tests.py [--only "имя теста"] [--fixture one-domain] [--clock real] [--layer mechanism,profile:vms.camera/1] [--tests DIR]
 --fixture — набор и с ним возможности системы (по умолчанию demo — весь контракт); --clock real — часы
 идут по-настоящему, /test/clock не вызывается: так тесты проходят против системы, чьи часы не остановить.
+--layer — только тесты этих слоёв (mechanism, video, profile:<id>); покрытие операций тогда не проверяется.
 --tests — папка тестов вместо tests (страница api.html подключает API из соседней папки ../api).
 Код выхода 1, если тесты не прошли или отчёт не получен.
 """
@@ -29,7 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def main():
     url = "file://" + os.path.join(ROOT, TESTS, "api.html")
     query = {}
-    for flag in ("only", "fixture", "clock"):
+    for flag in ("only", "fixture", "clock", "layer"):
         if f"--{flag}" in sys.argv:
             query[flag] = sys.argv[sys.argv.index(f"--{flag}") + 1]
     if query:
@@ -46,9 +47,12 @@ def main():
         shutil.rmtree(profile, ignore_errors=True)
     state = re.search(r'<html[^>]*data-apitest="(\w+)"', res.stdout)
     log = re.search(r'<pre id="apitest-log">(.*?)</pre>', res.stdout, re.S)
+    layers = re.search(r'<pre id="apitest-layers">(.*?)</pre>', res.stdout, re.S)
     summary = re.search(r'<strong id="apitest-summary">(.*?)</strong>', res.stdout, re.S)
     if log:
         print(html.unescape(log.group(1)))
+    if layers and layers.group(1).strip():
+        print(html.unescape(layers.group(1)))
     if summary:
         print(html.unescape(summary.group(1)))
     if not state:

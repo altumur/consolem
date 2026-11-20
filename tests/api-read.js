@@ -1,12 +1,13 @@
 /* Тесты API: чтение всех разделов, ошибки адресов, служебные операции стенда. */
 (() => {
-  const { test, makeEnv, assert, FX } = ApiTest;
+  ApiTest.fileLayer("mechanism");
+  const { test, makeEnv, assert, FX, AREA, FOLDER } = ApiTest;
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const DAY = 86400000;
   // Разделы набора → где их читают: объекты — в /units (по профилю; устройства — по видам устройств), правила — своим путём
   const DEVICE_KINDS = [...new Set(FX.devices.map((d) => d.type))].sort();
-  const TABLES = [["domains", "/units?implements=vms.domain/1"], ["servers", "/units?implements=vms.server/1"], ["devices", `/units?kind=${DEVICE_KINDS.join(",")}`],
-    ["folders", "/units?implements=vms.folder/1"], ["archives", "/units?implements=vms.archive/1"], ["volumes", "/units?implements=vms.volume/1"], ["rules", "/rules"]];
+  const TABLES = [["domains", `/units?implements=${AREA}`], ["servers", "/units?implements=vms.server/1"], ["devices", `/units?kind=${DEVICE_KINDS.join(",")}`],
+    ["folders", `/units?implements=${FOLDER}`], ["archives", "/units?implements=vms.archive/1"], ["volumes", "/units?implements=vms.volume/1"], ["rules", "/rules"]];
   const idOf = (r) => r.uid || r.id;
   // Журнал стенда: встроенный сервер добавляет к записям набора stand.journal.count своих (0.8.0); бэкенд без них — только набор
   const JOURNAL_SIZES = [FX.journal.length, FX.journal.length + ((FX.stand && FX.stand.journal && FX.stand.journal.count) || 0)];
@@ -24,7 +25,24 @@
       sizes.push(`${table} ${list.length}`);
     }
     return sizes.join(", ");
-  });
+  }, { needs: ["kind:camera"] });
+
+  // Разделы приложения: код → операции, без которых раздел не показать (копия SECTION_OPS из tools/mechanism.py)
+  const SECTION_OPS = { objects: ["listKinds", "listUnits", "getTreeChildren"], automation: ["listRules"], access: ["getAccess"],
+    settings: ["getSettings"], "vms.export": ["listExports"], journal: ["listJournal"] };
+
+  test("Разделы: capabilities.sections — коды уникальны, у раздела механизма объявлены его операции", async () => {
+    const env = await makeEnv();
+    const caps = (await env.ok("GET", "/reference")).capabilities;
+    assert.ok(Array.isArray(caps.sections), "capabilities.sections — массив");
+    const ids = caps.sections.map((s) => s.id);
+    assert.eq(new Set(ids).size, ids.length, "коды разделов уникальны");
+    ids.forEach((id) => assert.ok(/^[a-z][A-Za-z0-9_.-]*$/.test(id), `${id}: код по шаблону`));
+    for (const id of ids) {
+      for (const op of SECTION_OPS[id] || []) assert.ok(caps.operations.includes(op), `раздел ${id}: операция ${op} объявлена`);
+    }
+    return `разделов ${ids.length}: ${ids.join(", ")}`;
+  }, { needs: ["getReference"], layer: "mechanism" });
 
   test("Чтение одной записи: тело как в списке, версия в ETag", async () => {
     const env = await makeEnv();
@@ -35,14 +53,14 @@
       assert.eq(res.body, first, `${table}: запись`);
       assert.eq(res.headers.etag, `"${first.version}"`, `${table}: ETag`);
     }
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Нет записи — 404 NOT_FOUND; нет операции — 404 NO_ROUTE", async () => {
     const env = await makeEnv();
     for (const [table, path] of TABLES) {
       assert.status(await env.call("GET", one(path, UNKNOWN)), 404, "NOT_FOUND", table);
     }
-    if (ApiTest.can("getDiscovery")) assert.status(await env.call("GET", `/domains/${UNKNOWN}/discovery`), 404, "NOT_FOUND", "поиск в неизвестном домене");
+    if (ApiTest.can("getDiscovery")) assert.status(await env.call("GET", `/units/${UNKNOWN}/discovery`), 404, "NOT_FOUND", "поиск у неизвестного объекта");
     assert.status(await env.call("GET", `/rules/${UNKNOWN}/fires`), 404, "NOT_FOUND", "срабатывания неизвестного правила");
     assert.status(await env.call("GET", "/no-such-thing"), 404, "NO_ROUTE");
   });
@@ -74,8 +92,6 @@
   test("Справочники: коды, без подписей", async () => {
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");
-    assert.eq(ref.recordModes, ["none", "always", "motion", "sched", "replica", "backup"], "режимы записи");
-    assert.ok(ref.deviceModels.some((v) => v.vendor === "Hikvision"), "модели по производителям");
     // Справочники видов — в описаниях видов: в reference их нет
     const moved = ["deviceKinds", "deviceParams", "ipServerSubtypes", "detectorKinds", "archiveKinds", "storageTypes", "volumeStates", "unitOptions"];
     assert.eq(moved.filter((k) => k in ref), [], "справочники видов — в /kinds");
@@ -84,7 +100,63 @@
       const det = await env.ok("GET", "/kinds/det");
       assert.ok(!JSON.stringify(det.schema.properties.detectorKind.enum).match(/[а-яё]/i), "виды детекторов — кодами");
     }
-  });
+  }, { needs: ["kind:camera"] });
+
+  // Справочник механизма (с 0.32.0): ключи reference и reference.limits — только механизма (tools/mechanism.py, B3 и B4).
+  // Справочники VMS — в описаниях видов и в ответах путей профилей; ruleChecks обязательно. Те же списки — REFERENCE_KEYS и
+  // LIMIT_KEYS в tools/mechanism.py: меняя один, поменять и другой
+  const REFERENCE_KEYS = ["ruleActions", "ruleConditions", "ruleChecks", "ruleControls", "ruleFeatures", "ruleStarts", "ruleTargets",
+    "ruleCrossDomainActions", "access", "limits", "capabilities"];
+  const LIMIT_KEYS = ["pageMax", "idsMax", "selectMax", "watchMax", "scanPartsMax", "fileMaxBytes", "filesPerTurnMax", "fileTypes"];
+  test("Справочник механизма: ключи reference и reference.limits — только механизма, ruleChecks есть", async () => {
+    const env = await makeEnv();
+    const ref = await env.ok("GET", "/reference");
+    assert.eq(Object.keys(ref).filter((k) => !REFERENCE_KEYS.includes(k)), [], "ключи reference вне механизма");
+    assert.eq(Object.keys(ref.limits || {}).filter((k) => !LIMIT_KEYS.includes(k)), [], "ключи reference.limits вне механизма");
+    assert.ok(Array.isArray(ref.ruleChecks), "reference.ruleChecks — массив");
+    return `ключей ${Object.keys(ref).length}, пределов ${Object.keys(ref.limits || {}).length}`;
+  }, { needs: ["getReference"] });
+
+  // Справочники VMS — в описаниях видов (с 0.30.0): производители и модели, метки серверов, порт сервера
+  test("Справочники в видах: модели — examples у vendor и allOf по vendor, метки сервера — examples, порт сервера — default", async () => {
+    const env = await makeEnv();
+    const all = (await env.ok("GET", "/kinds")).items;
+    const of = (p) => all.filter((k) => (k.implements || []).includes(p));
+    let models = 0;
+    for (const k of of("vms.camera/1")) {
+      const pr = k.schema.properties;
+      const vendors = (pr.vendor && pr.vendor.examples) || [];
+      assert.ok(vendors.length > 0, `${k.kind}: vendor.examples — производители`);
+      for (const part of (k.schema.allOf || []).filter((x) => x.if && x.if.properties && x.if.properties.vendor)) {
+        const v = part.if.properties.vendor.const, m = part.then && part.then.properties && part.then.properties.model;
+        assert.ok(vendors.includes(v), `${k.kind}: модели ${v} — производитель из examples`);
+        assert.ok(m && Array.isArray(m.examples) && m.examples.length > 0, `${k.kind}: модели ${v} — then.model.examples`);
+        models++;
+      }
+    }
+    for (const k of of("vms.server/1")) {
+      const pr = k.schema.properties;
+      assert.ok(Array.isArray(pr.labels.items.examples), `${k.kind}: labels.items.examples — метки серверов`);
+      assert.ok(Number.isInteger(pr.port.default), `${k.kind}: port.default — порт сервера`);
+    }
+    return `видов камеры ${of("vms.camera/1").length}, производителей с моделями ${models}`;
+  }, { needs: ["listKinds", "implements:vms.camera/1", "implements:vms.server/1"] });
+
+  test("Сценарии: kinds и maxItems у документа сценариев — виды событий и предел, в ответе PUT те же", async () => {
+    const env = await makeEnv();
+    const did = FX.domains[0].id;
+    const doc = await env.ok("GET", `/units/${did}/scenarios`);
+    assert.ok(Array.isArray(doc.kinds) && doc.kinds.length > 0 && doc.kinds.every((k) => typeof k === "string"), "GET: виды событий — коды");
+    assert.ok(Number.isInteger(doc.maxItems) && doc.maxItems >= doc.items.length, "GET: предел не меньше числа сценариев");
+    const put = await env.ok("PUT", `/units/${did}/scenarios`, { items: doc.items }, { "If-Match": `"${doc.version}"` });
+    assert.eq([put.kinds, put.maxItems], [doc.kinds, doc.maxItems], "PUT: то же в ответе");
+  }, { needs: ["getScenarios", "putScenarios", "implements:vms.scenarios/1"], layer: "profile:vms.scenarios/1" });
+
+  test("Поиск в сети: ipScanMax у документа поиска — предел адресов одного поиска", async () => {
+    const env = await makeEnv();
+    const d = await env.ok("GET", `/units/${FX.domains[0].id}/discovery`);
+    assert.ok(Number.isInteger(d.ipScanMax) && d.ipScanMax > 0, "предел адресов одного поиска");
+  }, { needs: ["getDiscovery", "implements:vms.discovery/1"], layer: "profile:vms.discovery/1" });
 
   test("Возможности системы: объявлены в справочниках, как в наборе; обязательный минимум есть", async () => {
     const env = await makeEnv();
@@ -127,7 +199,7 @@
       notes.push("archiveEncryption");
     }
     return notes.length ? `проверено: ${notes.join(", ")}` : "система поддерживает всё — проверять нечего";
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Права, опции, лицензии: снимок с версией в ETag", async () => {
     const env = await makeEnv();
@@ -140,7 +212,7 @@
     assert.eq(st.headers.etag, `"${st.body.version}"`, "ETag опций");
     assert.eq(st.body.values["sec.2fa"], "off", "значения опций — кодами");
     if (ApiTest.can("listLicenses")) assert.eq((await env.list("/licenses")).map((l) => l.kind), FX.licenses.map((l) => l.kind), "лицензии");
-  });
+  }, { needs: ["getSettings"] });
 
   test("Журнал: новые первыми, фильтр по категории", async () => {
     const env = await makeEnv();
@@ -165,19 +237,27 @@
   test("Поиск в сети: последний итог домена — найденные устройства; домен без поиска — idle", async () => {
     const env = await makeEnv();
     const known = FX.discovery[0];
-    const d = await env.ok("GET", `/domains/${known.domainId}/discovery`);
+    const d = await env.ok("GET", `/units/${known.domainId}/discovery`);
     assert.eq(d.state, "done", "состояние");
     assert.eq(d.candidates.map((c) => c.id), known.candidateIds, "найденные");
     const silent = FX.domains.find((x) => !FX.discovery.some((y) => y.domainId === x.id));
-    const idle = await env.ok("GET", `/domains/${silent.id}/discovery`);
+    const idle = await env.ok("GET", `/units/${silent.id}/discovery`);
     assert.eq([idle.state, idle.candidates.length], ["idle", 0], "без поиска");
-  }, { needs: ["getDiscovery"] });
+  }, { needs: ["getDiscovery"], layer: "profile:vms.discovery/1" });
 
   test("Стенд: fixturePatch меняет набор только на этот прогон", async () => {
     const env = await makeEnv({ fixturePatch: { timezone: "UTC" } });
     assert.eq((await env.ok("GET", "/me")).timezone, "UTC", "с изменением");
     const again = await makeEnv();
     assert.eq((await again.ok("GET", "/me")).timezone, FX.timezone, "следующий сброс — исходный набор");
+  });
+
+  test("Стенд: роль в fixturePatch без objectAccess (как в ответе GET /access) — 422, набор прежний", async () => {
+    const env = await makeEnv();
+    const roles = (await env.ok("GET", "/access")).roles;
+    assert.eq(roles.every((r) => !("objectAccess" in r)), true, "в ответе GET /access роль без objectAccess");
+    assert.status(await env.call("POST", "/test/reset", { fixture: "demo", fixturePatch: { access: { roles } } }), 422, "VALIDATION_FAILED", "роль ответа, а не набора");
+    assert.eq((await env.ok("GET", "/access")).roles.length, FX.access.roles.length, "набор после отказа прежний");
   });
 
   test("Стенд: actAs — прогон от имени другого администратора", async () => {
@@ -218,7 +298,7 @@
     await ApiTest.settle();
     stop();
     assert.ok(seen.filter((m) => m.type === "entity.changed").length >= 2, `в потоке — изменения записи: ${seen.length}`);
-  });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Журнал: отбор по устройству, подсистеме, времени, limit; truncated и withheldCount", async () => {
     const env = await makeEnv();

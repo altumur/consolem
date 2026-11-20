@@ -1,0 +1,89 @@
+{
+ "id": "vms.webserver/1",
+ "version": "1.0",
+ "label": "Веб-сервер и RTSP-сервер",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {
+  "webServer": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "httpPort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+     },
+     "httpsPort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+     },
+     "urlPrefix": {
+      "type": "string",
+      "pattern": "^/\\S*$",
+      "maxLength": 200
+     },
+     "cors": {
+      "type": "boolean"
+     },
+     "recompress": {
+      "type": "boolean"
+     },
+     "rtspPort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+     },
+     "rtspHttpPort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+     }
+    },
+    "additionalProperties": false
+   },
+   "meaning": "Веб-сервер и RTSP-сервер (`WebServerSettings`): `enabled`, `httpPort`, `httpsPort`, `urlPrefix`, `cors`, `recompress`, `rtspPort`, `rtspHttpPort`. Поля нет — умолчание (как в Axxon One 3.0: да, 80, 443, `/`, нет, нет, 554, 8554); в ответе — все поля. Порты разные и вне `webReservedPorts` (`422 PORT_TAKEN`)",
+   "since": "1.0"
+  }
+ },
+ "status": {
+  "webCertificate": {
+   "schema": {
+    "type": [
+     "object",
+     "null"
+    ]
+   },
+   "meaning": "Сертификат HTTPS, который хранит сервер: кому и кем выдан, срок, имена, wildcard, цепочка. Ключа здесь нет. `null` — сертификата нет, только HTTP",
+   "since": "1.0"
+  },
+  "webReservedPorts": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "from": {
+      "type": "integer"
+     },
+     "to": {
+      "type": "integer"
+     }
+    }
+   },
+   "meaning": "Порты видео для браузера: 9001 и по одному на ядро процессора",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

@@ -25,10 +25,12 @@ UiCheck(async ({ ok, until }) => {
   ok(trace.findIndex((x) => x.path === PROMPTS) > treeLast, "вопросы читаются после старта, а не в нём");
   // Перечень одного сервера или хранилища — не перечень домена: он ограничен и читается с раскрытой веткой. В ядре это
   // член parentId с профилем хранилища или тома (в базе /archives?serverId=, /volumes?archiveId=). Домены и серверы
-  // читаются целиком, как /domains и /servers в базе (их там нет в LISTS): GET /units только по профилям vms.domain/1, vms.server/1
+  // читаются целиком, как /domains и /servers в базе (их там нет в LISTS): GET /units только по профилям области (AREA), vms.server/1.
+  // Область и папка — только профили механизма core.domain/1, core.folder/1 (vms.domain/1, vms.folder/1 сняты в 0.32.0)
+  const AREA = ["core.domain/1"], FOLDER = ["core.folder/1"];
   const unitsQ = (path) => (path.startsWith("/units?") ? new URLSearchParams(path.slice(7)) : null);
   const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };
-  const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => p === "vms.domain/1" || p === "vms.server/1") && !!im[0]; };
+  const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => AREA.includes(p) || p === "vms.server/1") && !!im[0]; };
   // Старт не растёт с объёмом: 16 запросов (с 0.4.0 в них два запроса режимов — /modes и /modes/current: кнопке режима
   // в шапке нужны список и текущий режим сразу). Сверх них — только продолжения перечня доменов и серверов (он читается
   // целиком, как /servers базы, страницами по pageMax): на xl 2 004 строки (4 домена и 2 000 серверов) — три страницы
@@ -200,7 +202,7 @@ UiCheck(async ({ ok, until }) => {
   // тоже. Не перечень: домены и серверы целиком — infra(), как на старте; первая страница папок, хранилищ и томов — infraPage()
   // (hwRead: 200 строк или конец, без limit — как первая страница /folders, /archives, /volumes в базе)
   const NARROW = ["parentId", "ids", "folderId", "serverId", "archiveId", "ref", "q", "noRecord", "noFolder", "noDetector"];
-  const infraPage = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "cursor"].includes(k)) && !!im[0] && im.every((p) => ["vms.folder/1", "vms.archive/1", "vms.volume/1"].includes(p)); };
+  const infraPage = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "cursor"].includes(k)) && !!im[0] && im.every((p) => FOLDER.includes(p) || ["vms.archive/1", "vms.volume/1"].includes(p)); };
   const domainList = (x) => { const q = unitsQ(x.path); return x.method === "GET" && (x.path === "/units" || !!q && !NARROW.some((k) => q.has(k)) && !infra(x.path) && !infraPage(x.path)); };
   const reread = trace.slice(mark).filter((x) => domainList(x) || /\/tree\/children\?layout=\w+$/.test(x.path));
   ok(!reread.length && sizeOk(mark), "stream.reset: весь перечень не читается: " + reread.map((x) => x.path).join(" "));

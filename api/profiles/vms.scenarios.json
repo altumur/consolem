@@ -1,0 +1,21 @@
+{
+ "id": "vms.scenarios/1",
+ "version": "1.0",
+ "label": "Сценарии между камерами",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {},
+ "apis": [
+  "scenarios",
+  "scenarios/status"
+ ],
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Новый профиль, контракт 0.29.0: пути профиля /units/{uid}/scenarios (GET, PUT — getScenarios, putScenarios) и /units/{uid}/scenarios/status (GET — getScenariosStatus) у объекта области (у VMS — домен) вместо путей /domains/{domainId}/scenarios…. Свойств нет: профиль объявляет только пути"
+  }
+ ]
+}
