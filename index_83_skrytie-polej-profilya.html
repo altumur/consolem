@@ -7884,9 +7884,16 @@ function volDesc(v){
   const a=archById(v.archId),k=archAddr(a);
   if(k==="bucket")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
   if(k==="nas")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
-  return v.mode==="file"?`${i18n("файл")} ${v.size}`:v.mode==="dir"?`${i18n("папка на")} ${v.disk} · ${v.size}`:`${i18n("раздел")} ${v.disk} ${i18n("целиком")} · ${v.size}`;
+  // Правило 2 версии профиля: размещение (mode), диск и размер, которых нет в версии сервера, строка пропускает
+  const off=f=>kindFieldOff("volume",f),sz=off("sizeBytes")?"":v.size,dk=off("disk")?"":v.disk;
+  if(off("mode")||off("disk")&&v.mode!=="file")return[dk,sz].filter(Boolean).join(" · ");
+  return v.mode==="file"?[`${i18n("файл")}`,sz].filter(Boolean).join(" "):[v.mode==="dir"?`${i18n("папка на")} ${dk}`:`${i18n("раздел")} ${dk} ${i18n("целиком")}`,sz].filter(Boolean).join(" · ");
 }
-function volStateText(v){const r=PROTO_REC.get(v.id);if(r&&(!v.state||v.state==="ready"||v.state==="unfmt"))return`${i18n("Готов")} (${v.used||"64%"}) · ${protoRecText(r)}`;return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
+function volStateText(v){
+  // Правило 2 версии профиля: без поля state — нет и состояния, без usedPercent — состояние без доли
+  if(kindFieldOff("volume","state"))return"";
+  if(kindFieldOff("volume","usedPercent"))return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):i18n("Готов");
+  const r=PROTO_REC.get(v.id);if(r&&(!v.state||v.state==="ready"||v.state==="unfmt"))return`${i18n("Готов")} (${v.used||"64%"}) · ${protoRecText(r)}`;return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
 function archVols(a){return a?.vols||[]}
 function volById(id){
   if(typeof id!=="string")return null;
@@ -14823,7 +14830,7 @@ function periphCardHtml(n){
       <td class="pf-c"><input type="checkbox" ${chk?"checked":""} ${onEv("change",["periphToggle",`${n.id}`,`${d.id}`])} aria-label="${escHtml(locName(d))}"></td>
       <td><button type="button" class="pf-nm" ${handOf(d,"storage")&&edgeOn()?onEv("click",["edgeOpen",`${d.id}`]):onEv("click",["pick",`${d.id}`])}>${ic(d.type)}<span>${escHtml(locName(d))}</span></button></td>
       <td class="sub">${escHtml(i18n(LB[d.type]||d.type))}</td>
-      <td>${periphStateHtml(d)}${handOf(d,"storage")&&d.enabled!==false?` <span class="sub">· ${escHtml(edgePeriphText(d))}</span>`:""}</td>
+      <td>${periphStateHtml(d)}${handOf(d,"storage")&&!nodeOffByField(d)&&edgePeriphText(d)?` <span class="sub">· ${escHtml(edgePeriphText(d))}</span>`:""}</td>
       <td class="pf-c"${pfa(d,"enabled")}>${canWrite(d,"enabled")?`<div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["periphEnable",`${d.id}`])}></div>`:""}</td></tr>`;
   }).join("");
   return card("Периферия",`${scope}
@@ -24217,7 +24224,7 @@ function formBase(n){
         <button type="button" class="mc" ${onEv("click",["goTab","cams"])}><span>${i18n("Камер пишется")}</span><b>${cams.length}</b></button>
         <div class="mc"><span>${i18n("Томов")}</span><b>${vols.length}</b></div>
         <div class="mc"><span>${i18n("Объём")}</span><b>${archSize(n)}</b></div>
-        <div class="mc"><span>${i18n("Занято")}</span><b>${archUsed(n)}</b></div>
+        <div class="mc"${pfa("volume","usedPercent")}><span>${i18n("Занято")}</span><b>${archUsed(n)}</b></div>
       </div>
       <p class="sub" style="margin-top:10px">${net?i18n("Камеры сетевого хранилища не закреплены за сервером. Любой сервер домена может записывать их видео.")
         :`${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>.${spec.recordModes.some(m=>m!=="backup")?` ${i18n("Камера получает сервер только через хранилище.")}`:""}`}</p>`)+
@@ -24226,7 +24233,7 @@ function formBase(n){
         title:"Тома",
         items:vols,
         text:v=>[volLabel(v),v.size,volDesc(v)],
-        row:v=>`<div class="it" ${onEv("click",["pick",`${v.id}`])}><span>${ic("vol")}</span><span>${escHtml(volLabel(v))}<small>${escHtml(volDesc(v))} · <span class="${v.state==="error"||v.state==="broken"?"bk-bad":""}">${escHtml(volStateText(v))}</span></small></span></div>`,
+        row:v=>`<div class="it" ${onEv("click",["pick",`${v.id}`])}><span>${ic("vol")}</span><span>${escHtml(volLabel(v))}<small>${escHtml(volDesc(v))}${volStateText(v)?` · <span class="${v.state==="error"||v.state==="broken"?"bk-bad":""}">${escHtml(volStateText(v))}</span>`:""}</small></span></div>`,
         empty:"Томов нет — записывать некуда",
         ph:"Путь, диск или бакет…",
         unit:"том|тома|томов",
@@ -24236,15 +24243,15 @@ function formBase(n){
   }
   if(n.type==="vol"){
     const a=archById(n.archId),k=archAddr(a),spec=archSpec(a);
-    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Сервер сотрёт старые записи, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${PROTO_REC.has(n.id)?`<div class="nt ok" data-vol-rec>${i18n("Том подключён с записями")}: ${protoRecText(PROTO_REC.get(n.id))}. ${i18n("Сервер не форматировал том. Форматирование удалит эти записи.")}</div>`:""}${n.state==="unfmt"&&!PROTO_REC.has(n.id)?`<div class="nt err">${i18n("Раздел не отформатирован, поэтому запись на него невозможна. Отформатировать раздел, когда вы будете готовы. Форматирование удалит все данные на диске.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
+    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink${pfa(n,"shrinkPendingBytes")}>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Сервер сотрёт старые записи, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${PROTO_REC.has(n.id)?`<div class="nt ok" data-vol-rec>${i18n("Том подключён с записями")}: ${protoRecText(PROTO_REC.get(n.id))}. ${i18n("Сервер не форматировал том. Форматирование удалит эти записи.")}</div>`:""}${n.state==="unfmt"&&!PROTO_REC.has(n.id)?`<div class="nt err">${i18n("Раздел не отформатирован, поэтому запись на него невозможна. Отформатировать раздел, когда вы будете готовы. Форматирование удалит все данные на диске.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
       ${volFieldsHtml(a,n,["volSet",n.id])}
       <div class="ln ln-sw" data-vol-enabled><div>${i18n("Том включён")}</div><div class="sw ${n.enabled===false?"":"on"}" ${onEv("click",["volEnabledToggle",onEv.el,n.id])}></div></div>
       <div class="mx" style="margin-top:10px">
-        <div class="mc"><span>${i18n("Состояние")}</span><b style="font-size:14px">${escHtml(volStateText(n))}</b></div>
+        <div class="mc"${pfa(n,"state")}><span>${i18n("Состояние")}</span><b style="font-size:14px">${escHtml(volStateText(n))}</b></div>
         <div class="mc"><span>${i18n("Томов в хранилище")}</span><b>${archVols(a).length}</b></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        ${k==="disk"&&n.mode==="part"?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""}${spec.check?`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="bucket"?"Проверить подключение":"Подключиться")}</button>`:""}
+        ${k==="disk"&&n.mode==="part"&&!nodeFieldOff(n,"mode")?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""}${spec.check?`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="bucket"?"Проверить подключение":"Подключиться")}</button>`:""}
         <button type="button" class="btn s" data-needs="kind:volume/delete" ${onEv("click",["deleteVolume",`${n.id}`])} ${volDelWhy(n)?`disabled title="${escHtml(i18n(volDelWhy(n)))}"`:""}>${i18n("Удалить том")}</button>
       </div>
       <p class="sub" style="margin-top:10px">${i18n("Глубину и шифрование задают у хранилища. У тома задают место и размер.")}</p>`);
@@ -24482,7 +24489,7 @@ function formBase(n){
   if(handOf(n,"storage")){
     const owner=find(n.id)?.p;
     const sizeF=canWrite(n,"sizeBytes")?`<div data-card-size><label>${i18n("Объём")}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(n.size)||""}" ${onEv("input",["storageSet",`${n.id}`,"size",onEv.value])}><span>${i18n("ГБ")}</span></div></div>`:fldRo("Объём",n.size||"—");
-    const modeF=canWrite(n,"recordMode")?`<div data-card-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["storageSet",`${n.id}`,"rec",onEv.value])}>${["backup","always"].map(m=>`<option value="${m}" ${n.rec===m?"selected":""}>${i18n(ARCH_MODE_RU[m])}</option>`).join("")}</select></div>`:"";
+    const modeF=canWrite(n,"recordMode")?`<div data-card-mode${pfa(n,"recordMode")}><label>${i18n("Когда писать")}</label><select ${onEv("change",["storageSet",`${n.id}`,"rec",onEv.value])}>${["backup","always"].map(m=>`<option value="${m}" ${n.rec===m?"selected":""}>${i18n(ARCH_MODE_RU[m])}</option>`).join("")}</select></div>`:"";
     return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${sizeF}${modeF}</div>
       <p class="sub">${i18n(canWrite(n,"sizeBytes")?"Карта этой камеры. Консоль добавляет её сама, в списке архивов её нет. Чтобы брать записи с карты, выбрать режим «Репликация» и источник «Встроенное хранилище».":"Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера. Для этого выбрать режим «Репликация» на вкладке «Архив» камеры.")}</p>`)+
       (owner&&handCam(owner)?card("Камера",`<div class="it" ${onEv("click",["pick",`${owner.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(owner))}<small>${i18n(recordModeLabel(owner.rec))}</small></span></div>`):"");
@@ -35535,7 +35542,9 @@ function edgeChecksHtml(st){
   const nvr=edgeIsNvr(st);
   const rows=[[st.online!==false&&st.mediaOk!==false,nvr?"Диск регистратора на месте и пишет":"Карта на месте и пишет",st.online===false?"Нет связи с устройством: проверка ждёт связи.":st.mediaOk===false?"Сервер не видит носитель или носитель не пишет.":""],
     [st.profileG!==false,"Устройство отдаёт записи по ONVIF Profile G",st.profileG===false?"Устройство не отдаёт записи по ONVIF Profile G. Сервер ничего не заберёт.":""]];
-  return`<div class="er-checks">${rows.map(([ok,t,why])=>`<div class="er-ck ${ok?"ok":"bad"}"><span class="er-mk" aria-hidden="true">${ok?"✓":"!"}</span><span>${i18n(t)}${why?`<small>${i18n(why)}</small>`:""}</span></div>`).join("")}</div>`;
+  // Правило 2 версии профиля: строка проверки — поле mediaOk или profileG
+  const ckF=["mediaOk","profileG"];
+  return`<div class="er-checks">${rows.map(([ok,t,why],i)=>`<div class="er-ck ${ok?"ok":"bad"}"${pfa(st,ckF[i])}><span class="er-mk" aria-hidden="true">${ok?"✓":"!"}</span><span>${i18n(t)}${why?`<small>${i18n(why)}</small>`:""}</span></div>`).join("")}</div>`;
 }
 // Правка настройки: PATCH хранилища, затем камеры перечитываются — режим записи им ставит сервер
 const EDGE_SET_KEY={type:"mode",arch:"archiveId",speed:"speedLimitMbps"};
@@ -35617,15 +35626,18 @@ function edgeRepScreenHtml(st){
       <div class="mc"><span>${i18n("Объём")}</span><b>${escHtml(st.size||"—")}</b></div>
       <div class="mc"><span>${i18n("Хранит")}</span><b>${edgeDaysText(d)}</b></div>
       <div class="mc"><span>${i18n("Связь")}</span><b>${st.online===false?i18n("нет связи"):i18n("на связи")}</b></div>
-      <div class="mc"><span>${i18n("Репликация")}</span><b>${escHtml(edgeRepLabel(st))}${edgeSkip(st).n?`<small class="es-mc">${escHtml(i18n(edgeSkip(st).name))}</small>`:""}</b></div>
+      <div class="mc"${pfa(st,"replication")}><span>${i18n("Репликация")}</span><b>${escHtml(edgeRepLabel(st))}${edgeSkip(st).n?`<small class="es-mc">${escHtml(i18n(edgeSkip(st).name))}</small>`:""}</b></div>
     </div>
     <p class="sub er-intro">${handOf(o,"ipsrv")?`${i18n("Диск внутри регистратора")} <button type="button" class="lk" ${onEv("click",["pick",o.id])}>${escHtml(locName(o))}</button>.`:o?`${i18n("Карта памяти камеры")} <button type="button" class="lk" ${onEv("click",["pick",o.id,{tab:"rec"}])}>${escHtml(locName(o))}</button>.`:""} ${i18n("При репликации сервер забирает записи")} ${w.from} ${i18n("в своё хранилище. Постоянная репликация забирает все записи. Правила автоматизации забирают записи по событию или по расписанию.")}</p>`;
-  return card("Встроенное хранилище",head)+card("Что забирать",edgeSharedHtml(st),`<span class="sub" style="font-weight:400">${i18n(edgeSkip(st).name)}</span>`)
-    +`<div class="es-sec" role="heading" aria-level="3">${i18n("Как сервер забирает записи")}</div>`
-    +card("Постоянная репликация",edgeRepEditHtml(st))+edgeRulesHtml(st)+edgePullCardHtml(st)+edgeStatusHtml(st);
+  // Правило 2 версии профиля: настройка репликации — поле replication, состояние — replicationStatus
+  const rp=h=>pfw(st,"replication",h);
+  return card("Встроенное хранилище",head)+rp(card("Что забирать",edgeSharedHtml(st),`<span class="sub" style="font-weight:400">${i18n(edgeSkip(st).name)}</span>`))
+    +rp(`<div class="es-sec" role="heading" aria-level="3">${i18n("Как сервер забирает записи")}</div>`)
+    +rp(card("Постоянная репликация",edgeRepEditHtml(st)))+rp(edgeRulesHtml(st))+rp(edgePullCardHtml(st))+pfw(st,"replicationStatus",edgeStatusHtml(st));
 }
 // Короткая подпись в строке «Периферии»
 function edgePeriphText(st){
+  if(nodeFieldOff(st,"replication"))return"";
   const p=edgeRep(st);if(p.type==="all")return i18n("репликация: забирать всё");
   const n=edgeRulesFor(st).length;return n?`${i18n("правил репликации:")} ${n}`:i18n("репликация выключена");
 }
@@ -35645,12 +35657,12 @@ function edgeStorageCardHtml(owner){
     :`${i18n(handOf(owner,"ipsrv")?"Диск внутри регистратора.":"Карта памяти внутри камеры.")}`;
   const body=`<div class="mx">
       <div class="mc"><span>${i18n("Объём")}</span><b>${escHtml(st.size||"—")}</b></div>
-      <div class="mc"><span>${i18n("Репликация")}</span><b>${excluded?i18n("камера не входит"):escHtml(edgeRepLabel(st,cam))}</b></div>
-      <div class="mc"><span>${i18n("Куда")}</span><b class="er-ell" title="${escHtml(a?locName(a):"—")}">${p.type!=="all"||excluded?"—":escHtml(a?locName(a):"—")}</b></div>
-      <div class="mc"><span>${i18n("Сейчас")}</span><b>${excluded?edgeStatChip(null):edgeStatChip(s)}</b></div>
+      <div class="mc"${pfa(st,"replication")}><span>${i18n("Репликация")}</span><b>${excluded?i18n("камера не входит"):escHtml(edgeRepLabel(st,cam))}</b></div>
+      <div class="mc"${pfa(st,"replication")}><span>${i18n("Куда")}</span><b class="er-ell" title="${escHtml(a?locName(a):"—")}">${p.type!=="all"||excluded?"—":escHtml(a?locName(a):"—")}</b></div>
+      <div class="mc"${pfa(st,"replicationStatus")}><span>${i18n("Сейчас")}</span><b>${excluded?edgeStatChip(null):edgeStatChip(s)}</b></div>
     </div>
-    <p class="sub" style="margin-top:10px">${where} ${excluded?"":edgeSummary(st,cam)}</p>
-    <button type="button" class="btn s" ${onEv("click",["edgeOpen",`${st.id}`])}>${i18n("Настроить репликацию")}</button>`;
+    <p class="sub" style="margin-top:10px">${where} ${excluded||nodeFieldOff(st,"replication")?"":edgeSummary(st,cam)}</p>
+    <button type="button" class="btn s"${pfa(st,"replication")} ${onEv("click",["edgeOpen",`${st.id}`])}>${i18n("Настроить репликацию")}</button>`;
   // Камера: «Включить», глубина и период кэша (параметры драйвера) — в этом же блоке, сверху; одного блока с этим именем хватает
   // Выключено — консоль с картой не работает: объём и репликацию не показываем, чтобы блок не спорил сам с собой
   const fs=handCam(owner)&&drvEdgeMerged(owner)?drvGroups(owner,"rec").get(DRV_EDGE):null;
@@ -35907,10 +35919,12 @@ const CLOUD_REGIONS={s3:["eu-central-1","eu-west-1","us-east-1","us-west-1","ap-
 // Локальное объектное — папка на диске; блочное — раздел целиком или файл
 // в папке. Размер — числом в гигабайтах.
 function volFieldsHtml(a,v,set){
-  const k=archAddr(a),inp=(label,key,type,hint,ph)=>`<div><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
-  const sel=(label,key,opts,hint)=>`<div><label>${i18n(label)}</label><select ${onEv("change",[...set,key,onEv.value])}>${opts.map(([val,l,dis])=>`<option value="${escHtml(val)}" ${String(v[key])===String(val)?"selected":""} ${dis?"disabled":""}>${escHtml(l)}</option>`).join("")}</select>${hint?`<div class="bk-hint">${hint}</div>`:""}</div>`;
-  const gb=(label,hint)=>`<div><label>${i18n(label)}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(v.size)||""}" ${onEv("input",[...set,"gb",onEv.value,true])}><span>${i18n("ГБ")}</span></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
-  const dir=hint=>`<div><label>${i18n("Папка на диске")}</label><div class="gb-in"><input value="${escHtml(v.dir||"")}" ${onEv("input",[...set,"dir",onEv.value,true])}><button type="button" class="btn s" title="${i18n("Выбрать папку на диске")}" ${onEv("click",["volPickDir",onEv.el,`${v.disk}`])}>${i18n("Обзор…")}</button></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  // Правило 2 версии профиля: метка поля тома по ключу (dir, disk, mode, размер — sizeBytes)
+  const vf=key=>pfa("volume",key==="gb"?"sizeBytes":key);
+  const k=archAddr(a),inp=(label,key,type,hint,ph)=>`<div${vf(key)}><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  const sel=(label,key,opts,hint)=>`<div${vf(key)}><label>${i18n(label)}</label><select ${onEv("change",[...set,key,onEv.value])}>${opts.map(([val,l,dis])=>`<option value="${escHtml(val)}" ${String(v[key])===String(val)?"selected":""} ${dis?"disabled":""}>${escHtml(l)}</option>`).join("")}</select>${hint?`<div class="bk-hint">${hint}</div>`:""}</div>`;
+  const gb=(label,hint)=>`<div${vf("gb")}><label>${i18n(label)}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(v.size)||""}" ${onEv("input",[...set,"gb",onEv.value,true])}><span>${i18n("ГБ")}</span></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  const dir=hint=>`<div${vf("dir")}><label>${i18n("Папка на диске")}</label><div class="gb-in"><input value="${escHtml(v.dir||"")}" ${onEv("input",[...set,"dir",onEv.value,true])}><button type="button" class="btn s" title="${i18n("Выбрать папку на диске")}" ${onEv("click",["volPickDir",onEv.el,`${v.disk}`])}>${i18n("Обзор…")}</button></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
   if(k==="disk"){
     const sid=a.server;
     if(!sid)return`<div class="nt" style="margin-top:10px">${i18n("Сначала выбрать сервер. Тома локального хранилища находятся на дисках сервера.")}</div>`;
@@ -35926,7 +35940,7 @@ function volFieldsHtml(a,v,set){
     return`<div class="g" style="margin-top:10px">${sel("Диск","disk",opts)}
       ${sel("Размещение","mode",[["part",i18n("Раздел целиком")+(d?.sys?" — "+i18n("не для системного диска"):others?" — "+i18n("на диске есть другие тома"):""),partOff],["file",i18n("Файл в папке")]],
         v.mode==="part"?i18n("занимает весь диск. Неотформатированный диск форматируют отдельно кнопкой «Форматировать» у тома"):i18n("на диске с файловой системой. Для FAT32 — не больше 4 ГБ"))}
-      ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("сервер создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
+      ${v.mode==="part"?pfw("volume","sizeBytes",fldRo("Объём",d?.size||v.size)):dir("сервер создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
   }
   if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища — это всегда файл")}
       ${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>`;
