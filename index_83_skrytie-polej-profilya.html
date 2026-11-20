@@ -64,6 +64,8 @@ html[data-theme="light"] .asw.on{color:var(--one-fg);background:var(--one-surfac
 .hload .hlab{font-weight:500;margin:0}
 .hload b{color:var(--tx);font-weight:500;margin:0}
 .hload[hidden]{display:none!important}
+/* Правило 2 версии профиля (прототип 83): поле, которого нет в версии сервера, ручной экран прячет атрибутом hidden */
+[data-prof-field][hidden]{display:none!important}
 .hload .hsrv{width:6.5rem;flex:none;overflow:hidden;text-overflow:ellipsis;color:var(--one-fg-subtle);font-size:11px;margin-left:2px;padding-left:10px;border-left:1px solid var(--x-region);box-sizing:border-box}
 html[data-theme="light"] .hchip.on{background:var(--one-surface-muted);color:var(--one-fg);box-shadow:inset 0 0 0 1px var(--one-selected-indicator)}
 html[data-theme="light"] .hchip:hover{background:var(--one-control-hover);border-color:var(--one-border-strong)}
@@ -3600,6 +3602,7 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/i18n-en-83.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -4430,7 +4433,8 @@ function canDeleteNode(n){
 // В папках — камеры, регистраторы с записью, источники, СКУД; не входы, не выходы, не единицы
 function inFolders(n){return!!n&&!n.derived&&!CAPS.found.has(n.type)&&!CAPS.units.has(n.type)}
 // Поле карточки: правится или только для чтения
-function devFld(n,l,k,v,tp){return canWrite(n,k)?fld(l,v,tp):fldRo(l,v)}
+// Поле объекта по имени свойства k: метка правила 2 версии профиля (pfw) — у всех таких полей сразу
+function devFld(n,l,k,v,tp){return pfw(n,k,canWrite(n,k)?fld(l,v,tp):fldRo(l,v))}
 function can(need){
   if(need.startsWith("type:"))return CAPS.deviceTypes.has(need.slice(5));
   if(need.startsWith("feature:"))return CAPS.features.has(need.slice(8));
@@ -4613,8 +4617,10 @@ async function kindsLoad(){
   if(r.status===304)return false;
   if(r.status>=400)throw{status:r.status,problem:r.body};
   kindsEtag=String(r.headers.etag||"").replace(/^W\//,"").replace(/"/g,"")||null;
+  profverApply(r.body);
   KINDS.clear();(r.body.items||[]).forEach(k=>KINDS.set(k.kind,k));
   KIND_PROFILES.clear();(r.body.profiles||[]).forEach(p=>{if(p?.id)KIND_PROFILES.set(p.id,p)});
+  profHideRefresh();
   kindsApply();
   kindsSlicesChanged=layoutsApply(r.body.layouts);
   return true;
@@ -5655,8 +5661,7 @@ function profileProps(p){const x=p?.properties;return Array.isArray(x)?x.slice()
 // api/profiles/*.json). Сервер присылает свою младшую версию в GET /kinds → profiles[].version и поля этой версии.
 // Поля своего экрана — пересечение двух списков. Поле версии сервера, которого консоль не знает (сервер новее), экран не
 // берёт: его показывает «Все параметры» с меткой «новое в версии профиля» (правило 1). Поле, которого нет в версии
-// сервера (сервер старше), экран тоже не берёт в свои поля; прятать такое поле на самом экране — правило 2, его пока нет
-// (замер прототипа 82: экраны рисуют поле и без схемы). Профиль, которого консоль не знает, — как раньше: поля сервера
+// сервера (сервер старше), экран тоже не берёт в свои поля и прячет на самом экране — правило 2, ниже (прототип 83). Профиль, которого консоль не знает, — как раньше: поля сервера
 let profKnownMap=null;
 function profileKnown(id){
   if(!profKnownMap){profKnownMap=new Map();(window.CONSOLEM_FIXTURES?.demo?.profiles||[]).forEach(p=>{if(p?.id)profKnownMap.set(p.id,p)})}
@@ -5679,6 +5684,104 @@ function profileScreenProps(id){
   if(!kn)return sp;
   const k=new Set(profileProps(kn));return sp.filter(f=>k.has(f));
 }
+// Сервер старше консоли: его младшая версия ниже знакомой. Версия не по формату — не старше
+function profileServerOlder(id){
+  const vs=profileVer(KIND_PROFILES.get(id)),vk=profileVer(profileKnown(id));
+  return!!vs&&!!vk&&profileVerCmp(vs,vk)<0;
+}
+// Поля знакомой версии (свойства и состояние), которых нет у сервера, когда сервер старше (правило 2): их ручной экран не показывает. Сервер той же
+// версии с неполным списком (наборы large, xl, one-domain: vms.detector/1 1.1 с 11 полями из 42) — не старше: ничего не прячем
+// Поля состояния профиля (status): GET /kinds отдаёт список имён, файл профиля — объект
+function profileStatusProps(p){const x=p?.status;return Array.isArray(x)?x.slice():x&&typeof x==="object"?Object.keys(x):[]}
+function profileOlderMissing(id){
+  const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn||!profileServerOlder(id))return[];
+  const all=p=>[...profileProps(p),...profileStatusProps(p)],s=new Set(all(srv));
+  return all(kn).filter(f=>!s.has(f));
+}
+// Показ версии профиля (только прототипы 82 и 83): ?profver=<профиль>@<версия>+<поле>-<поле>,… меняет ответ GET /kinds так,
+// будто сервер отдал другую версию профиля. «+поле» — поле есть в профиле и в схеме видов профиля (строка), «-поле» —
+// поля нет ни там, ни там. Пример: ?profver=vms.camera/1@1.7+fooNew#node=<uid камеры>&form=all; правило 2 —
+// ?profver=vms.pos/1@1.0-enabled-ip#node=<uid кассы>: сервер старше консоли, касса не показывает enabled и ip
+function profverParse(){
+  const m=/[?&]profver=([^&#]*)/.exec(location.search);if(!m)return[];
+  let s;try{s=decodeURIComponent(m[1])}catch(e){return[]}
+  return s.split(",").map(x=>{
+    const y=/^([^@]+)@(\d+\.\d+)((?:[+-][A-Za-z_]\w*)*)$/.exec(x.trim());if(!y)return null;
+    const add=[],drop=[];(y[3].match(/[+-][A-Za-z_]\w*/g)||[]).forEach(t=>(t[0]==="+"?add:drop).push(t.slice(1)));
+    return{id:y[1],version:y[2],add,drop};
+  }).filter(Boolean);
+}
+let profverToast=false;
+function profverApply(body){
+  const list=profverParse();if(!list.length||!body)return;
+  list.forEach(o=>{
+    const p=(body.profiles||[]).find(q=>q?.id===o.id);if(!p)return;
+    const ps=profileProps(p).filter(f=>!o.drop.includes(f));o.add.forEach(f=>{if(!ps.includes(f))ps.push(f)});
+    p.version=o.version;p.properties=ps;
+    (body.items||[]).filter(k=>(k.implements||[]).includes(o.id)).forEach(k=>{
+      k.schema=k.schema||{type:"object"};const pr=k.schema.properties=k.schema.properties||{};
+      o.add.forEach(f=>{if(!pr[f])pr[f]={type:"string",title:f}});
+      o.drop.forEach(f=>{delete pr[f]});
+      if(Array.isArray(k.schema.required))k.schema.required=k.schema.required.filter(f=>!o.drop.includes(f));
+    });
+  });
+  if(!profverToast){
+    profverToast=true;
+    const t=list.map(o=>`${o.id} ${o.version}${o.add.map(f=>" +"+f).join("")}${o.drop.map(f=>" −"+f).join("")}`).join(", ");
+    setTimeout(()=>toast(`${i18n("Показ: сервер отдаёт другую версию профиля")}: ${t}`),800);
+  }
+}
+// ── Правило 2: ручной экран прячет поля, которых нет в версии сервера (прототип 83) ──
+// Ручные экраны рисуют поля своим кодом, общего места нет. Поэтому место, где экран рисует поле профиля, помечено одним из
+// двух способов:
+// - pfa(n, поле) → data-prof-field="<вид> <поле>" на строке, ячейке или элементе поля целиком (подпись и значение вместе).
+//   Один общий проход (profHidePass) ставит hidden меткам из набора profHideSet; его вызывает MutationObserver на
+//   документе — карточки, вкладки, окна и диалоги без правки каждого экрана. Поле правки остаётся в DOM: код, который
+//   читает поле по id, не ломается;
+// - nodeFieldOff(n, поле) — в коде, который собирает поле в общий текст с другими (бейдж «Включён · есть сигнал»,
+//   строка «кодек · разрешение · к/с»): такое поле код пропускает.
+// Поле прячется у вида, если его снял хоть один профиль вида из profileOlderMissing и не приносит другой профиль вида
+// (fps у камеры есть в vms.camera/1 и vms.stream/1). Сервер той же или новее версии — набор пуст, проход ничего не делает
+let profHideSet=new Set(),profHideKey="";
+function kindFieldOffCalc(kind,f){
+  let off=false;
+  for(const id of KINDS.get(kind)?.implements||[]){
+    if(profileOlderMissing(id).includes(f))off=true;
+    else if(KIND_PROFILES.has(id)&&[...profileProps(KIND_PROFILES.get(id)),...profileStatusProps(KIND_PROFILES.get(id))].includes(f))return false;
+  }
+  return off;
+}
+function profHideCompute(){
+  const out=new Set(),miss=new Map();
+  KIND_PROFILES.forEach((p,id)=>{const m=profileOlderMissing(id);if(m.length)miss.set(id,m)});
+  if(miss.size)KINDS.forEach((k,kind)=>(k.implements||[]).forEach(id=>(miss.get(id)||[]).forEach(f=>{if(kindFieldOffCalc(kind,f))out.add(kind+" "+f)})));
+  profHideSet=out;profHideKey=[...out].sort().join("|");
+  return out;
+}
+function kindFieldOff(kind,f){return profHideSet.size>0&&profHideSet.has(kind+" "+f)}
+function nodeFieldOff(n,f){return!!n&&profHideSet.size>0&&!isSchemaNode(n)&&kindFieldOff(nodeKind(n),f)}
+// Метка места поля: вид — по узлу (у вида плагина с ручным экраном — его вид, nodeKind) или строка вида
+function pfa(n,field){const k=typeof n==="string"?n:n?nodeKind(n):"";return k?` data-prof-field="${escHtml(k)} ${escHtml(field)}"`:""}
+// Метка на первом теге готовой разметки: pfw(n,"short",fldRo("Короткое имя",n.short))
+function pfw(n,field,html){return String(html||"").replace(/^(\s*<[A-Za-z][\w-]*)/,"$1"+pfa(n,field))}
+function profHideApply(el){
+  const on=profHideSet.has(el.getAttribute("data-prof-field"));
+  if(on!==el.hasAttribute("hidden"))el.toggleAttribute("hidden",on);
+}
+function profHidePass(root){
+  const r=root||document.body;if(!r||r.nodeType!==1)return;
+  if(r.hasAttribute("data-prof-field"))profHideApply(r);
+  r.querySelectorAll("[data-prof-field]").forEach(profHideApply);
+}
+// После GET /kinds набор мог измениться: пройти весь документ (и снять hidden, если сервер теперь не старше)
+function profHideRefresh(){
+  const was=profHideKey;profHideCompute();
+  if(was!==profHideKey&&document.body)profHidePass(document.body);
+}
+if(window.MutationObserver)new MutationObserver(ms=>{
+  if(!profHideSet.size)return;
+  for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1)profHidePass(n);
+}).observe(document.documentElement,{childList:true,subtree:true});
 // Поля версии сервера, которых консоль не знает, когда сервер новее: {поле: версия сервера}. Сервер той же или старшей
 // версии с лишним полем (поле снято в знакомой версии, как login у vms.acs/1 1.1) — не «новое»: «сверх профиля», как раньше
 function profileNewerProps(id){
@@ -9722,7 +9825,7 @@ function statusMarkHtml(n){
   return dot?`<span class="n-tail">${dot}</span>`:"";
 }
 function enabledToggleHtml(n){
-  if(!canToggleEnabled(n)||!canWrite(n,"enabled"))return"";
+  if(!canToggleEnabled(n)||!canWrite(n,"enabled")||nodeFieldOff(n,"enabled"))return"";
   const on=n.enabled!==false;
   return`<div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["toggleNodeEnabled",`${n.id}`,onEv.el])}></div></div>`;
 }
@@ -11190,11 +11293,11 @@ function mainHd(cr,title,sub,tabs,act="",inCrumb=false,tabsEnd=""){
 }
 // Имя для конца пути: короткое имя и название, без значка — он и так в дереве.
 function crumbTitle(n){
-  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""?`${escHtml(String(n.short))}. `:"";
+  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""&&!nodeFieldOff(n,"short")?`${escHtml(String(n.short))}. `:"";
   return short+escHtml(locName(n));
 }
 function objectTitle(n){
-  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""?`${escHtml(String(n.short))}. `:"";
+  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""&&!nodeFieldOff(n,"short")?`${escHtml(String(n.short))}. `:"";
   return `<span class="hd-ic">${treeIconHtml(n)}</span>${short}${escHtml(locName(n))}`;
 }
 function crumbsHtml(id){
@@ -12897,12 +13000,14 @@ function bdg(n){
     const ok=n.online!==false;
     return `<span class="bd ${ok?"":"off"}">${ok?i18n("Есть сигнал"):infraNoSignalLabel(n)}</span>`;
   }
-  const st=nodeStatus(n),bits=[];
+  // Правило 2 версии профиля: поля enabled нет в версии сервера — бейдж без «Включён» и «Выключен», только сигнал
+  const enOff=nodeFieldOff(n,"enabled"),st=nodeStatus(enOff?Object.assign({},n,{enabled:true}):n),bits=[];
   if(st.ruleOff)bits.push(i18n("Отключено по правилу"));
-  else bits.push(st.on?i18n("Включён"):i18n("Выключен"));
+  else if(!enOff)bits.push(st.on?i18n("Включён"):i18n("Выключен"));
   if(st.nosignal)bits.push(i18n("нет сигнала")+(devErr(n)?": "+i18n(DEV_ERR[devErr(n)].s):""));
   else if(st.on)bits.push(i18n("есть сигнал"));
   if(st.license)bits.push(i18n("лицензия превышена"));
+  if(enOff&&bits[0])bits[0]=bits[0].charAt(0).toUpperCase()+bits[0].slice(1);
   const bad=st.off||st.nosignal||st.license;
   return `<span class="bd ${bad?"off":""}">${bits.join(" · ")}</span>`;
 }
@@ -14687,12 +14792,14 @@ function periphIds(n){
 }
 // Фильтр над списком — стандартный блок .bk-scope: «Показать» → «все» → типы и состояние, итог «Показано N из M»
 const PF_DIMS=[["type","типы",d=>markTypeLabel(d.type)],["state","состояние",d=>periphStateWord(d),i18n]];
-function periphStateWord(d){return d.enabled===false?"выключен":d.online===false?"нет сигнала":"работает"}
+// Выключен по полю enabled; поля нет в версии сервера (правило 2) — не «выключен»
+function nodeOffByField(d){return d.enabled===false&&!nodeFieldOff(d,"enabled")}
+function periphStateWord(d){return nodeOffByField(d)?"выключен":d.online===false?"нет сигнала":"работает"}
 function periphFilt(n){if(periphSel.owner!==n.id)periphIds(n);return periphSel.f}
 function periphShown(n){const f=periphSel.owner===n.id?periphSel.f:{};return periphItems(n).filter(d=>facetHit(PF_DIMS,d,f))}
 function periphTypes(items){return[...new Set(items.map(d=>d.type))].sort((a,b)=>markTypeRank(a)-markTypeRank(b))}
 function periphStateHtml(d){
-  if(d.enabled===false)return`<span class="pf-st off">${i18n("выключен")}</span>`;
+  if(nodeOffByField(d))return`<span class="pf-st off">${i18n("выключен")}</span>`;
   if(d.online===false)return`<span class="pf-st bad">${i18n("нет сигнала")}</span>`;
   return`<span class="pf-st ok">${i18n("работает")}</span>`;
 }
@@ -14717,11 +14824,11 @@ function periphCardHtml(n){
       <td><button type="button" class="pf-nm" ${handOf(d,"storage")&&edgeOn()?onEv("click",["edgeOpen",`${d.id}`]):onEv("click",["pick",`${d.id}`])}>${ic(d.type)}<span>${escHtml(locName(d))}</span></button></td>
       <td class="sub">${escHtml(i18n(LB[d.type]||d.type))}</td>
       <td>${periphStateHtml(d)}${handOf(d,"storage")&&d.enabled!==false?` <span class="sub">· ${escHtml(edgePeriphText(d))}</span>`:""}</td>
-      <td class="pf-c">${canWrite(d,"enabled")?`<div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["periphEnable",`${d.id}`])}></div>`:""}</td></tr>`;
+      <td class="pf-c"${pfa(d,"enabled")}>${canWrite(d,"enabled")?`<div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["periphEnable",`${d.id}`])}></div>`:""}</td></tr>`;
   }).join("");
   return card("Периферия",`${scope}
     <div class="pf-bar">${bar}</div>
-    <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${shown.length?"":"disabled"} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n(on?"Выбрать все показанные":"Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c">${i18n("Вкл.")}</th></tr>${rows}</table>
+    <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${shown.length?"":"disabled"} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n(on?"Выбрать все показанные":"Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c"${shown.length&&shown.every(d=>nodeFieldOff(d,"enabled"))?` data-prof-off hidden`:""}>${i18n("Вкл.")}</th></tr>${rows}</table>
     <p class="sub" style="margin-top:8px">${i18n("Флажок камеры в дереве не отмечает её периферию. Чтобы изменить её вместе с периферией других камер, нажать «Отметить в дереве».")}</p>`,
     `<span class="sub" style="font-weight:400">${items.length}</span>`);
 }
@@ -23805,7 +23912,7 @@ function webStatusText(n){
 // Плитка на вкладке «Общие»: состояние веб-сервера и ONVIF-сервера, щелчок открывает вкладку «Веб, RTSP, ONVIF»
 function webTileHtml(n){
   if(!webHas(n))return"";
-  return`<button type="button" class="mc" data-web-tile ${onEv("click",["goTab","web"])}><span>${i18n("Веб, RTSP, ONVIF")}</span><b>${escHtml(webStatusText(n))} · ONVIF ${escHtml(webOf(n).vals.onvifOn?String(webOf(n).vals.onvif):i18n("выключен"))}</b></button>`;
+  return`<button type="button" class="mc" data-web-tile${pfa(n,"webServer")} ${onEv("click",["goTab","web"])}><span>${i18n("Веб, RTSP, ONVIF")}</span><b>${escHtml(webStatusText(n))} · ONVIF ${escHtml(webOf(n).vals.onvifOn?String(webOf(n).vals.onvif):i18n("выключен"))}</b></button>`;
 }
 function webPortFld(n,k,l,err,dis){
   const v=webOf(n).vals;
@@ -23854,7 +23961,7 @@ function webSrvHtml(n){
       <div class="web-row">${webPortFld(n,"http","Порт HTTP",err,dis)}${webPortFld(n,"https","Порт HTTPS",err,dis)}
         <div class="web-f"><label for="web-prefix">${i18n("Префикс адреса")}</label><input id="web-prefix" type="text" spellcheck="false" maxlength="200" value="${escHtml(v.prefix)}" ${dis} aria-invalid="${!!err.prefix}" ${onEv("input",["webInput",`${n.id}`,"prefix",onEv.el])} ${onEv("change",["webCommit",`${n.id}`,"prefix",onEv.el])}><div class="fld-err" data-web-err="prefix">${escHtml(err.prefix||"")}</div></div></div>
       <div class="web-addr" data-web-addr>${webAddrHtml(n)}</div>
-      ${res?`<p class="sub web-hint">${i18n("Для видео в браузере веб-сервер также занимает порты")} ${res.from}–${res.to} (${i18n("9001 и по одному на ядро процессора")}). ${i18n("Открыть эти порты в сетевом экране сервера.")}</p>`:""}
+      ${res?`<p class="sub web-hint"${pfa(n,"webReservedPorts")}>${i18n("Для видео в браузере веб-сервер также занимает порты")} ${res.from}–${res.to} (${i18n("9001 и по одному на ядро процессора")}). ${i18n("Открыть эти порты в сетевом экране сервера.")}</p>`:""}
     </div>`,`<span class="tfoot-gap"></span><span class="bd ${v.on?"":"off"}" data-web-badge>${escHtml(webStatusText(n))}</span>`);
   const video=card("Видео и запросы из браузера",`
     ${webSwHtml(n,"recode","Перекодировать видео для браузера","Веб-сервер переводит видео, которое браузер не показывает (например, H.265), в формат для браузера. Это нагружает процессор сервера. Выключено: браузер получает видео как есть.",dis)}
@@ -23864,7 +23971,9 @@ function webSrvHtml(n){
     <p class="sub web-hint">${i18n("Плееры и другие системы забирают видео с сервера по RTSP. Они входят под именем и паролем пользователя консоли и получают видео только тех камер, которые этот пользователь может смотреть по своим правам.")}</p>
     <div class="web-rtsp-ex"><span class="web-addr-l">${i18n("Адрес потока камеры")}:</span> ${copyChipHtml(`rtsp://${i18n("имя")}:${i18n("пароль")}@${n.ip||"localhost"}${rp===554?"":":"+v.rtsp}/hosts/${i18n("ИМЯ-СЕРВЕРА")}/DeviceIpint.N/SourceEndpoint.video:0:0`,"Адрес")} <span class="sub web-rtsp-n">${i18n("N — номер камеры, имя сервера — заглавными буквами")}</span></div>
     <p class="sub web-hint">${i18n("Имя пользователя для RTSP начинается с латинской буквы и содержит только латинские буквы, цифры и символы / - _ . : +")}</p>`);
-  return`<div class="web-tab">${main}${webCertHtml(n,err,dis)}${video}${rtsp}${onvifCardHtml(n,err)}</div>`;
+  // Правило 2 версии профиля: настройки веб-, RTSP- и ONVIF-сервера — поле webServer, сертификат — webCertificate
+  const ws=h=>pfw(n,"webServer",h);
+  return`<div class="web-tab">${ws(main)}${pfw(n,"webCertificate",webCertHtml(n,err,dis))}${ws(video)}${ws(rtsp)}${ws(onvifCardHtml(n,err))}</div>`;
 }
 // Камеры сервера, у которых поток в MJPEG: ONVIF-сервер их не отдаёт. Список — запрос /units?serverId, все страницы;
 // кодек — что отдаёт камера (properties.codec) или что задала консоль на вкладке «Видео» (заглушка cvCfg)
