@@ -167,7 +167,7 @@ function pcovSnap(view) {
   const roots = [document.getElementById("main"), ...document.querySelectorAll(".confirm.on, .mask.on")].filter(Boolean);
   const parts = [view ? String(view.key || view) : ""];
   roots.forEach((r) => {
-    // Поле, которое правило 2 версии профиля спрятало (data-prof-field с hidden, прототип 83), на экране не видно: в снимок
+    // Поле, которое правило 2 версии профиля спрятало (data-prof-field с hidden, из прототипа 83), на экране не видно: в снимок
     // не идёт ни разметка, ни значение поля ввода
     const vals = [...r.querySelectorAll("input, select, textarea")].filter((el) => !el.closest("[data-prof-field][hidden]")).map((el) => (el.type === "checkbox" || el.type === "radio" ? el.checked : el.value));
     const c = r.cloneNode(true);

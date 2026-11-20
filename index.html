@@ -64,6 +64,8 @@ html[data-theme="light"] .asw.on{color:var(--one-fg);background:var(--one-surfac
 .hload .hlab{font-weight:500;margin:0}
 .hload b{color:var(--tx);font-weight:500;margin:0}
 .hload[hidden]{display:none!important}
+/* Правило 2 версии профиля (из прототипа 83): поле, которого нет в версии сервера, ручной экран прячет атрибутом hidden */
+[data-prof-field][hidden]{display:none!important}
 .hload .hsrv{width:6.5rem;flex:none;overflow:hidden;text-overflow:ellipsis;color:var(--one-fg-subtle);font-size:11px;margin-left:2px;padding-left:10px;border-left:1px solid var(--x-region);box-sizing:border-box}
 html[data-theme="light"] .hchip.on{background:var(--one-surface-muted);color:var(--one-fg);box-shadow:inset 0 0 0 1px var(--one-selected-indicator)}
 html[data-theme="light"] .hchip:hover{background:var(--one-control-hover);border-color:var(--one-border-strong)}
@@ -4430,7 +4432,8 @@ function canDeleteNode(n){
 // В папках — камеры, регистраторы с записью, источники, СКУД; не входы, не выходы, не единицы
 function inFolders(n){return!!n&&!n.derived&&!CAPS.found.has(n.type)&&!CAPS.units.has(n.type)}
 // Поле карточки: правится или только для чтения
-function devFld(n,l,k,v,tp){return canWrite(n,k)?fld(l,v,tp):fldRo(l,v)}
+// Поле объекта по имени свойства k: метка правила 2 версии профиля (pfw) — у всех таких полей сразу
+function devFld(n,l,k,v,tp){return pfw(n,k,canWrite(n,k)?fld(l,v,tp):fldRo(l,v))}
 function can(need){
   if(need.startsWith("type:"))return CAPS.deviceTypes.has(need.slice(5));
   if(need.startsWith("feature:"))return CAPS.features.has(need.slice(8));
@@ -4615,6 +4618,7 @@ async function kindsLoad(){
   kindsEtag=String(r.headers.etag||"").replace(/^W\//,"").replace(/"/g,"")||null;
   KINDS.clear();(r.body.items||[]).forEach(k=>KINDS.set(k.kind,k));
   KIND_PROFILES.clear();(r.body.profiles||[]).forEach(p=>{if(p?.id)KIND_PROFILES.set(p.id,p)});
+  profHideRefresh();
   kindsApply();
   kindsSlicesChanged=layoutsApply(r.body.layouts);
   return true;
@@ -5655,8 +5659,7 @@ function profileProps(p){const x=p?.properties;return Array.isArray(x)?x.slice()
 // api/profiles/*.json). Сервер присылает свою младшую версию в GET /kinds → profiles[].version и поля этой версии.
 // Поля своего экрана — пересечение двух списков. Поле версии сервера, которого консоль не знает (сервер новее), экран не
 // берёт: его показывает «Все параметры» с меткой «новое в версии профиля» (правило 1). Поле, которого нет в версии
-// сервера (сервер старше), экран тоже не берёт в свои поля; прятать такое поле на самом экране — правило 2, его пока нет
-// (замер прототипа 82: экраны рисуют поле и без схемы). Профиль, которого консоль не знает, — как раньше: поля сервера
+// сервера (сервер старше), экран тоже не берёт в свои поля и прячет на самом экране — правило 2, ниже (из прототипа 83). Профиль, которого консоль не знает, — как раньше: поля сервера
 let profKnownMap=null;
 function profileKnown(id){
   if(!profKnownMap){profKnownMap=new Map();(window.CONSOLEM_FIXTURES?.demo?.profiles||[]).forEach(p=>{if(p?.id)profKnownMap.set(p.id,p)})}
@@ -5679,6 +5682,71 @@ function profileScreenProps(id){
   if(!kn)return sp;
   const k=new Set(profileProps(kn));return sp.filter(f=>k.has(f));
 }
+// Сервер старше консоли: его младшая версия ниже знакомой. Версия не по формату — не старше
+function profileServerOlder(id){
+  const vs=profileVer(KIND_PROFILES.get(id)),vk=profileVer(profileKnown(id));
+  return!!vs&&!!vk&&profileVerCmp(vs,vk)<0;
+}
+// Поля знакомой версии (свойства и состояние), которых нет у сервера, когда сервер старше (правило 2): их ручной экран не показывает. Сервер той же
+// версии с неполным списком (наборы large, xl, one-domain: vms.detector/1 1.1 с 11 полями из 42) — не старше: ничего не прячем
+// Поля состояния профиля (status): GET /kinds отдаёт список имён, файл профиля — объект
+function profileStatusProps(p){const x=p?.status;return Array.isArray(x)?x.slice():x&&typeof x==="object"?Object.keys(x):[]}
+function profileOlderMissing(id){
+  const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn||!profileServerOlder(id))return[];
+  const all=p=>[...profileProps(p),...profileStatusProps(p)],s=new Set(all(srv));
+  return all(kn).filter(f=>!s.has(f));
+}
+// ── Правило 2: ручной экран прячет поля, которых нет в версии сервера (из прототипа 83) ──
+// Ручные экраны рисуют поля своим кодом, общего места нет. Поэтому место, где экран рисует поле профиля, помечено одним из
+// двух способов:
+// - pfa(n, поле) → data-prof-field="<вид> <поле>" на строке, ячейке или элементе поля целиком (подпись и значение вместе).
+//   Один общий проход (profHidePass) ставит hidden меткам из набора profHideSet; его вызывает MutationObserver на
+//   документе — карточки, вкладки, окна и диалоги без правки каждого экрана. Поле правки остаётся в DOM: код, который
+//   читает поле по id, не ломается;
+// - nodeFieldOff(n, поле) — в коде, который собирает поле в общий текст с другими (бейдж «Включён · есть сигнал»,
+//   строка «кодек · разрешение · к/с»): такое поле код пропускает.
+// Поле прячется у вида, если его снял хоть один профиль вида из profileOlderMissing и не приносит другой профиль вида
+// (fps у камеры есть в vms.camera/1 и vms.stream/1). Сервер той же или новее версии — набор пуст, проход ничего не делает
+let profHideSet=new Set(),profHideKey="";
+function kindFieldOffCalc(kind,f){
+  let off=false;
+  for(const id of KINDS.get(kind)?.implements||[]){
+    if(profileOlderMissing(id).includes(f))off=true;
+    else if(KIND_PROFILES.has(id)&&[...profileProps(KIND_PROFILES.get(id)),...profileStatusProps(KIND_PROFILES.get(id))].includes(f))return false;
+  }
+  return off;
+}
+function profHideCompute(){
+  const out=new Set(),miss=new Map();
+  KIND_PROFILES.forEach((p,id)=>{const m=profileOlderMissing(id);if(m.length)miss.set(id,m)});
+  if(miss.size)KINDS.forEach((k,kind)=>(k.implements||[]).forEach(id=>(miss.get(id)||[]).forEach(f=>{if(kindFieldOffCalc(kind,f))out.add(kind+" "+f)})));
+  profHideSet=out;profHideKey=[...out].sort().join("|");
+  return out;
+}
+function kindFieldOff(kind,f){return profHideSet.size>0&&profHideSet.has(kind+" "+f)}
+function nodeFieldOff(n,f){return!!n&&profHideSet.size>0&&!isSchemaNode(n)&&kindFieldOff(nodeKind(n),f)}
+// Метка места поля: вид — по узлу (у вида плагина с ручным экраном — его вид, nodeKind) или строка вида
+function pfa(n,field){const k=typeof n==="string"?n:n?nodeKind(n):"";return k?` data-prof-field="${escHtml(k)} ${escHtml(field)}"`:""}
+// Метка на первом теге готовой разметки: pfw(n,"short",fldRo("Короткое имя",n.short))
+function pfw(n,field,html){return String(html||"").replace(/^(\s*<[A-Za-z][\w-]*)/,"$1"+pfa(n,field))}
+function profHideApply(el){
+  const on=profHideSet.has(el.getAttribute("data-prof-field"));
+  if(on!==el.hasAttribute("hidden"))el.toggleAttribute("hidden",on);
+}
+function profHidePass(root){
+  const r=root||document.body;if(!r||r.nodeType!==1)return;
+  if(r.hasAttribute("data-prof-field"))profHideApply(r);
+  r.querySelectorAll("[data-prof-field]").forEach(profHideApply);
+}
+// После GET /kinds набор мог измениться: пройти весь документ (и снять hidden, если сервер теперь не старше)
+function profHideRefresh(){
+  const was=profHideKey;profHideCompute();
+  if(was!==profHideKey&&document.body)profHidePass(document.body);
+}
+if(window.MutationObserver)new MutationObserver(ms=>{
+  if(!profHideSet.size)return;
+  for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1)profHidePass(n);
+}).observe(document.documentElement,{childList:true,subtree:true});
 // Поля версии сервера, которых консоль не знает, когда сервер новее: {поле: версия сервера}. Сервер той же или старшей
 // версии с лишним полем (поле снято в знакомой версии, как login у vms.acs/1 1.1) — не «новое»: «сверх профиля», как раньше
 function profileNewerProps(id){
@@ -7779,11 +7847,24 @@ function volLabelOf(a,v){
 }
 function volDesc(v){
   const a=archById(v.archId),k=archAddr(a);
-  if(k==="bucket")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
-  if(k==="nas")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
-  return v.mode==="file"?`${i18n("файл")} ${v.size}`:v.mode==="dir"?`${i18n("папка на")} ${v.disk} · ${v.size}`:`${i18n("раздел")} ${v.disk} ${i18n("целиком")} · ${v.size}`;
+  // Правило 2 версии профиля: поля, которых нет в версии сервера (размер, пользователь, размещение, диск), строка
+  // пропускает. Без скрытых полей строка та же, что в index.html
+  if(!profHideSet.size){
+    if(k==="bucket")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
+    if(k==="nas")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
+    return v.mode==="file"?`${i18n("файл")} ${v.size}`:v.mode==="dir"?`${i18n("папка на")} ${v.disk} · ${v.size}`:`${i18n("раздел")} ${v.disk} ${i18n("целиком")} · ${v.size}`;
+  }
+  const off=f=>kindFieldOff("volume",f),sz=off("sizeBytes")?"":v.size,dk=off("disk")?"":v.disk,j=xs=>xs.filter(Boolean).join(" · ");
+  if(k==="bucket")return j([cloudLabel(a.provider),off("region")?"":v.region,sz]);
+  if(k==="nas")return j([[i18n("файл"),sz].filter(Boolean).join(" "),off("login")?"":v.user||i18n("без пользователя")]);
+  if(off("mode")||off("disk")&&v.mode!=="file")return j([dk,sz]);
+  return v.mode==="file"?[i18n("файл"),sz].filter(Boolean).join(" "):j([v.mode==="dir"?`${i18n("папка на")} ${dk}`:`${i18n("раздел")} ${dk} ${i18n("целиком")}`,sz]);
 }
-function volStateText(v){const r=PROTO_REC.get(v.id);if(r&&(!v.state||v.state==="ready"||v.state==="unfmt"))return`${i18n("Готов")} (${v.used||"64%"}) · ${protoRecText(r)}`;return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
+function volStateText(v){
+  // Правило 2 версии профиля: без поля state — нет и состояния, без usedPercent — состояние без доли
+  if(kindFieldOff("volume","state"))return"";
+  if(kindFieldOff("volume","usedPercent"))return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):i18n("Готов");
+  const r=PROTO_REC.get(v.id);if(r&&(!v.state||v.state==="ready"||v.state==="unfmt"))return`${i18n("Готов")} (${v.used||"64%"}) · ${protoRecText(r)}`;return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
 function archVols(a){return a?.vols||[]}
 function volById(id){
   if(typeof id!=="string")return null;
@@ -9631,9 +9712,11 @@ function treeRowIcon(n){
 }
 function nodeStatus(n){
   const isCam=handCam(n);
-  const ruleOff=isCam&&!!n.ruleOff;
-  const license=isCam&&!!n.licenseExceeded;
-  const on=n.enabled!==false&&!ruleOff&&!license;
+  // Правило 2 версии профиля: поля состояния нет в версии сервера — оно не меняет состояние объекта на экране
+  const ruleOff=isCam&&!!n.ruleOff&&!nodeFieldOff(n,"disabledByRuleId");
+  const license=isCam&&!!n.licenseExceeded&&!nodeFieldOff(n,"licenseExceeded");
+  // Поля enabled нет в версии сервера — объект считается включённым: так его показывает сервер без поля
+  const on=(n.enabled!==false||nodeFieldOff(n,"enabled"))&&!ruleOff&&!license;
   const off=!on&&!license;
   const signal=n.online!==false;
   return{on,off,ruleOff,nosignal:on&&!signal,license};
@@ -9722,7 +9805,7 @@ function statusMarkHtml(n){
   return dot?`<span class="n-tail">${dot}</span>`:"";
 }
 function enabledToggleHtml(n){
-  if(!canToggleEnabled(n)||!canWrite(n,"enabled"))return"";
+  if(!canToggleEnabled(n)||!canWrite(n,"enabled")||nodeFieldOff(n,"enabled"))return"";
   const on=n.enabled!==false;
   return`<div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["toggleNodeEnabled",`${n.id}`,onEv.el])}></div></div>`;
 }
@@ -9752,7 +9835,7 @@ function objectStatusNotesHtml(n){
   return objectStatusNotesRest(n);
 }
 function objectStatusNotesRest(n){
-  const said=n?.faultText?`<div class="nt" role="status" data-fault-text>${escHtml(n.faultText)}</div>`:"";
+  const said=n?.faultText?`<div class="nt" role="status" data-fault-text${pfa(n,"faultText")}>${escHtml(n.faultText)}</div>`:"";
   return said+objectStateNotesHtml(n);
 }
 function objectStateNotesHtml(n){
@@ -10638,7 +10721,7 @@ function serverLoadHtml(s){
     <div class="mc"><span>${i18n("ОЗУ")}</span><b>${v(s.ram??s.cpu??0)}</b></div>
     <div class="mc"><span>${i18n("Сеть")}</span><b>${v(s.net??0)}</b></div>
     <div class="mc"><span>${i18n("Диск")}</span><b>${v(s.disk??0)}</b></div>
-  </div>${offline?`<p class="sub">${i18n("Нет связи с сервером. Показатели недоступны.")}</p>`:""}`;
+  </div>${offline?`<p class="sub"${pfa(s,"telemetry")}>${i18n("Нет связи с сервером. Показатели недоступны.")}</p>`:""}`;
 }
 // Запрос один на все разделы — тот, что набран в шапке.
 // Отбор ассистента сужает дерево, как запрос: дерево фильтрует по q. Пустой запрос при отборе — метка, а не слово
@@ -11190,11 +11273,11 @@ function mainHd(cr,title,sub,tabs,act="",inCrumb=false,tabsEnd=""){
 }
 // Имя для конца пути: короткое имя и название, без значка — он и так в дереве.
 function crumbTitle(n){
-  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""?`${escHtml(String(n.short))}. `:"";
+  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""&&!nodeFieldOff(n,"short")?`${escHtml(String(n.short))}. `:"";
   return short+escHtml(locName(n));
 }
 function objectTitle(n){
-  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""?`${escHtml(String(n.short))}. `:"";
+  const short=!handOf(n,"server")&&n.short!=null&&String(n.short).trim()!==""&&!nodeFieldOff(n,"short")?`${escHtml(String(n.short))}. `:"";
   return `<span class="hd-ic">${treeIconHtml(n)}</span>${short}${escHtml(locName(n))}`;
 }
 function crumbsHtml(id){
@@ -12897,12 +12980,14 @@ function bdg(n){
     const ok=n.online!==false;
     return `<span class="bd ${ok?"":"off"}">${ok?i18n("Есть сигнал"):infraNoSignalLabel(n)}</span>`;
   }
-  const st=nodeStatus(n),bits=[];
+  // Правило 2 версии профиля: поля enabled нет в версии сервера — бейдж без «Включён» и «Выключен», только сигнал
+  const enOff=nodeFieldOff(n,"enabled"),st=nodeStatus(enOff?Object.assign({},n,{enabled:true}):n),bits=[];
   if(st.ruleOff)bits.push(i18n("Отключено по правилу"));
-  else bits.push(st.on?i18n("Включён"):i18n("Выключен"));
+  else if(!enOff)bits.push(st.on?i18n("Включён"):i18n("Выключен"));
   if(st.nosignal)bits.push(i18n("нет сигнала")+(devErr(n)?": "+i18n(DEV_ERR[devErr(n)].s):""));
   else if(st.on)bits.push(i18n("есть сигнал"));
   if(st.license)bits.push(i18n("лицензия превышена"));
+  if(enOff&&bits[0])bits[0]=bits[0].charAt(0).toUpperCase()+bits[0].slice(1);
   const bad=st.off||st.nosignal||st.license;
   return `<span class="bd ${bad?"off":""}">${bits.join(" · ")}</span>`;
 }
@@ -14106,7 +14191,7 @@ function archTrouble(a){return archVols(a).some(v=>v.state==="error"||v.online==
 function archStateHtml(a){
   if(archTrouble(a))return`<span class="pf-st bad">${i18n("Ошибка тома")}</span>`;
   if(archVols(a).some(v=>v.state==="maint"))return`<span class="pf-st off">${i18n("Обслуживание")}</span>`;
-  if(a.admits===false)return`<span class="pf-st off" title="${i18n("Консоль не привязывает сюда новые камеры")}">${i18n("Не принимает")}</span>`;
+  if(a.admits===false&&!nodeFieldOff(a,"admits"))return`<span class="pf-st off" title="${i18n("Консоль не привязывает сюда новые камеры")}">${i18n("Не принимает")}</span>`;
   return`<span class="pf-st ok">${i18n("Работает")}</span>`;
 }
 function archOwnerCell(a,n){
@@ -14166,7 +14251,7 @@ function archTableCard(n){
         <td class="as-nm"><span class="as-name" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${archIcon(a)}<span>${escHtml(locName(a))}</span></span></td>
         <td title="${escHtml(locName(archOwner(a)||{name:""}))}">${archOwnerCell(a,n)}</td>
         <td><span class="as-use"><span class="as-bar ${u>=90?"bad":u>=75?"warn":""}"><i style="width:${u}%"></i></span><span class="as-num">${u}% ${i18n("из")} ${archSize(a)}</span></span></td>
-        <td class="as-num">${a.days!=null?`${a.days} ${i18n("дн.")}`:"—"}</td>
+        <td class="as-num">${a.days!=null&&!nodeFieldOff(a,"retentionDays")?`${a.days} ${i18n("дн.")}`:"—"}</td>
         <td class="as-num">${archCameras(a.id).length}</td>
         <td>${archStateHtml(a)}</td>
       </tr>`;
@@ -14687,12 +14772,14 @@ function periphIds(n){
 }
 // Фильтр над списком — стандартный блок .bk-scope: «Показать» → «все» → типы и состояние, итог «Показано N из M»
 const PF_DIMS=[["type","типы",d=>markTypeLabel(d.type)],["state","состояние",d=>periphStateWord(d),i18n]];
-function periphStateWord(d){return d.enabled===false?"выключен":d.online===false?"нет сигнала":"работает"}
+// Выключен по полю enabled; поля нет в версии сервера (правило 2) — не «выключен»
+function nodeOffByField(d){return d.enabled===false&&!nodeFieldOff(d,"enabled")}
+function periphStateWord(d){return nodeOffByField(d)?"выключен":d.online===false?"нет сигнала":"работает"}
 function periphFilt(n){if(periphSel.owner!==n.id)periphIds(n);return periphSel.f}
 function periphShown(n){const f=periphSel.owner===n.id?periphSel.f:{};return periphItems(n).filter(d=>facetHit(PF_DIMS,d,f))}
 function periphTypes(items){return[...new Set(items.map(d=>d.type))].sort((a,b)=>markTypeRank(a)-markTypeRank(b))}
 function periphStateHtml(d){
-  if(d.enabled===false)return`<span class="pf-st off">${i18n("выключен")}</span>`;
+  if(nodeOffByField(d))return`<span class="pf-st off">${i18n("выключен")}</span>`;
   if(d.online===false)return`<span class="pf-st bad">${i18n("нет сигнала")}</span>`;
   return`<span class="pf-st ok">${i18n("работает")}</span>`;
 }
@@ -14716,12 +14803,12 @@ function periphCardHtml(n){
       <td class="pf-c"><input type="checkbox" ${chk?"checked":""} ${onEv("change",["periphToggle",`${n.id}`,`${d.id}`])} aria-label="${escHtml(locName(d))}"></td>
       <td><button type="button" class="pf-nm" ${handOf(d,"storage")&&edgeOn()?onEv("click",["edgeOpen",`${d.id}`]):onEv("click",["pick",`${d.id}`])}>${ic(d.type)}<span>${escHtml(locName(d))}</span></button></td>
       <td class="sub">${escHtml(i18n(LB[d.type]||d.type))}</td>
-      <td>${periphStateHtml(d)}${handOf(d,"storage")&&d.enabled!==false?` <span class="sub">· ${escHtml(edgePeriphText(d))}</span>`:""}</td>
-      <td class="pf-c">${canWrite(d,"enabled")?`<div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["periphEnable",`${d.id}`])}></div>`:""}</td></tr>`;
+      <td>${periphStateHtml(d)}${handOf(d,"storage")&&!nodeOffByField(d)&&edgePeriphText(d)?` <span class="sub">· ${escHtml(edgePeriphText(d))}</span>`:""}</td>
+      <td class="pf-c"${pfa(d,"enabled")}>${canWrite(d,"enabled")?`<div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["periphEnable",`${d.id}`])}></div>`:""}</td></tr>`;
   }).join("");
   return card("Периферия",`${scope}
     <div class="pf-bar">${bar}</div>
-    <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${shown.length?"":"disabled"} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n(on?"Выбрать все показанные":"Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c">${i18n("Вкл.")}</th></tr>${rows}</table>
+    <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${shown.length?"":"disabled"} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n(on?"Выбрать все показанные":"Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c"${shown.length&&new Set(shown.map(nodeKind)).size===1?pfa(shown[0],"enabled"):shown.length&&shown.every(d=>nodeFieldOff(d,"enabled"))?` data-prof-off hidden`:""}>${i18n("Вкл.")}</th></tr>${rows}</table>
     <p class="sub" style="margin-top:8px">${i18n("Флажок камеры в дереве не отмечает её периферию. Чтобы изменить её вместе с периферией других камер, нажать «Отметить в дереве».")}</p>`,
     `<span class="sub" style="font-weight:400">${items.length}</span>`);
 }
@@ -15790,7 +15877,10 @@ function csEditCancel(id,k){
   setD(true);csEditSet(id,k,false);
 }
 function csChanged(l){return!!(cardDraft&&cardDraft.id===sel&&cardDraft.fields[l])}
-function csDl(rows){return`<dl class="cs-dl">${rows.map(([l,v,ch])=>`<div><dt>${i18n(l)}</dt><dd>${v}${ch?`<span class="cs-chg">${i18n("изменено")}</span>`:""}</dd></div>`).join("")}</dl>`}
+// Правило 2 версии профиля: строка описания по подписи — поле профиля (метка pfa), когда описанию дали узел n
+const CS_DL_F={"Короткое имя":"short","ID":"identifier","Производитель":"vendor","Модель":"model","IP-адрес и порт":"ip","RTSP":"rtspUrl",
+  "Имя пользователя":"login","MAC":"mac","Метки серверов: где работает":"labels","Что считать тревогой":"alarmKinds"};
+function csDl(rows,n){return`<dl class="cs-dl">${rows.map(([l,v,ch])=>`<div${n&&CS_DL_F[l]?pfa(n,CS_DL_F[l]):""}><dt>${i18n(l)}</dt><dd>${v}${ch?`<span class="cs-chg">${i18n("изменено")}</span>`:""}</dd></div>`).join("")}</dl>`}
 function csHead(html,act){return html.replace(/^(<div class="card"[^>]*><div class="ch">[\s\S]*?)<\/div>/,(m,h)=>`${h}<span class="cs-acts">${act}</span></div>`)}
 function csEditBtns(n,k){
   return csEditOn(n.id,k)
@@ -15881,14 +15971,14 @@ function ipsGenHtml(n){
   let ident;
   if(!csEditOn(n.id,"ident")){
     const rows=[["Имя",txt(val("Имя",n.name)),csChanged("Имя")],["Короткое имя",txt(n.short??"")],["ID",txt(deviceIdentifierValue(n)||"—")],["Вид",txt(i18n(IPSUB[n.subtype]||"IP-сервер"))],...csIdentDrvRows(n)];
-    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}${n.derived?`<p class="sub">${i18n("Консоль создала регистратор из устройства. У регистратора нет своей записи. Имя, адрес и состав задаёт устройство. Удалить регистратор нельзя.")}</p>`:""}<div style="margin-top:10px">${csDl(rows)}</div>`);
+    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}${n.derived?`<p class="sub">${i18n("Консоль создала регистратор из устройства. У регистратора нет своей записи. Имя, адрес и состав задаёт устройство. Удалить регистратор нельзя.")}</p>`:""}<div style="margin-top:10px">${csDl(rows,n)}</div>`);
   }else ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("Короткое имя",n.short??"")}${fldRo("ID",deviceIdentifierValue(n)||"—")}${fldRo("Вид",i18n(IPSUB[n.subtype]||"IP-сервер"))}</div>${csIdentDrvFields(n)}`);
   ident=csHead(csWrap("ident",ident),n.derived?"":csEditBtns(n,"ident"));
   // Подключение: адрес, порт, производитель и модель консоль задаёт при добавлении (x-immutable), учётные данные — меняются
   const pd=cardDraft&&cardDraft.id===n.id?cardDraft.fields["Пароль"]:null,pass=pd?pd.to:(n.pass||n.hasPassword);
   let conn;
-  if(!csEditOn(n.id,"conn"))conn=card("Подключение",csDl([["Производитель",txt(n.vendor||"")],["Модель",txt(n.model||"")],["IP-адрес и порт",txt(n.ip?`${n.ip}:${n.port||80}`:"")],
-    ["Имя пользователя",txt(val("Имя пользователя",n.user||n.login||"")||i18n("Авто")),csChanged("Имя пользователя")],["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]]));
+  if(!csEditOn(n.id,"conn"))conn=card("Подключение",csDl([["Производитель",txt(n.vendor||"")],["Модель",txt(n.model||"")],["IP-адрес и порт",txt(n.ip?`${n.ip}${nodeFieldOff(n,"port")?"":`:${n.port||80}`}`:"")],
+    ["Имя пользователя",txt(val("Имя пользователя",n.user||n.login||"")||i18n("Авто")),csChanged("Имя пользователя")],["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]],n));
   else conn=card("Подключение",`<div class="g cam-conn">${fldRo("Производитель",n.vendor||"")}${fldRo("Модель",n.model||"")}${fldRo("IP-адрес",n.ip||"")}${fldRo("Порт",n.port||80)}
     ${fldLbl("Имя пользователя","Имя пользователя",n.user||n.login||"","Авто")}
     <div><label>${i18n("Пароль")}</label><div class="dev-pass-wrap"><input class="dev-pass-input" type="password" value="${escHtml(cardFldVal("Пароль",n.pass||"")??"")}" placeholder="****" data-df="Пароль" data-orig="${escHtml(n.pass||"")}" ${onEv("input",["cardFld",onEv.el])}>${devPassToggleBtn(false)}</div></div>
@@ -16053,26 +16143,26 @@ function camGenLayout(n,p,ips){
   if(!csEditOn(n.id,"ident")){
     const rows=[["Имя",txt(val("Имя",n.name)),csChanged("Имя")],["Короткое имя",txt(val("Короткое имя",n.short??"")),csChanged("Короткое имя")],["ID",txt(deviceIdentifierValue(n)||"—")]];
     rows.push(...csIdentDrvRows(n));
-    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div style="margin-top:10px">${csDl(rows)}</div>`);
+    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div style="margin-top:10px">${csDl(rows,n)}</div>`);
   }else ident=ident.replace(/<\/div><\/div>$/,`${csIdentDrvFields(n)}</div></div>`);
   ident=csHead(csWrap("ident",ident),csEditBtns(n,"ident"));
   if(ips&&!n.ip)conn=ipsCamConnHtml(n,ips);
   else{
     if(!csEditOn(n.id,"conn")){
       const vendor=val("Производитель",n.vendor||""),rtsp=isRtspVendor(vendor);
-      const addr=rtsp?txt(cardFldOrig("RTSP","")):txt(val("IP",n.ip||"")?`${val("IP",n.ip||"")}:${val("Порт",n.port||80)}`:"");
+      const addr=rtsp?txt(cardFldOrig("RTSP","")):txt(val("IP",n.ip||"")?`${val("IP",n.ip||"")}${nodeFieldOff(n,"port")?"":`:${val("Порт",n.port||80)}`}`:"");
       // Пароль сервер не отдаёт (writeOnly): задан ли он — hasPassword или правка в черновике
       const pd=cardDraft&&cardDraft.id===n.id?cardDraft.fields["Пароль"]:null,pass=pd?pd.to:(n.pass||n.hasPassword);
       conn=card("Подключение",csDl([["Производитель",txt(vendor),csChanged("Производитель")],["Модель",txt(val("Модель",n.model||"")),csChanged("Модель")],
         [rtsp?"RTSP":"IP-адрес и порт",addr,csChanged("IP")||csChanged("Порт")||csChanged("RTSP")],
         ["Имя пользователя",txt(val("Имя пользователя",n.user||"")||i18n("Авто")),csChanged("Имя пользователя")],
-        ["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]]));
+        ["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]],n));
     }
     conn=csHead(csWrap("conn",conn),csEditBtns(n,"conn"));
   }
   if(!csEditOn(n.id,"place")){
     const chips=l=>l&&l.length?`<div class="cs-chips">${l.map(x=>`<span class="cs-tag">${escHtml(i18n(x))}</span>`).join("")}</div>`:`<span class="cs-empty">${i18n("не заданы")}</span>`;
-    place=card("Размещение и тревоги",csDl([["Метки серверов: где работает",chips(n.labels)],["Что считать тревогой",chips(n.alarmKinds)]]));
+    place=card("Размещение и тревоги",csDl([["Метки серверов: где работает",chips(n.labels)],["Что считать тревогой",chips(n.alarmKinds)]],n));
   }
   place=csHead(csWrap("place",place),csEditBtns(n,"place"));
   // Частые блоки выше: «Расположение» и «Размещение и тревоги» нужны при каждой установке, параметры драйвера — реже
@@ -16660,6 +16750,8 @@ function csTabWrap(n,html){
   const t=document.createElement("template");t.innerHTML=html;
   const secs=[];
   [...t.content.children].forEach((el,i)=>{
+    // Правило 2 версии профиля: раздел поля, которого нет в версии сервера, в оглавление не идёт (сам раздел прячет общий проход)
+    if(profHideSet.has(el.getAttribute("data-prof-field")))return;
     const ch=el.matches(".card")?el.querySelector(":scope>.ch"):null;
     if(ch){
       const title=csTitleOf(ch),k=el.dataset.sec||("t:"+title);
@@ -17469,16 +17561,16 @@ function detZoneCardHtml(cam,d){
 function detFieldsHtml(cam,d,nameLb,noSensFld){
   const opt=detOption(cam,d),draft=!hwVer.has(d.id),opts=cam?.detectorOptions||[];
   const place=draft&&opts.length?`<div><label>${i18n("Размещение")}</label><select ${onEv("change",["detPlace",`${cam.id}`,`${d.id}`,onEv.value])}><option value="" ${d.template?"":"selected"}>${i18n("Серверный")}</option>${opts.map(o=>`<option value="${escHtml(o.template)}" ${o.template===d.template?"selected":""}>${escHtml(i18n("Встроенный"))}: ${escHtml(o.name)}</option>`).join("")}</select></div>`
-    :fldRo("Размещение",i18n(d.builtin?"Встроенный":"Серверный"));
+    :pfw(d,"builtin",fldRo("Размещение",i18n(d.builtin?"Встроенный":"Серверный")));
   const kind=d.builtin?fldRo("Тип",detKindText(d,cam)):sl("Тип",DET_TYPES,d.kind||DET_TYPES[0]);
   const noSens=!!opt&&opt.sensitivityMin==null;
-  const sens=noSens||noSensFld?"":fld(opt?`Чувствительность`:"Чувствительность",d.sens||"");
-  const streams=!d.builtin&&cam?sl("Поток",camStreams(cam).map(s=>s.id),d.stream||camStreams(cam)[0].id):"";
+  const sens=noSens||noSensFld?"":pfw(d,"sensitivity",fld(opt?`Чувствительность`:"Чувствительность",d.sens||""));
+  const streams=!d.builtin&&cam?pfw(d,"stream",sl("Поток",camStreams(cam).map(s=>s.id),d.stream||camStreams(cam)[0].id)):"";
   return`<div class="g">${fld(nameLb,locName(d))}${place}${kind}${sens}${streams}</div>
     ${opt&&!noSens&&!noSensFld?`<p class="sub">${i18n("Чувствительность")}: ${opt.sensitivityMin}–${opt.sensitivityMax}</p>`:""}
-    ${d.builtin?"":`<div style="margin-top:10px">${fld("Настройки детектора",d.params||"")}</div><label class="sub" style="display:block;margin-top:10px">${i18n("Метки серверов: где считать")}</label>${chipsHtml(refLabels,d.labels,"listToggle",`${d.id}`,"labels")}`}
+    ${d.builtin?"":`<div style="margin-top:10px"${pfa(d,"params")}>${fld("Настройки детектора",d.params||"")}</div><div${pfa(d,"labels")}><label class="sub" style="display:block;margin-top:10px">${i18n("Метки серверов: где считать")}</label>${chipsHtml(refLabels,d.labels,"listToggle",`${d.id}`,"labels")}</div>`}
     <label class="sub" style="display:block;margin-top:10px">${i18n("Что считать тревогой")}</label>${chipsHtml(refEvents,d.alarmKinds,"listToggle",`${d.id}`,"alarmKinds")}
-    <div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${d.enabled!==false?"on":""}" role="switch" aria-checked="${d.enabled!==false}" data-det-on="${escHtml(d.id)}" ${onEv("click",["detEnable",`${d.id}`])}></div></div>`;
+    <div class="ln ln-sw"${pfa(d,"enabled")}><div>${i18n("Включён")}</div><div class="sw ${d.enabled!==false?"on":""}" role="switch" aria-checked="${d.enabled!==false}" data-det-on="${escHtml(d.id)}" ${onEv("click",["detEnable",`${d.id}`])}></div></div>`;
 }
 function detEnable(id){
   const n=find(id)?.n;if(!n)return;
@@ -17513,7 +17605,7 @@ function camDetectorsHtml(n){
     title:"Детекторы камеры",
     items:dets,
     text:d=>[detTitle(d),i18n(d.kind||DET_TYPES[0]),...(dwHasSubs(d)?dwSubUnits(d).map(s=>s.name):[])],
-    row:d=>{const sb=dwHasSubs(d)?dwSubUnits(d).map(dwSubLite):[];return`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"встроенный":"серверный")} · ${escHtml(detZoneText(d))}${sb.length?` · ${sb.length} ${i18n(plural(sb.length,"поддетектор|поддетектора|поддетекторов"))}`:""}</small></span>${pendingDelHas(d.id)?`<span class="bd off">${i18n("удаляется")}</span>`:`${bdg(d)}<button type="button" class="btn s det-row-del" ${onEv("click",onEv.stop,["deleteDetector",`${n.id}`,`${d.id}`])}>${i18n("Удалить")}…</button>`}</div>`
+    row:d=>{const sb=dwHasSubs(d)?dwSubUnits(d).map(dwSubLite):[];return`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"встроенный":"серверный")}${nodeFieldOff(d,"zone")?"":` · ${escHtml(detZoneText(d))}`}${sb.length?` · ${sb.length} ${i18n(plural(sb.length,"поддетектор|поддетектора|поддетекторов"))}`:""}</small></span>${pendingDelHas(d.id)?`<span class="bd off">${i18n("удаляется")}</span>`:`${bdg(d)}<button type="button" class="btn s det-row-del" ${onEv("click",onEv.stop,["deleteDetector",`${n.id}`,`${d.id}`])}>${i18n("Удалить")}…</button>`}</div>`
       +(sb.length?`<div class="dw-csub">${sb.map((s,i)=>`<button type="button" class="dw-csub-r" ${onEv("click",["dwSubPick",d.id,s.id,1])}><i class="dw-tdot" style="background:${DW_SUBC[i%DW_SUBC.length]}"></i><span>${escHtml(s.name)}</span><small>${escHtml(s.kind?i18n(DW_SUBN[s.kind]||s.kind):"")}${s.on?"":` · ${i18n("выкл")}`}</small></button>`).join("")}</div>`:"")},
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
@@ -17629,7 +17721,8 @@ function dwKindOf(d){
   return DW_CODES.has(code)?code:"other";
 }
 // Свойство есть в схеме вида детектора d (вид плагина — своя схема): раздела окна без него нет
-const dwHas=(d,p)=>kindHasProp(nodeKind(d)||"det",p);
+// Правило 2 версии профиля: поля нет в версии сервера — окно детектора его не показывает, как поле вне схемы вида
+const dwHas=(d,p)=>kindHasProp(nodeKind(d)||"det",p)&&!kindFieldOff(nodeKind(d)||"det",p);
 const dwCls=a=>Array.isArray(a)?DW_ALL.filter(x=>a.includes(x)):DW_ALL.slice();
 const dwCopy=pts=>pts.map(q=>[q[0],q[1]]);
 function dwPolyOf(z){if(!z||!z.points?.length)return null;if(z.shape==="rect"){const[[x0,y0],[x1,y1]]=z.points;return[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]}return dwCopy(z.points)}
@@ -17995,6 +18088,7 @@ function dwSceneInner(){
     <rect x="13" y="38" width="3" height="18" fill="#5b4632"/><ellipse cx="14.5" cy="34" rx="12" ry="11" fill="#3f6b45"/><ellipse cx="9" cy="40" rx="7" ry="6" fill="#4c7d52"/><ellipse cx="20" cy="29" rx="7" ry="6" fill="#4c7d52"/>`;
 }
 const dwP=([x,y])=>`${(x*DW_X).toFixed(1)},${(y*DW_Y).toFixed(1)}`;
+// dir "off" — направления нет в версии сервера (правило 2 версии профиля): только линия, без стрелки и сторон A и B
 function dwLineSvg(l,dir,id,col,name){
   const[a,b]=l.map(([x,y])=>[x*DW_X,y*DW_Y]),dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L;
   const m=[(a[0]+b[0])/2,(a[1]+b[1])/2],s=7,p0=[m[0]-nx*s,m[1]-ny*s],p1=[m[0]+nx*s,m[1]+ny*s];
@@ -18002,7 +18096,7 @@ function dwLineSvg(l,dir,id,col,name){
   const arr=dir==="ba"?head(p1,p0):dir==="both"?head(p0,p1)+head(p1,p0):head(p0,p1);
   const lb=(p,t)=>`<text class="dw-tx" x="${(p[0]+(p===p0?-nx:nx)*3).toFixed(1)}" y="${(p[1]+(p===p0?-ny:ny)*3+1).toFixed(1)}" text-anchor="middle">${t}</text>`;
   return`<line class="dw-l" data-b="${id}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}"/>
-    <line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${col}" stroke-width=".9" stroke-dasharray="1.5 1"/>${arr}${lb(p0,"A")}${lb(p1,"B")}
+    ${dir==="off"?"":`<line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${col}" stroke-width=".9" stroke-dasharray="1.5 1"/>${arr}${lb(p0,"A")}${lb(p1,"B")}`}
     ${name?`<text class="dw-tx" x="${(b[0]+1.5).toFixed(1)}" y="${(b[1]-1).toFixed(1)}">${escHtml(name)}</text>`:""}
     ${dw.tool?"":[a,b].map((p,i)=>`<circle class="dw-hd" data-h="${id}:${i}" cx="${p[0]}" cy="${p[1]}" r="1.7" style="--c:${col}"/>`).join("")}`;
 }
@@ -18027,7 +18121,9 @@ function dwPolySvg(){
 function dwGeoSvg(d){
   const k=dwKindOf(d);if(k==="other")return"";
   const c=dwC(d);let h="";
-  c.areas.forEach(a=>{
+  // Правило 2 версии профиля: зону детектора, зону и направление поддетектора, которых нет в версии сервера, кадр не рисует
+  const zOff=nodeFieldOff(d,"zone"),sOff=(x,f)=>{if(!profHideSet.size)return false;const u=dwSubUnits(d).find(y=>y.id===x.id);return kindFieldOff(u?nodeKind(u):"subdet",f)};
+  if(!zOff)c.areas.forEach(a=>{
     const ex=a.type==="ex";
     h+=`<polygon class="dw-a${ex?" ex":""}${dw.sel===a.id?" sel":""}" data-b="area:${a.id}" points="${a.pts.map(dwP).join(" ")}"/>`;
     const top=a.pts.reduce((m,p)=>p[1]<m[1]||(p[1]===m[1]&&p[0]<m[0])?p:m,a.pts[0]);
@@ -18035,16 +18131,16 @@ function dwGeoSvg(d){
     const col=ex?"var(--dw-ex)":"var(--dw-in)";
     if(!dw.tool){if(dw.sel===a.id)h+=dwMidSvg(a.pts,`area:${a.id}`,col);a.pts.forEach((p,i)=>h+=dwHdSvg(`area:${a.id}`,i,p,col,1.7))}
   });
-  if(c.line)h+=dwLineSvg(c.line,c.dir,"line","var(--dw-ln)");
+  if(c.line&&!zOff)h+=dwLineSvg(c.line,c.dir,"line","var(--dw-ln)");
   if(dw.poly)h+=dwPolySvg();
   const subSel=c.subs.some(s=>s.id===dw.subSel)?dw.subSel:null;
   if(DW_SUBP.has(k))c.subs.forEach((s,i)=>{
-    if(!s.on)return;
+    if(!s.on||sOff(s,"zone"))return;
     const col=DW_SUBC[i%DW_SUBC.length],on=subSel===s.id,hd=!dw.tool&&(on||!subSel);
     const cls=`dw-sa${s.kind==="mask"?" mask":""}${on?" sel":subSel?" dim":""}`;
     const poly=(pts,b,lb)=>{h+=`<polygon class="${cls}${dw.sel===`${b}:${s.id}`?" zf":""}" data-b="${b}:${s.id}" points="${pts.map(dwP).join(" ")}" style="--c:${col}"/><text class="dw-tx" x="${(pts[0][0]*DW_X+1).toFixed(1)}" y="${(pts[0][1]*DW_Y-1.2).toFixed(1)}" style="fill:${col}">${escHtml(lb)}</text>`;
       if(hd){if(dw.sel===`${b}:${s.id}`)h+=dwMidSvg(pts,`${b}:${s.id}`,col);pts.forEach((p,j)=>h+=dwHdSvg(`${b}:${s.id}`,j,p,col,1.5))}};
-    if(s.kind==="line")h+=dwLineSvg(s.line,s.dir,`subl:${s.id}`,col,s.name);
+    if(s.kind==="line")h+=dwLineSvg(s.line,sOff(s,"direction")?"off":s.dir,`subl:${s.id}`,col,s.name);
     else{poly(s.area.pts,"sub",s.kind==="a2a"?`1 · ${s.name}`:s.name);if(s.kind==="a2a")poly(s.area2.pts,"sub2","2")}
   });
   if(dw.lay.size&&DW_SIZE.has(k))["min","max"].forEach(m=>{
@@ -18209,7 +18305,7 @@ function dwArcSet(id,f){const c=dwC(detNodeOf(id));c.arc[f]=!c.arc[f];if(f==="sh
 function dwArcSw(id,c,f,help,dis){
   const on=!!c.arc[f],l=DW_ARC_F.find(x=>x[0]===f)[1].replace(/^(Записывать|Показывать) /,"");
   if(!dwArcHas(detNodeOf(id),f))return"";
-  return`<div class="dw-f dw-arc-f${dis?" dis":""}" data-dw-arc="${f}"><label class="dw-swl"${dis?` title="${i18n(dis)}"`:""}><span class="sw ${on?"on":""}${dis?" dis":""}" role="switch" aria-checked="${on}"${dis?` aria-disabled="true"`:` ${onEv("click",["dwArcSet",id,f])}`} aria-label="${i18n(DW_ARC_F.find(x=>x[0]===f)[1])}"></span>${i18n(l[0].toUpperCase()+l.slice(1))}</label>${help?dwHelp(help):""}</div>`;
+  return`<div class="dw-f dw-arc-f${dis?" dis":""}" data-dw-arc="${f}"${pfa(detNodeOf(id),f)}><label class="dw-swl"${dis?` title="${i18n(dis)}"`:""}><span class="sw ${on?"on":""}${dis?" dis":""}" role="switch" aria-checked="${on}"${dis?` aria-disabled="true"`:` ${onEv("click",["dwArcSet",id,f])}`} aria-label="${i18n(DW_ARC_F.find(x=>x[0]===f)[1])}"></span>${i18n(l[0].toUpperCase()+l.slice(1))}</label>${help?dwHelp(help):""}</div>`;
 }
 // Срок хранения метаданных — у домена детектора, страница «Хранение» опций
 // Домен детектора: по серверу, а без сервера — домен устройства (камеры) из записи
@@ -18462,16 +18558,18 @@ function dwSubsHtml(id,k,c){
     return`<div class="dw-sub${s.on?"":" off"}${op?" sel":""}" style="--c:${col}" data-dw-sub="${escHtml(s.id)}">
       <div class="dw-sub-h"><button type="button" class="dw-sub-t" aria-expanded="${op}" ${onEv("click",["dwSubSel",s.id])}><span class="tw">${op?TW_OPEN:TW_SHUT}</span><i class="dw-sw" style="background:${col}"></i><span class="dw-sub-tt"><b>${escHtml(s.name)}</b><span class="sub">${i18n(DW_SUBN[s.kind])}</span></span></button>
         <span class="dw-sub-n">${s.kind==="mask"?i18n("без событий"):`${n} ${i18n("сраб.")}`}</span>
-        <div class="sw ${s.on?"on":""}" role="switch" aria-checked="${s.on}" aria-label="${i18n("Включён")}" ${onEv("click",["dwSubOn",id,s.id])}></div></div>
+        <div class="sw ${s.on?"on":""}" role="switch" aria-checked="${s.on}" aria-label="${i18n("Включён")}"${dwSubPf(id,s,"enabled")} ${onEv("click",["dwSubOn",id,s.id])}></div></div>
       ${op?`<div class="dw-sub-b">${dwSubBodyHtml(id,k,s)}</div>`:""}</div>`}).join("");
   const empty=c.subs.length?"":`<p class="sub">${i18n(k==="tracker"?"У трекера нет поддетекторов. Трекер сам не создаёт событий: чтобы получать события, создать поддетектор.":"Поддетекторов нет. Поддетектор добавляет к событиям детектора событие по своему условию: линия, область, время.")}</p>`;
   if(one)return rows;
   const add=dw.subNew?dwSubNewHtml(id,k):`<div class="dw-row"><button type="button" class="btn s" ${onEv("click",["dwSubNewOpen"])}>${lu("plus",14)}${i18n("Создать поддетектор")}</button></div>`;
   return rows+empty+add+dwHelp("Детектор находит объекты, а поддетектор решает, когда сработать. Зоны детектирования и размер объекта детектора действуют на все его поддетекторы.");
 }
+// Правило 2 версии профиля: метка поля поддетектора — по виду его объекта (subdet или вид плагина с vms.subdetector/1)
+function dwSubPf(id,s,f){const u=dwSubUnits(detNodeOf(id)||{}).find(x=>x.id===s.id);return pfa(u?nodeKind(u):"subdet",f)}
 function dwSubBodyHtml(id,k,s){
-  const num=(key,l,min,max,unit,help)=>`<div class="dw-f dw-num"><label>${i18n(l)}</label><span class="dw-in"><input type="number" min="${min}" max="${max}" value="${s[key]}" ${onEv("input",["dwSubSet",id,s.id,key,onEv.value,onEv.el])}>${unit?`<span>${i18n(unit)}</span>`:""}</span>${help?dwHelp(help):""}</div>`;
-  const seg=o=>`<span class="dw-seg">${o.map(([v,l])=>`<button type="button" class="${s.mode===v?"on":""}" ${onEv("click",["dwSubMode",id,s.id,v])}>${i18n(l)}</button>`).join("")}</span>`;
+  const num=(key,l,min,max,unit,help)=>`<div class="dw-f dw-num"${key==="time"?dwSubPf(id,s,"timeSec"):""}><label>${i18n(l)}</label><span class="dw-in"><input type="number" min="${min}" max="${max}" value="${s[key]}" ${onEv("input",["dwSubSet",id,s.id,key,onEv.value,onEv.el])}>${unit?`<span>${i18n(unit)}</span>`:""}</span>${help?dwHelp(help):""}</div>`;
+  const seg=o=>`<span class="dw-seg"${dwSubPf(id,s,"timeMode")}>${o.map(([v,l])=>`<button type="button" class="${s.mode===v?"on":""}" ${onEv("click",["dwSubMode",id,s.id,v])}>${i18n(l)}</button>`).join("")}</span>`;
   const f=[`<div class="dw-f"><label>${i18n("Имя")}</label><input type="text" class="dw-txt" value="${escHtml(s.name)}" aria-label="${i18n("Имя поддетектора")}" ${onEv("input",["dwSubName",id,s.id,onEv.value])}></div>`];
   if(s.kind==="line")f.push(`<div class="dw-f"><label>${i18n("Направление")}</label>${dwDirHtml(id,s.dir,"dwSubDir",s.id)}${dwHelp("Линия поддетектора показана на кадре. Чтобы изменить линию, тянуть её концы мышью.")}</div>`);
   else{const c=dwC(detNodeOf(id)),col=DW_SUBC[c.subs.indexOf(s)%DW_SUBC.length];f.push(dwSubZonesHtml(id,s,col)+dwHelp(s.kind==="a2a"?"Области 1 и 2 показаны на кадре. Чтобы изменить область, тянуть её или её точки мышью.":"Область поддетектора показана на кадре. Чтобы изменить область, тянуть её или её точки мышью."))}
@@ -18481,7 +18579,7 @@ function dwSubBodyHtml(id,k,s){
   if(s.kind==="abandoned")f.push(num("time","Сработать, если предмет лежит дольше",1,172800,"с"));
   if(s.kind==="a2a")f.push(`<div class="dw-f"><label>${i18n("Время перехода из области 1 в область 2")}</label>${seg([["gt","дольше"],["lt","меньше"]])}</div>`,num("time","Время",0,172800,"с","Если время 0, поддетектор не проверяет время перехода."));
   if(s.kind==="multi")f.push(num("count","Объектов в области не меньше",1,100,"","Поддетектор сработает, когда в области одновременно находится столько объектов."));
-  if(k!=="motion"&&s.kind!=="mask"&&s.kind!=="abandoned")f.push(`<div class="dw-f"><label>${i18n("Классы объектов")}</label>${dwChips(id,["person","car","bike"],s.classes,"dwSubClass",s.id)}</div>`);
+  if(k!=="motion"&&s.kind!=="mask"&&s.kind!=="abandoned")f.push(`<div class="dw-f"${dwSubPf(id,s,"classes")}><label>${i18n("Классы объектов")}</label>${dwChips(id,["person","car","bike"],s.classes,"dwSubClass",s.id)}</div>`);
   if(s.kind!=="mask"&&DW_SIZE.has(k)){
     const c=dwC(detNodeOf(id)),p=a=>`${Math.round(a[0]*1000)/10} × ${Math.round(a[1]*1000)/10} %`;
     f.push(`<div class="dw-f"><label>${i18n("Размер объекта")} <span class="sub">${i18n("как у детектора")}</span></label>
@@ -18494,7 +18592,7 @@ function dwSubBodyHtml(id,k,s){
     f.push(`<details class="dw-adv"${dw.subAdv?" open":""}><summary>${i18n("Дополнительно")}</summary><div class="dw-adv-b">
       <div class="dw-f dw-num"><label>${i18n("Скорость объекта")}</label><span class="dw-in"><span>${i18n("от")}</span>${inp("spd",0,0,500,"Скорость не меньше")}<span>${i18n("до")}</span>${inp("spd",1,0,500,"Скорость не больше")}</span>${dwHelp("Поддетектор пропускает объекты медленнее и быстрее этих значений. Значения — от 0 до 500.")}</div>
       <div class="dw-f dw-num"><label>${i18n("Смещение по X и Y")}</label><span class="dw-in">${inp("off",0,1,40,"Смещение по X")}<span>×</span>${inp("off",1,1,40,"Смещение по Y")}<span>% ${i18n("рамки")}</span></span>${dwHelp("Консоль считает смещение в процентах рамки объекта. Значение может быть от 1 до 40.")}</div>
-      <div class="dw-f"><label class="dw-swl"><span class="sw ${s.grp?"on":""}" role="switch" aria-checked="${s.grp}" ${onEv("click",["dwSubGrp",id,s.id])}></span>${i18n("Сработать на группу объектов")}</label>
+      <div class="dw-f"${dwSubPf(id,s,"group")}><label class="dw-swl"><span class="sw ${s.grp?"on":""}" role="switch" aria-checked="${s.grp}" ${onEv("click",["dwSubGrp",id,s.id])}></span>${i18n("Сработать на группу объектов")}</label>
         ${s.grp?num("gn","Объектов в группе не меньше",1,100,"")+num("gh","Ждать следующие объекты группы",0,86400,"с","Поддетектор ждёт это время после первого объекта группы. Если за это время пришло нужное число объектов, поддетектор сработает."):""}</div>
       <p class="sub" data-plan-stub>${i18n("Заглушка: превью не учитывает смещение и группу объектов.")}</p></div></details>`);
   }
@@ -18746,7 +18844,7 @@ function faceClashHtml(d){
 }
 function dwPanelHtml(cam,d,k,c){
   const id=d.id,on=d.enabled!==false;
-  const head=`<section class="dw-sec dw-head"><div class="dw-name"><input type="text" value="${escHtml(locName(d))}" aria-label="${i18n("Имя")}" readonly><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" aria-label="${i18n("Включён")}" ${onEv("click",["detEnable",`${id}`])}></div></div>
+  const head=`<section class="dw-sec dw-head"><div class="dw-name"><input type="text" value="${escHtml(locName(d))}" aria-label="${i18n("Имя")}" readonly><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" aria-label="${i18n("Включён")}"${pfa(d,"enabled")} ${onEv("click",["detEnable",`${id}`])}></div></div>
     <p class="sub">${escHtml(i18n(DW_KINDS.find(x=>x[0]===k)?.[1]||detKindText(d,cam)))} · ${i18n(d.builtin?"на камере":"на сервере")}${cam?` · ${escHtml(locName(cam))}`:""}</p>
     <div class="dw-state" data-dw-st>${dwStateHtml(d)}</div></section>`;
   // Вкладки столбца: «Детектор», «Поддетекторы» (у видов с поддетекторами), «Автоматизация» — правила с детектором (в «Оборудовании»)
@@ -18766,7 +18864,7 @@ function dwPanelHtml(cam,d,k,c){
   // Встроенный детектор: границы ползунка — из шаблона камеры, а без чувствительности в шаблоне ползунка нет
   const opt=detOption(cam,d);
   // Чувствительности у объекта нет — ползунок показывает умолчание (dwSensDef), а поле в «Дополнительно» не нужно
-  const sensUi=(k==="motion"||k==="tracker")&&!(opt&&opt.sensitivityMin==null);
+  const sensUi=(k==="motion"||k==="tracker")&&!(opt&&opt.sensitivityMin==null)&&!nodeFieldOff(d,"sensitivity");
   if(sensUi)when.push(dwRange(id,"sens","Чувствительность",opt?.sensitivityMin??1,opt?.sensitivityMax??100,1,"","Чем выше чувствительность, тем более слабое движение замечает детектор."));
   if((k==="neural"||k==="lpr")&&dwHas(d,"confidence"))when.push(dwRange(id,"conf","Уверенность нейросети не ниже",10,99,1,"%","Детектор сработает, только если нейросеть уверена в объекте не меньше этого значения.","conf"));
   if(k==="lpr"&&dwHas(d,"plateWidth"))when.push(`<div class="dw-f"><label>${i18n("Ширина номера")} <b data-dw-out="pw">${dwPwText(c)}</b></label>
@@ -21455,8 +21553,8 @@ function liveFrameHtml(n,inner=""){
 const VW_LAYOUT="a";
 let vwTab="ev";
 function camViewHtml(n){
-  const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
-  const ptz=!!n.ptz&&can("putUnitPtz");
+  const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res&&!kindFieldOff("stream","res")?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
+  const ptz=!!n.ptz&&!nodeFieldOff(n,"ptz")&&can("putUnitPtz");
   // Экспорт — одной группой, «Экспорт…» первой: по ней видно, что «Кадр» и «Область» — тоже выгрузка (раунд 5)
   const exp=can("createExport")?`<span class="vw-sep" aria-hidden="true"></span><span class="vw-expg" role="group" aria-label="${i18n("Экспорт")}"><button type="button" class="btn s" data-exp-cam-go title="${i18n("Выгрузить запись или живое видео в файл")}" ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download",14)}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live title="${i18n("Сохранить текущий кадр в файл")}" ${onEv("click",["vwFrameExp",n.id])}>${lu("camera",14)}${i18n("Кадр")}</button>`:""}${can("feature:exportArea")?`<button type="button" class="btn s" data-exp-area-go title="${i18n("Выбрать область кадра и сохранить её в файл")}" ${onEv("click",["expCropStart",n.id])}>${lu("crop",14)}${i18n("Область")}</button>`:""}</span>`:"";
   const mark=can("createUnitBookmark")&&can("listUnitBookmarks")?`<button type="button" class="btn s" data-vw-mark ${onEv("click",["vwMarkGo"])}>${i18n("Отметить")}</button>`:"";
@@ -21957,7 +22055,7 @@ function cvStreamFps(n,s,i){return s.fps??(i?null:n.fps)}
 function cvKbpsText(k){return k>=1000?`${(k/1000).toFixed(k%1000?1:0).replace(".",",")} ${i18n("Мбит/с")}`:`${k} ${i18n("кбит/с")}`}
 
 function camVideoHtml(n){
-  const ptz=!!n.ptz&&can("putUnitPtz");
+  const ptz=!!n.ptz&&!nodeFieldOff(n,"ptz")&&can("putUnitPtz");
   // «Авто» нет: в превью одного размера оно прячет, какой поток на экране (как вкладки Main / Second stream в Axxon One)
   const cur=(lv?.id===n.id&&lv.stream)||camStreams(n)[0]?.id||"";
   const main=`<div class="card cv-main"><div class="ch cv-h"><span>${i18n("Видео")}</span>${bdg(n)}</div>
@@ -21973,7 +22071,8 @@ function cvStreamPickHtml(n,cur){
   // Выбран поток с сигналом: если cur без сигнала, отмечен первый живой. В Tab — одна остановка, стрелки ходят по живым
   const pick=on.some(s=>s.id===cur)?cur:(on[0]?.id||cur);
   const rows=ss.map((s,i)=>{const p=c.streams[s.id],res=cvStreamRes(n,s,i),fps=cvStreamFps(n,s,i),off=s.online===false;
-    const t=`${(res||"—").replace("x","×")} · ${fps??"—"} ${i18n("к/с")} · ${drvSend(n)?p.codec:s.codec||"—"} · ${cvKbpsText(p.kbps)}`;
+    // Правило 2 версии профиля: поле потока, которого нет в версии сервера, строка пропускает
+    const so=f=>kindFieldOff("stream",f),t=[so("res")?"":(res||"—").replace("x","×"),so("fps")?"":`${fps??"—"} ${i18n("к/с")}`,so("codec")?"":drvSend(n)?p.codec:s.codec||"—",cvKbpsText(p.kbps)].filter(Boolean).join(" · ");
     return`<button type="button" role="radio" class="cv-sp" aria-checked="${s.id===pick}" tabindex="${s.id===pick?0:-1}" title="${escHtml(`${s.name}: ${t}${off?`. ${i18n("Нет сигнала")}`:""}`)}" data-cv-stream="${escHtml(s.id)}" ${off?"disabled":""} ${onEv("click",["cvStreamSet",`${n.id}`,`${s.id}`])}><span class="cv-sp-r" aria-hidden="true"></span><b>${escHtml(s.name)}</b><span class="cv-sp-t">${escHtml(t)}</span>${off?`<span class="pf-st bad">${i18n("нет сигнала")}</span>`:""}</button>`}).join("");
   return`<div class="cv-sps" role="radiogroup" aria-label="${i18n("Поток в просмотре")}" ${onEv("keydown",["cvStreamKey",`${n.id}`])}><div class="cv-sps-h">${i18n("Поток в просмотре")}</div>${rows}</div>`;
 }
@@ -22287,7 +22386,7 @@ function cvPresetsHtml(n){
 function cvSideTabsHtml(n){
   const st=cvToursOf(n),run=st.run,pl=presetRows(n).length;
   const tab=(k,l,c,extra="")=>`<button type="button" role="tab" id="cv-tab-${k}" aria-selected="${cvSideTab===k}" tabindex="${cvSideTab===k?0:-1}" data-cv-tab="${k}" ${onEv("click",["cvSideTabSet",`${n.id}`,k])} ${onEv("keydown",["cvSideTabKey",`${n.id}`])}>${i18n(l)}<span>${c}</span>${extra}</button>`;
-  return`<div class="cv-tabs" role="tablist" aria-label="${i18n("Пресеты и туры")}">${tab("pre","Пресеты",`${pl}${n.presetMax?`<span data-preset-max> ${i18n("из")} ${n.presetMax}</span>`:""}`)}${tab("tours","Туры",st.tours.length,`<i class="cv-dot ${run?.paused?"pause":""}" data-cv-tour-dot ${run?"":"hidden"} title="${i18n(run?.paused?"Тур на паузе":"Тур идёт")}"></i>`)}</div>`;
+  return`<div class="cv-tabs" role="tablist" aria-label="${i18n("Пресеты и туры")}">${tab("pre","Пресеты",`${nodeFieldOff(n,"presets")?"":pl}${n.presetMax&&!nodeFieldOff(n,"presetMax")?`<span data-preset-max> ${i18n("из")} ${n.presetMax}</span>`:""}`)}${tab("tours","Туры",st.tours.length,`<i class="cv-dot ${run?.paused?"pause":""}" data-cv-tour-dot ${run?"":"hidden"} title="${i18n(run?.paused?"Тур на паузе":"Тур идёт")}"></i>`)}</div>`;
 }
 // Смена вкладки — только содержимое панели, с проявлением; видео и джойстик не трогает
 function cvSideTabSet(id,k){
@@ -22325,8 +22424,10 @@ function cvPresetListHtml(n){
       <input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")} ${p.n}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}>
       <button type="button" class="btn s btn-icon" data-preset-save ${off?"disabled":""} title="${escHtml(nat?i18n("Камера за NAT. Связи с ней нет, поэтому здесь нельзя запомнить положение"):i18n("Записать в этот пресет нынешнее положение камеры"))}" aria-label="${i18n("Записать нынешнее положение")} ${p.n}" ${onEv("click",["cvPresetOverwrite",`${n.id}`,p.n])}>${lu("crosshair",14)}</button>
       <button type="button" class="btn s btn-icon" title="${i18n("Удалить пресет")}" aria-label="${i18n("Удалить пресет")} ${p.n}" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${lu("trash",14)}</button></li>`).join("");
-  return`${nat?`<p class="sub cv-nat" data-preset-nat>${i18n("Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно")}</p>`:""}${list.length?`<ul class="cv-pl" data-cv-pl data-keep-scroll>${rows}</ul>`:`<p class="sub cv-pl-empty">${i18n("Пресетов нет. Повернуть камеру и запомнить положение")}</p>`}
-    <div class="cv-pre-add"><input data-cv-newname placeholder="${escHtml(full?i18n("Все номера заняты"):`${i18n("Пресет")} ${presetFree(n)}`)}" aria-label="${i18n("Имя нового пресета")}" ${full||off?"disabled":""} ${onEv("keydown",[".key","Enter"],["cvPresetNew",`${n.id}`])}>
+  // Правило 2 версии профиля: метка presets на каждом верхнем элементе списка — список рисуют и карточка, и смена вкладки
+  const pf=pfa(n,"presets");
+  return`${nat?`<p class="sub cv-nat" data-preset-nat${pf}>${i18n("Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно")}</p>`:""}${list.length?`<ul class="cv-pl" data-cv-pl data-keep-scroll${pf}>${rows}</ul>`:`<p class="sub cv-pl-empty"${pf}>${i18n("Пресетов нет. Повернуть камеру и запомнить положение")}</p>`}
+    <div class="cv-pre-add"${pf}><input data-cv-newname placeholder="${escHtml(full?i18n("Все номера заняты"):`${i18n("Пресет")} ${presetFree(n)}`)}" aria-label="${i18n("Имя нового пресета")}" ${full||off?"disabled":""} ${onEv("keydown",[".key","Enter"],["cvPresetNew",`${n.id}`])}>
       <button type="button" class="btn s pri" data-cv-preset-new ${full||off?"disabled":""} title="${escHtml(full?i18n("Все номера заняты"):nat?i18n("Камера за NAT. Связи с ней нет, поэтому здесь нельзя запомнить положение"):i18n("Запомнить нынешнее положение камеры под следующим свободным номером"))}" ${onEv("click",["cvPresetNew",`${n.id}`])}>${lu("plus",14)}${i18n("Запомнить")}</button></div>`;
 }
 // ── Туры (ЗАГЛУШКА: в контракте туров нет) ─────────────────────
@@ -22710,7 +22811,7 @@ function pmShotAt(n){if(!pmShots.has(n.id))pmShots.set(n.id,Date.now());return n
 
 function pmSecHtml(n){
   const sum=pmSum(n);
-  return`<div class="card pm-sec" data-sec="pm" data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Маска приватности")}<span class="sub" style="font-weight:400" data-pm-sum>${escHtml(sum)}</span></div><div class="cb"><div data-pm-body>${pmBodyHtml(n)}</div></div></div>`;
+  return`<div class="card pm-sec" data-sec="pm"${pfa(n,"privacyMasks")} data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Маска приватности")}<span class="sub" style="font-weight:400" data-pm-sum>${escHtml(sum)}</span></div><div class="cb"><div data-pm-body>${pmBodyHtml(n)}</div></div></div>`;
 }
 function pmBodyHtml(n){
   const c=pmCur(n),areas=pmAreas(n),dirty=pmDirty(n),d=pmDomain(n);
@@ -22912,7 +23013,7 @@ function pmKey(id,e){
 // Раздел во всю ширину: режим и время на объекте, карточки обзорных камер (кадр с точками и сеткой, состояние),
 // калибровка — на месте карточек: кадр PTZ и кадр обзорной камеры рядом, под ними таблица точек
 function ttSecHtml(n){
-  if(!n.ptz)return"";
+  if(!n.ptz||nodeFieldOff(n,"ptz"))return"";
   const st=ttOf(n),m=TT_MODES.find(x=>x[0]===st.mode)||TT_MODES[0],ready=ttReady(st).length;
   const sum=`${i18n(m[1])} · ${i18n("обзорных камер с привязкой")}: ${ready} ${i18n("из")} ${st.ovs.length}`;
   return`<div class="card tt-sec" data-sec="tt" data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Слежение Tag&Track Pro")}<span class="sub" style="font-weight:400">${escHtml(sum)}</span></div><div class="cb"><div data-tt-body>${ttBodyHtml(n)}</div></div></div>`;
@@ -23186,12 +23287,12 @@ function cvStreamColHtml(n,s,i,c,con){
   }
   const head=`<div class="cv-col-h"><b>${escHtml(s.name)}</b>${i?"":`<span class="sub">${i18n("основной")}</span>`}${s.online===false?`<span class="pf-st bad">${i18n("нет сигнала")}</span>`:`<span class="pf-st ok">${i18n("работает")}</span>`}
     ${con&&i?`<button type="button" class="btn s btn-icon" title="${i18n("Удалить поток")}" aria-label="${i18n("Удалить поток")} ${escHtml(s.name)}" ${pendingDelHas(`camstream:${id}/${sid}`)?"disabled":""} ${onEv("click",["streamDel",`${id}`,`${sid}`])}>${lu("trash",14)}</button>`:""}</div>`;
-  if(!con)return`<div class="cv-col" data-stream="${escHtml(sid)}">${head}<div class="cv-g">${ro("Кодек",`${s.codec||p.codec}${p.profile?` · ${p.profile}`:""}`)}${ro("Разрешение",(res||"—").replace("x","×"))}${ro("Кадров в секунду",fps??"—")}${ro("Битрейт",`${p.brc==="cbr"?i18n("постоянный"):i18n("переменный, до")} ${cvKbpsText(p.kbps)}`)}${ro("Опорный кадр",`${i18n("каждые")} ${p.gop} ${i18n("кадров")}`)}${ro("В просмотре",i18n(p.live?"да":"нет"))}</div></div>`;
+  if(!con)return`<div class="cv-col" data-stream="${escHtml(sid)}">${head}<div class="cv-g">${pfw("stream","codec",ro("Кодек",`${s.codec||p.codec}${p.profile?` · ${p.profile}`:""}`))}${pfw("stream","res",ro("Разрешение",(res||"—").replace("x","×")))}${pfw("stream","fps",ro("Кадров в секунду",fps??"—"))}${ro("Битрейт",`${p.brc==="cbr"?i18n("постоянный"):i18n("переменный, до")} ${cvKbpsText(p.kbps)}`)}${ro("Опорный кадр",`${i18n("каждые")} ${p.gop} ${i18n("кадров")}`)}${ro("В просмотре",i18n(p.live?"да":"нет"))}</div></div>`;
   const resOpts=s.resOptions||(i?null:n.resOptions);
-  const resF=`<div class="cv-f"><label>${i18n("Разрешение")}</label>${resInput(resOpts,res,["cvPend",`${id}`,`${sid}`,"res",onEv.value]).replace(/^<(select|input) /,`<$1 data-df="Разрешение" `)}</div>`;
-  const fpsF=`<div class="cv-f"><label>${i18n("Кадров в секунду")}</label><span class="cv-num"><input type="number" min="1" value="${escHtml(fps??"")}" ${onEv("change",["cvPend",`${id}`,`${sid}`,"fps",onEv.value])}><small>${i18n("к/с")}</small></span></div>`;
+  const resF=`<div class="cv-f"${pfa("stream","res")}><label>${i18n("Разрешение")}</label>${resInput(resOpts,res,["cvPend",`${id}`,`${sid}`,"res",onEv.value]).replace(/^<(select|input) /,`<$1 data-df="Разрешение" `)}</div>`;
+  const fpsF=`<div class="cv-f"${pfa("stream","fps")}><label>${i18n("Кадров в секунду")}</label><span class="cv-num"><input type="number" min="1" value="${escHtml(fps??"")}" ${onEv("change",["cvPend",`${id}`,`${sid}`,"fps",onEv.value])}><small>${i18n("к/с")}</small></span></div>`;
   return`<div class="cv-col" data-stream="${escHtml(sid)}">${head}<div class="cv-g">
-    ${sel("Кодек","codec",CV_CODECS,p.codec)}${p.codec==="MJPEG"?"":sel("Профиль кодека","profile",CV_PROFILES,p.profile)}
+    ${pfw("stream","codec",sel("Кодек","codec",CV_CODECS,p.codec))}${p.codec==="MJPEG"?"":sel("Профиль кодека","profile",CV_PROFILES,p.profile)}
     ${resF}${fpsF}
     ${sel("Режим битрейта","brc",[["vbr","Переменный (VBR)"],["cbr","Постоянный (CBR)"]],p.brc)}
     ${num(p.brc==="cbr"?"Битрейт":"Наибольший битрейт","kbps",p.kbps,64,"кбит/с")}
@@ -23247,7 +23348,7 @@ function ptzPadHtml(n){
   return`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${noMove?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>`;
 }
 function ptzCardHtml(n){
-  if(!n.ptz)return"";
+  if(!n.ptz||nodeFieldOff(n,"ptz"))return"";
   // Камера за NAT: положение пишет устройство в момент просьбы, а связи с ним нет. Движения и «Запомнить здесь» нет,
   // подпись пресета идёт правкой: ADR-0111 доп. (1)
   const list=presetRows(n),nat=n.direct===false,off=n.online===false||nat,full=presetFree(n)==null;
@@ -23324,6 +23425,9 @@ function posFmt(k,v){
   return null;
 }
 // Схема — вида узла: касса плагина с vms.pos/1 читает свои умолчания и перечни
+// Чек делится только по словам начала (receiptSplit none). Поля нет в версии сервера (правило 2) — умолчание сервера: по
+// словам начала и конца
+function posByStart(n){return posVal(n,"receiptSplit")==="none"&&!nodeFieldOff(n,"receiptSplit")}
 function posDef(n,k){return nodeProps(n)[k]?.default}
 function posVal(n,k){return n[k]!==undefined?n[k]:posDef(n,k)}
 // Камеры титров: список overlays; у системы без него — одна камера из cameraId (n.camera)
@@ -23407,7 +23511,7 @@ function posHas(line,w,cs){return cs?line.includes(w):line.toLowerCase().include
 function posBounds(n,lines){
   const cs=posVal(n,"ignoreCase")===false,find1=(ws,from)=>lines.findIndex((t,i)=>i>=from&&ws.some(w=>w&&posHas(t,w,cs)));
   const start=n.receiptStartWords||[],end=n.receiptEndWords||[];
-  const s=start.length?find1(start,0):-1,e=end.length&&posVal(n,"receiptSplit")!=="none"?find1(end,Math.max(0,s)):-1;
+  const s=start.length?find1(start,0):-1,e=end.length&&!posByStart(n)?find1(end,Math.max(0,s)):-1;
   return{s,e};
 }
 function posLines(n,lines){
@@ -23458,7 +23562,7 @@ function posFrameHtml(n){
 }
 function posCamsHtml(n){
   const list=posOverlays(n),cur=posCur(n),free=list.length<(posMulti(n)?16:1)?overlayCameras(n).filter(c=>!list.some(o=>o.cameraId===c.id)):[];
-  return`<div class="pos-cams">${list.map(o=>{const c=o.cameraId,cn=find(c)?.n;return`<span class="pos-cam${c===cur?" on":""}"><button type="button" class="pos-cam-b" ${onEv("click",["posCamPick",`${n.id}`,c])}>${escHtml(cn?locName(cn):c)}</button><button type="button" class="pos-cam-x" aria-label="${i18n("Убрать камеру")}" title="${i18n("Убрать камеру")}" ${onEv("click",["posCamDel",`${n.id}`,c])}>×</button></span>`}).join("")}
+  return`<div class="pos-cams"${pfa(n,posMulti(n)?"overlays":"cameraId")}>${list.map(o=>{const c=o.cameraId,cn=find(c)?.n;return`<span class="pos-cam${c===cur?" on":""}"><button type="button" class="pos-cam-b" ${onEv("click",["posCamPick",`${n.id}`,c])}>${escHtml(cn?locName(cn):c)}</button><button type="button" class="pos-cam-x" aria-label="${i18n("Убрать камеру")}" title="${i18n("Убрать камеру")}" ${onEv("click",["posCamDel",`${n.id}`,c])}>×</button></span>`}).join("")}
     ${free.length?`<select class="pos-cam-add" aria-label="${i18n("Добавить камеру")}" ${onEv("change",["posCamAdd",`${n.id}`,onEv.value])}><option value="">${i18n("+ Камера")}</option>${free.map(c=>`<option value="${escHtml(c.id)}">${escHtml(locName(c))}</option>`).join("")}</select>`:""}</div>`;
 }
 function posPreviewCard(n){
@@ -23506,20 +23610,21 @@ function posMergeProto(out,n){
   g.forEach(r=>{if(r!==first)out.splice(out.indexOf(r),1)});
 }
 function posTog(id,k){const n=find(id)?.n;if(!n)return;n[k]=!posVal(n,k);setD(true);gear()}
-function posChk(id,n,k,label,hint=""){return`<label class="chk pos-chk"><input type="checkbox" ${posVal(n,k)?"checked":""} ${onEv("change",["posTog",`${id}`,k])}> ${i18n(label)}${hint?`<span class="sub">${i18n(hint)}</span>`:""}</label>`}
+// Поля кассы по ключу k: метка правила 2 версии профиля (pfa) — у всех полей posChk, posSel и posNum сразу
+function posChk(id,n,k,label,hint=""){return`<label class="chk pos-chk"${pfa(n,k)}><input type="checkbox" ${posVal(n,k)?"checked":""} ${onEv("change",["posTog",`${id}`,k])}> ${i18n(label)}${hint?`<span class="sub">${i18n(hint)}</span>`:""}</label>`}
 function posSel(id,k,label,opts,cur){
-  return`<div><label>${i18n(label)}</label><select ${onEv("change",["posSet",`${id}`,k,onEv.value])}>${opts.map(o=>{const[v,t]=Array.isArray(o)?o:[o,o];return`<option value="${escHtml(v)}" ${String(v)===String(cur)?"selected":""}>${i18n(t)}</option>`}).join("")}</select></div>`;
+  return`<div${pfa(find(id)?.n,k)}><label>${i18n(label)}</label><select ${onEv("change",["posSet",`${id}`,k,onEv.value])}>${opts.map(o=>{const[v,t]=Array.isArray(o)?o:[o,o];return`<option value="${escHtml(v)}" ${String(v)===String(cur)?"selected":""}>${i18n(t)}</option>`}).join("")}</select></div>`;
 }
 function posNum(id,n,k,label){
   const p=nodeProps(n)[k]||{},v=posVal(n,k);
-  return`<div><label>${i18n(label)}</label><input type="number" value="${escHtml(v??"")}" ${p.minimum!=null?`min="${p.minimum}"`:""} ${p.maximum!=null?`max="${p.maximum}"`:""} ${onEv("change",["posSet",`${id}`,k,onEv.value])}></div>`;
+  return`<div${pfa(n,k)}><label>${i18n(label)}</label><input type="number" value="${escHtml(v??"")}" ${p.minimum!=null?`min="${p.minimum}"`:""} ${p.maximum!=null?`max="${p.maximum}"`:""} ${onEv("change",["posSet",`${id}`,k,onEv.value])}></div>`;
 }
 function posLookCard(n){
   const font=posVal(n,"overlayFont"),fonts=POS_FONTS.includes(font)?POS_FONTS:[font,...POS_FONTS],clear=posVal(n,"overlayBgTransparency");
   return card("Вид титров",`<div class="g">${posSel(n.id,"overlayFont","Шрифт",fonts,font)}${posNum(n.id,n,"overlayFontSize","Размер, пт")}
-    <div><label>${i18n("Цвет текста")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayColor")))}" ${onEv("change",["posSet",`${n.id}`,"overlayColor",onEv.value])}></div>
-    <div><label>${i18n("Цвет фона")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayBg")))}" ${onEv("change",["posSet",`${n.id}`,"overlayBg",onEv.value])}></div>
-    <div class="pos-range"><label>${i18n("Прозрачность фона")}: ${escHtml(clear)} %</label><input type="range" min="0" max="100" step="5" value="${escHtml(clear)}" ${onEv("input",["posClear",`${n.id}`,onEv.el])} ${onEv("change",["posSet",`${n.id}`,"overlayBgTransparency",onEv.value])}></div></div>`);
+    <div${pfa(n,"overlayColor")}><label>${i18n("Цвет текста")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayColor")))}" ${onEv("change",["posSet",`${n.id}`,"overlayColor",onEv.value])}></div>
+    <div${pfa(n,"overlayBg")}><label>${i18n("Цвет фона")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayBg")))}" ${onEv("change",["posSet",`${n.id}`,"overlayBg",onEv.value])}></div>
+    <div class="pos-range"${pfa(n,"overlayBgTransparency")}><label>${i18n("Прозрачность фона")}: ${escHtml(clear)} %</label><input type="range" min="0" max="100" step="5" value="${escHtml(clear)}" ${onEv("input",["posClear",`${n.id}`,onEv.el])} ${onEv("change",["posSet",`${n.id}`,"overlayBgTransparency",onEv.value])}></div></div>`);
 }
 function posClear(id,el){
   const n=find(id)?.n;if(!n)return;
@@ -23543,7 +23648,7 @@ function posListAdd(id,k,v,focus=true){
 function posListDel(id,k,i){const n=find(id)?.n;if(!n)return;const l=(n[k]||[]).filter((w,j)=>j!==i);if(l.length)n[k]=l;else delete n[k];setD(true);gear()}
 function posBillCard(n){
   const lines=posRawLines(n),{s,e}=posBounds(n,lines),start=n.receiptStartWords||[],end=n.receiptEndWords||[];
-  const byStart=posVal(n,"receiptSplit")==="none";
+  const byStart=posByStart(n);
   const warn=byStart&&!start.length?`<div class="nt">${i18n("Нет слов начала чека. Без них сервер не делит строки на чеки, и поиск по чекам в архиве не работает.")}</div>`
     :!start.length||!end.length&&!byStart?`<div class="nt">${i18n("Нет слов начала или конца чека. Без них сервер не делит строки на чеки, и поиск по чекам в архиве не работает.")}</div>`
     :!lines.length?""
@@ -23551,16 +23656,16 @@ function posBillCard(n){
     :e<0&&!byStart?`<div class="nt">${i18n("В последних строках от кассы нет слова конца чека. Проверить написание: сервер сравнивает слова посимвольно.")}</div>`
     :`<p class="sub pos-ok">${i18n("Пример: консоль взяла строки {from}–{to} из {total} как чек.").replace("{from}",s+1).replace("{to}",e<0?lines.length:e+1).replace("{total}",lines.length)}</p>`;
   return card("Чек",`<div class="pos-wide">${posSel(n.id,"receiptSplit","Как делить строки на чеки",[["skip","По словам начала и конца"],["none","Только по словам начала"]],posVal(n,"receiptSplit"))}</div>
-    <div class="pos-two"><div data-pos-list="receiptStartWords"><label class="sub">${i18n("Слова начала чека")}</label>${posListHtml(n,"receiptStartWords","Слово и Enter")}</div>
-      <div data-pos-list="receiptEndWords"><label class="sub">${i18n("Слова конца чека")}</label>${posListHtml(n,"receiptEndWords","Слово и Enter",byStart)}</div></div>
+    <div class="pos-two"><div data-pos-list="receiptStartWords"${pfa(n,"receiptStartWords")}><label class="sub">${i18n("Слова начала чека")}</label>${posListHtml(n,"receiptStartWords","Слово и Enter")}</div>
+      <div data-pos-list="receiptEndWords"${pfa(n,"receiptEndWords")}><label class="sub">${i18n("Слова конца чека")}</label>${posListHtml(n,"receiptEndWords","Слово и Enter",byStart)}</div></div>
     ${byStart?`<p class="sub">${i18n("Новый чек начинается со слова начала. Слова конца сервер не проверяет.")}</p>`:""}
     ${warn}
     <div class="pos-chks">${posChk(n.id,n,"ignoreCase","Не учитывать регистр слов начала и конца")}
       ${posChk(n.id,n,"billsOnly","Показывать только строки чека","Строки между словами начала и конца")}
       ${posChk(n.id,n,"eraseOnEnd","Убирать строки после конца чека")}</div>`);
 }
-function posShowCard(){
-  return card("Показ чека",`<div class="g">${fld("Задержка, мс","","number")}</div>${posDurHtml()}`);
+function posShowCard(n){
+  return card("Показ чека",`<div class="g">${pfw(n,"overlayDelayMs",fld("Задержка, мс","","number"))}</div>${pfw(n,"overlayDurationSec",posDurHtml())}`);
 }
 function posWordsCard(n){
   const ws=n.words||[];
@@ -23589,7 +23694,7 @@ function posRawUse(id,i,k){
     wordsEdit(id,l=>l.concat({msg:t,color:"#ff4444",bg:"#000000"}));toast(`${i18n("Консоль добавила слово в подсветку")}: «${t}»`);return;
   }
   const key=k==="start"?"receiptStartWords":"receiptEndWords";
-  if(k==="end"&&posVal(n,"receiptSplit")==="none")return;
+  if(k==="end"&&posByStart(n))return;
   if((n[key]||[]).includes(t)){toast(`${i18n("Слово уже есть в списке")}: «${t}»`);return}
   if((n[key]||[]).length>=32){toast(i18n("В списке уже 32 слова. Удалить слово из списка, чтобы добавить новое."));return}
   n[key]=(n[key]||[]).concat(t);setD(true);gear();toast(`${i18n(k==="start"?"Консоль добавила слово начала чека":"Консоль добавила слово конца чека")}: «${t}»`);
@@ -23604,7 +23709,7 @@ function posRawCard(n){
     :i18n("Строк от кассы пока нет. Проверить адрес, порт и протокол на вкладке «Подключение».");
   return card("Строки от кассы",`<p class="sub" data-pos-raw-head role="status">${head} ${refresh}</p>
     <div class="pos-raw">${items.map((x,i)=>`<div class="pos-raw-ln${i===s?" is-s":""}${i===end?" is-e":""}" data-raw="${i}"><time>${clockText(x.at,true)}</time><span class="pos-raw-t">${escHtml(x.text)}</span>
-      <span class="pos-raw-acts">${[["start","Начало чека"],...(posVal(n,"receiptSplit")==="none"?[]:[["end","Конец чека"]]),["word","Подсветить"]].map(([k,l])=>`<button type="button" class="btn s" ${onEv("mousedown",onEv.prevent,["posRawSel",onEv.el])} ${onEv("click",["posRawUse",`${n.id}`,i,k])}>${i18n(l)}</button>`).join("")}</span></div>`).join("")}</div>
+      <span class="pos-raw-acts">${[["start","Начало чека"],...(posByStart(n)?[]:[["end","Конец чека"]]),["word","Подсветить"]].map(([k,l])=>`<button type="button" class="btn s" ${onEv("mousedown",onEv.prevent,["posRawSel",onEv.el])} ${onEv("click",["posRawUse",`${n.id}`,i,k])}>${i18n(l)}</button>`).join("")}</span></div>`).join("")}</div>
     <p class="sub">${i18n("Выделить слово в строке и нажать кнопку. Без выделения кнопка берёт строку целиком. Так слово совпадёт с тем, что передаёт касса, вплоть до символа.")}</p>`);
 }
 // Левая колонка (кадр) прилипает к верху и не выше видимой области прокрутки: иначе её низ виден только в конце правой
@@ -23619,7 +23724,7 @@ function posTitlesHtml(n){
   setTimeout(posColFit,0);
   // Другой источник, чем в прошлый раз: строки читаются заново, у того же — берутся из кэша, обновляет «Обновить»
   posRawLoad(n.id,posRawLast!==n.id);posRawLast=n.id;
-  return`<div class="pos-grid"><div class="pos-l">${posPreviewCard(n)}</div><div class="pos-r">${posLookCard(n)}${posBillCard(n)}${posShowCard()}${posWordsCard(n)}${posRawCard(n)}</div></div>`;
+  return`<div class="pos-grid"><div class="pos-l">${posPreviewCard(n)}</div><div class="pos-r">${posLookCard(n)}${posBillCard(n)}${posShowCard(n)}${pfw(n,"words",posWordsCard(n))}${posRawCard(n)}</div></div>`;
 }
 // Подключение: драйвер, приём данных, кодировка; разбор — в «Дополнительно». Поля POSLegacy — только у него
 function posDriverSet(el){cardFld(el);gear()}
@@ -23632,15 +23737,15 @@ function posConnHtml(n){
   const udp=proto==="udp"?posNum(n.id,n,"udpMaxPacket","Наибольший пакет, байт"):"";
   const enc=posSel(n.id,"encoding","Кодировка",["auto","dos2win","utf8"].map(k=>[k,POS_ENUM_RU.encoding[k]]),posVal(n,"encoding"));
   const terms=n.terminalType&&!POS_TERMINALS.includes(n.terminalType)?[n.terminalType,...POS_TERMINALS]:POS_TERMINALS;
-  return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g pos-g" style="margin-top:10px">${fld("Имя",n.name)}${drvSel}${fld("Модель",n.model)}
-      ${proto==="rs232"?"":fld("Адрес кассы или сервера",n.ip)}${proto==="rs232"?"":fld("Порт",n.port,"number")}${sourceServerHtml(n)}${fldRo("MAC",n.mac||"—")}</div>
+  return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g pos-g" style="margin-top:10px">${fld("Имя",n.name)}${pfw(n,"vendor",drvSel)}${pfw(n,"model",fld("Модель",n.model))}
+      ${proto==="rs232"?"":pfw(n,"ip",fld("Адрес кассы или сервера",n.ip))}${proto==="rs232"?"":pfw(n,"port",fld("Порт",n.port,"number"))}${pfw(n,"serverId",sourceServerHtml(n))}${fldRo("MAC",n.mac||"—")}</div>
       <p class="sub">${i18n("Получает события от внешних систем (POS, кассы). Источник работает на одном сервере. Если сервер не работает, источник не переходит на другой сервер. Адрес — адрес сервера или имя кассы, не 0.0.0.0.")}</p>
-      ${drv==="PosXml"?"":`<div class="nt">${i18n("Без PosXml источник не работает на сервере с Linux, а отчёты по чекам недоступны.")}</div>`}`)
+      ${drv==="PosXml"||nodeFieldOff(n,"vendor")?"":`<div class="nt">${i18n("Без PosXml источник не работает на сервере с Linux, а отчёты по чекам недоступны.")}</div>`}`)
     +card("Приём данных",`<div class="g pos-g">${posSel(n.id,"protocol","Протокол",["tcp","udp","rs232"].map(k=>[k,POS_ENUM_RU.protocol[k]]),proto)}${com}${udp}${enc}</div>
       <details class="pos-adv"${posAdvOpen.has(n.id)?" open":""}><summary ${onEv("click",["posAdvTog",`${n.id}`,onEv.el])}>${i18n("Дополнительно: разбор данных")}</summary>
         <div class="g pos-g" style="margin-top:8px">
           ${legacy?posSel(n.id,"terminalType","Тип терминала",[["","Нет"],...terms.map(t=>[t,t])],n.terminalType||""):""}
-          <div><label>${i18n("Файл парсера")}</label><input value="${escHtml(n.parserFile||"")}" placeholder="pos_kassa.prl" ${onEv("change",["posSet",`${n.id}`,"parserFile",onEv.value])}></div>
+          <div${pfa(n,"parserFile")}><label>${i18n("Файл парсера")}</label><input value="${escHtml(n.parserFile||"")}" placeholder="pos_kassa.prl" ${onEv("change",["posSet",`${n.id}`,"parserFile",onEv.value])}></div>
           ${posSel(n.id,"processing","Обработка строк",["line","event","json"].map(k=>[k,POS_ENUM_RU.processing[k]]),posVal(n,"processing"))}
           ${posNum(n.id,n,"timeoutMs","Таймаут, мс")}
           ${posNum(n.id,n,"timeOffsetMs","Сдвиг времени, мс")}
@@ -23675,9 +23780,9 @@ function unitCardHtml(n){
   const props=(o?.properties||[]).map(p=>{const v=(n.properties||{})[p.key]??p.default??p.options?.[0]??"";
     return`<div><label>${escHtml(p.key)}</label>${p.options?`<select ${onEv("change",["unitPropSet",`${n.id}`,`${p.key}`,onEv.value])}>${p.options.map(x=>`<option value="${escHtml(x)}" ${x===v?"selected":""}>${escHtml(x)}</option>`).join("")}</select>`:`<input type="number" value="${escHtml(v)}" ${onEv("change",["unitPropSet",`${n.id}`,`${p.key}`,onEv.value])}>`}</div>`}).join("");
   const ops=(n.operations||[]).map(x=>`<button type="button" class="btn s" data-unit-op="${escHtml(x)}" ${off?"disabled":""} ${onEv("click",["unitRun",`${n.id}`,`${x}`])}>${escHtml(unitOpLabel(x))}</button>`).join("");
-  return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${devFld(n,"Адрес","path",n.path||"")}${fldRo("Шаблон",o?.name||n.model||"—")}</div>
+  return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${devFld(n,"Адрес","path",n.path||"")}${pfw(n,"model",fldRo("Шаблон",o?.name||n.model||"—"))}</div>
     ${props?`<div class="g" style="margin-top:10px">${props}</div>`:""}
-    ${ops?`<p class="sub">${i18n("Команды — для проверки настройки")}</p><div style="display:flex;gap:6px;flex-wrap:wrap">${ops}</div>`:""}`)+childListCard(n,{title:"Дочерние"});
+    ${ops?`<div${pfa(n,"operations")}><p class="sub">${i18n("Команды — для проверки настройки")}</p><div style="display:flex;gap:6px;flex-wrap:wrap">${ops}</div></div>`:""}`)+childListCard(n,{title:"Дочерние"});
 }
 function unitPropSet(id,k,v){const n=find(id)?.n;if(!n)return;n.properties={...(n.properties||{}),[k]:v===""||Number.isNaN(Number(v))?v:Number(v)};setD(true)}
 function unitRun(id,op){
@@ -23805,7 +23910,7 @@ function webStatusText(n){
 // Плитка на вкладке «Общие»: состояние веб-сервера и ONVIF-сервера, щелчок открывает вкладку «Веб, RTSP, ONVIF»
 function webTileHtml(n){
   if(!webHas(n))return"";
-  return`<button type="button" class="mc" data-web-tile ${onEv("click",["goTab","web"])}><span>${i18n("Веб, RTSP, ONVIF")}</span><b>${escHtml(webStatusText(n))} · ONVIF ${escHtml(webOf(n).vals.onvifOn?String(webOf(n).vals.onvif):i18n("выключен"))}</b></button>`;
+  return`<button type="button" class="mc" data-web-tile${pfa(n,"webServer")} ${onEv("click",["goTab","web"])}><span>${i18n("Веб, RTSP, ONVIF")}</span><b>${escHtml(webStatusText(n))} · ONVIF ${escHtml(webOf(n).vals.onvifOn?String(webOf(n).vals.onvif):i18n("выключен"))}</b></button>`;
 }
 function webPortFld(n,k,l,err,dis){
   const v=webOf(n).vals;
@@ -23817,6 +23922,8 @@ function webSwHtml(n,k,title,hint,dis=""){
   return`<label class="web-cb"><input type="checkbox" data-web-cb="${k}" ${on?"checked":""} ${dis} ${onEv("change",["webToggle",`${n.id}`,`${k}`])}><span>${i18n(title)}<small>${i18n(hint)}</small></span></label>`;
 }
 function webAddrHtml(n){
+  // Правило 2 версии профиля: поля ip нет в версии сервера — адреса консоль не знает
+  if(nodeFieldOff(n,"ip"))return"";
   const st=webOf(n),u=webUrls(n,st.vals,webHttpsOn(n,st));
   if(!u.length)return`<span class="sub">${i18n("Веб-сервер выключен. Браузер и мобильные клиенты не подключатся к серверу.")}</span>`;
   return`<span class="web-addr-l">${i18n("Адрес")}:</span> ${u.map(x=>copyChipHtml(x,"Адрес")).join(" ")}`;
@@ -23854,7 +23961,7 @@ function webSrvHtml(n){
       <div class="web-row">${webPortFld(n,"http","Порт HTTP",err,dis)}${webPortFld(n,"https","Порт HTTPS",err,dis)}
         <div class="web-f"><label for="web-prefix">${i18n("Префикс адреса")}</label><input id="web-prefix" type="text" spellcheck="false" maxlength="200" value="${escHtml(v.prefix)}" ${dis} aria-invalid="${!!err.prefix}" ${onEv("input",["webInput",`${n.id}`,"prefix",onEv.el])} ${onEv("change",["webCommit",`${n.id}`,"prefix",onEv.el])}><div class="fld-err" data-web-err="prefix">${escHtml(err.prefix||"")}</div></div></div>
       <div class="web-addr" data-web-addr>${webAddrHtml(n)}</div>
-      ${res?`<p class="sub web-hint">${i18n("Для видео в браузере веб-сервер также занимает порты")} ${res.from}–${res.to} (${i18n("9001 и по одному на ядро процессора")}). ${i18n("Открыть эти порты в сетевом экране сервера.")}</p>`:""}
+      ${res?`<p class="sub web-hint"${pfa(n,"webReservedPorts")}>${i18n("Для видео в браузере веб-сервер также занимает порты")} ${res.from}–${res.to} (${i18n("9001 и по одному на ядро процессора")}). ${i18n("Открыть эти порты в сетевом экране сервера.")}</p>`:""}
     </div>`,`<span class="tfoot-gap"></span><span class="bd ${v.on?"":"off"}" data-web-badge>${escHtml(webStatusText(n))}</span>`);
   const video=card("Видео и запросы из браузера",`
     ${webSwHtml(n,"recode","Перекодировать видео для браузера","Веб-сервер переводит видео, которое браузер не показывает (например, H.265), в формат для браузера. Это нагружает процессор сервера. Выключено: браузер получает видео как есть.",dis)}
@@ -23862,9 +23969,11 @@ function webSrvHtml(n){
   const rp=Number(v.rtsp);
   const rtsp=card("RTSP-сервер",`<div class="web-row">${webPortFld(n,"rtsp","Порт RTSP",err,"")}${webPortFld(n,"rtspHttp","Порт RTSP через HTTP",err,"")}</div>
     <p class="sub web-hint">${i18n("Плееры и другие системы забирают видео с сервера по RTSP. Они входят под именем и паролем пользователя консоли и получают видео только тех камер, которые этот пользователь может смотреть по своим правам.")}</p>
-    <div class="web-rtsp-ex"><span class="web-addr-l">${i18n("Адрес потока камеры")}:</span> ${copyChipHtml(`rtsp://${i18n("имя")}:${i18n("пароль")}@${n.ip||"localhost"}${rp===554?"":":"+v.rtsp}/hosts/${i18n("ИМЯ-СЕРВЕРА")}/DeviceIpint.N/SourceEndpoint.video:0:0`,"Адрес")} <span class="sub web-rtsp-n">${i18n("N — номер камеры, имя сервера — заглавными буквами")}</span></div>
+    <div class="web-rtsp-ex"><span class="web-addr-l">${i18n("Адрес потока камеры")}:</span> ${copyChipHtml(`rtsp://${i18n("имя")}:${i18n("пароль")}@${(nodeFieldOff(n,"ip")?"":n.ip)||"localhost"}${rp===554?"":":"+v.rtsp}/hosts/${i18n("ИМЯ-СЕРВЕРА")}/DeviceIpint.N/SourceEndpoint.video:0:0`,"Адрес")} <span class="sub web-rtsp-n">${i18n("N — номер камеры, имя сервера — заглавными буквами")}</span></div>
     <p class="sub web-hint">${i18n("Имя пользователя для RTSP начинается с латинской буквы и содержит только латинские буквы, цифры и символы / - _ . : +")}</p>`);
-  return`<div class="web-tab">${main}${webCertHtml(n,err,dis)}${video}${rtsp}${onvifCardHtml(n,err)}</div>`;
+  // Правило 2 версии профиля: настройки веб-, RTSP- и ONVIF-сервера — поле webServer, сертификат — webCertificate
+  const ws=h=>pfw(n,"webServer",h);
+  return`<div class="web-tab">${ws(main)}${pfw(n,"webCertificate",webCertHtml(n,err,dis))}${ws(video)}${ws(rtsp)}${ws(onvifCardHtml(n,err))}</div>`;
 }
 // Камеры сервера, у которых поток в MJPEG: ONVIF-сервер их не отдаёт. Список — запрос /units?serverId, все страницы;
 // кодек — что отдаёт камера (properties.codec) или что задала консоль на вкладке «Видео» (заглушка cvCfg)
@@ -23891,7 +24000,7 @@ function onvifAddr(n,v){return`${n.ip||"localhost"}:${String(v.onvif).trim()}`}
 function onvifAddrHtml(n){
   const v=webOf(n).vals;
   if(!v.onvifOn)return`<span class="sub">${i18n("ONVIF-сервер выключен. Другие VMS не получат видео этого сервера по ONVIF.")}</span>`;
-  if(!onvifPortOk(v.onvif))return"";
+  if(!onvifPortOk(v.onvif)||nodeFieldOff(n,"ip"))return"";
   return`<span class="web-addr-l">${i18n("Адрес для другой VMS")}:</span> ${copyChipHtml(onvifAddr(n,v),"Адрес")}`;
 }
 function onvifBadge(v){return!v.onvifOn?i18n("выключен"):onvifPortOk(v.onvif)?`${i18n("порт")} ${String(v.onvif).trim()}`:i18n("нет порта")}
@@ -24028,6 +24137,14 @@ function camArchRowLabel(id,i,x){
 const REC_STATE_RU={running:"идёт",waiting:"ждёт",stopped:"остановлена"};
 // Отставание replica от источника: период выбирает сервер, настройки нет
 function lagText(s){return s<60?`${s} ${i18n("с")}`:s<3600?`${Math.round(s/60)} ${i18n("мин")}`:s<86400?`${Math.round(s/360)/10} ${i18n("ч")}`:`${Math.round(s/8640)/10} ${i18n("дн.")}`}
+// Правило 2 версии профиля: состояние основной записи — поля камеры recordState, recordReason, replicaLagSec
+function recStateOwn(n,x){
+  const y=Object.assign({},x);
+  if(nodeFieldOff(n,"recordState"))delete y.state;
+  if(nodeFieldOff(n,"recordReason"))delete y.reason;
+  if(nodeFieldOff(n,"replicaLagSec"))delete y.lag;
+  return y;
+}
 function recStateHtml(x){
   if(!x.state&&!x.reason&&x.lag==null)return"";
   return`<div class="bk-hint" data-rec-state>${x.state?`${i18n("запись")}: ${escHtml(i18n(REC_STATE_RU[x.state]||x.state))}`:""}${x.lag!=null&&x.rec==="replica"?`<span data-rec-lag> · ${i18n("отставание")} ${escHtml(lagText(x.lag))}</span>`:""}${x.reason?` · ${escHtml(x.reason)}`:""}</div>`;
@@ -24093,19 +24210,19 @@ function formBase(n){
       nas:"Том — файл заданного размера в папке NAS (SMB2/SMB3, NFS, CIFS, iSCSI). Пользователь — с префиксом домена или компьютера: домен\\имя. В Windows к одному NAS одновременно подключается один пользователь.",
       bucket:"Том — это бакет (у Azure — контейнер). Его создают заранее в консоли провайдера. Томов может быть несколько. Объём не ограничен, его можно изменить без перезапуска. Делать тома одного размера, иначе глубина архива будет меняться при записи по кругу."}[k];
     return card("Параметры хранилища",`<div class="nt ${net?"":"ok"}">${archOwnerLine(n)}</div>
-      <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
+      <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${pfw(n,"retentionDays",archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения"))}
         ${fldRo("Тип",archKindLabel(n))}
-        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Сервер размечает тома под этот тип")}</div></div>
-        ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
+        <div${pfa(n,"storage")}>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Сервер размечает тома под этот тип")}</div></div>
+        ${spec.archiveModes.length?`<div data-arch-mode${pfa(n,"recordMode")}><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       </div>
       ${spec.serverWide?`<div class="nt">${i18n("Один на сервер. Работает со всеми камерами сервера. Привязывать камеры не нужно. Выключить его для одной камеры нельзя.")}</div>`:""}
-      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено. Консоль не привязывает сюда новые камеры")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры не записывают сюда видео. Здесь только копии отмеченных записей.")}</div>`}
-      ${spec.encryption?`<div class="ln ln-sw" data-needs="feature:archiveEncryption"><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>`:""}
+      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits${pfa(n,"admits")}><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено. Консоль не привязывает сюда новые камеры")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры не записывают сюда видео. Здесь только копии отмеченных записей.")}</div>`}
+      ${spec.encryption?`<div class="ln ln-sw" data-needs="feature:archiveEncryption"${pfa(n,"encrypted")}><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>`:""}
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","cams"])}><span>${i18n("Камер пишется")}</span><b>${cams.length}</b></button>
         <div class="mc"><span>${i18n("Томов")}</span><b>${vols.length}</b></div>
         <div class="mc"><span>${i18n("Объём")}</span><b>${archSize(n)}</b></div>
-        <div class="mc"><span>${i18n("Занято")}</span><b>${archUsed(n)}</b></div>
+        <div class="mc"${pfa("volume","usedPercent")}><span>${i18n("Занято")}</span><b>${archUsed(n)}</b></div>
       </div>
       <p class="sub" style="margin-top:10px">${net?i18n("Камеры сетевого хранилища не закреплены за сервером. Любой сервер домена может записывать их видео.")
         :`${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>.${spec.recordModes.some(m=>m!=="backup")?` ${i18n("Камера получает сервер только через хранилище.")}`:""}`}</p>`)+
@@ -24114,7 +24231,7 @@ function formBase(n){
         title:"Тома",
         items:vols,
         text:v=>[volLabel(v),v.size,volDesc(v)],
-        row:v=>`<div class="it" ${onEv("click",["pick",`${v.id}`])}><span>${ic("vol")}</span><span>${escHtml(volLabel(v))}<small>${escHtml(volDesc(v))} · <span class="${v.state==="error"||v.state==="broken"?"bk-bad":""}">${escHtml(volStateText(v))}</span></small></span></div>`,
+        row:v=>`<div class="it" ${onEv("click",["pick",`${v.id}`])}><span>${ic("vol")}</span><span>${escHtml(volLabel(v))}<small>${escHtml(volDesc(v))}${volStateText(v)?` · <span class="${v.state==="error"||v.state==="broken"?"bk-bad":""}">${escHtml(volStateText(v))}</span>`:""}</small></span></div>`,
         empty:"Томов нет — записывать некуда",
         ph:"Путь, диск или бакет…",
         unit:"том|тома|томов",
@@ -24124,15 +24241,15 @@ function formBase(n){
   }
   if(n.type==="vol"){
     const a=archById(n.archId),k=archAddr(a),spec=archSpec(a);
-    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Сервер сотрёт старые записи, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${PROTO_REC.has(n.id)?`<div class="nt ok" data-vol-rec>${i18n("Том подключён с записями")}: ${protoRecText(PROTO_REC.get(n.id))}. ${i18n("Сервер не форматировал том. Форматирование удалит эти записи.")}</div>`:""}${n.state==="unfmt"&&!PROTO_REC.has(n.id)?`<div class="nt err">${i18n("Раздел не отформатирован, поэтому запись на него невозможна. Отформатировать раздел, когда вы будете готовы. Форматирование удалит все данные на диске.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
+    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink${pfa(n,"shrinkPendingBytes")}>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Сервер сотрёт старые записи, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${PROTO_REC.has(n.id)?`<div class="nt ok" data-vol-rec>${i18n("Том подключён с записями")}: ${protoRecText(PROTO_REC.get(n.id))}. ${i18n("Сервер не форматировал том. Форматирование удалит эти записи.")}</div>`:""}${n.state==="unfmt"&&!PROTO_REC.has(n.id)?`<div class="nt err">${i18n("Раздел не отформатирован, поэтому запись на него невозможна. Отформатировать раздел, когда вы будете готовы. Форматирование удалит все данные на диске.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
       ${volFieldsHtml(a,n,["volSet",n.id])}
       <div class="ln ln-sw" data-vol-enabled><div>${i18n("Том включён")}</div><div class="sw ${n.enabled===false?"":"on"}" ${onEv("click",["volEnabledToggle",onEv.el,n.id])}></div></div>
       <div class="mx" style="margin-top:10px">
-        <div class="mc"><span>${i18n("Состояние")}</span><b style="font-size:14px">${escHtml(volStateText(n))}</b></div>
+        <div class="mc"${pfa(n,"state")}><span>${i18n("Состояние")}</span><b style="font-size:14px">${escHtml(volStateText(n))}</b></div>
         <div class="mc"><span>${i18n("Томов в хранилище")}</span><b>${archVols(a).length}</b></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        ${k==="disk"&&n.mode==="part"?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""}${spec.check?`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="bucket"?"Проверить подключение":"Подключиться")}</button>`:""}
+        ${k==="disk"&&n.mode==="part"&&!nodeFieldOff(n,"mode")?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""}${spec.check?`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="bucket"?"Проверить подключение":"Подключиться")}</button>`:""}
         <button type="button" class="btn s" data-needs="kind:volume/delete" ${onEv("click",["deleteVolume",`${n.id}`])} ${volDelWhy(n)?`disabled title="${escHtml(i18n(volDelWhy(n)))}"`:""}>${i18n("Удалить том")}</button>
       </div>
       <p class="sub" style="margin-top:10px">${i18n("Глубину и шифрование задают у хранилища. У тома задают место и размер.")}</p>`);
@@ -24246,7 +24363,7 @@ function formBase(n){
   if(handOf(n,"server")){
     if(isUnallocated(n.id)){
       const domId=unallocDomainOf(n.id),domName=domains.find(d=>d.id===domId)?.name||"—";
-      return card("Нераспределённый сервер",`<div class="g">${fld("Имя",n.name)}${fld("IP",n.ip||"")}${fld("Порт",n.port||20111,"number")}</div>
+      return card("Нераспределённый сервер",`<div class="g">${fld("Имя",n.name)}${pfw(n,"ip",fld("IP",n.ip||""))}${pfw(n,"port",fld("Порт",n.port||20111,"number"))}</div>
         <p class="sub">Домен: <b>${domName}</b></p>
         <button type="button" class="btn pri" style="margin-top:12px;width:100%" ${onEv("click",["addToDomain",`${n.id}`,`${domId}`])}>${i18n("Добавить в домен")}</button>`);
     }
@@ -24259,7 +24376,7 @@ function formBase(n){
         title:"Хранилища сервера",
         items:on,
         text:a=>[locName(a),...archVols(a).map(v=>v.disk),archSize(a)],
-        row:a=>`<div class="it" ${onEv("click",["pick",`${a.id}`])}><span>${archIcon(a)}</span><span>${escHtml(locName(a))}<small>${escHtml(archKindTag(a))} · ${escHtml(archDiskLabel(a))} · ${archSize(a)} · ${i18n("занято")} ${archUsed(a)} · ${a.days} ${i18n("дн.")} · ${archCameras(a.id).length} ${i18n("камер")}</small></span></div>`,
+        row:a=>`<div class="it" ${onEv("click",["pick",`${a.id}`])}><span>${archIcon(a)}</span><span>${escHtml(locName(a))}<small>${escHtml(archKindTag(a))} · ${escHtml(archDiskLabel(a))} · ${archSize(a)} · ${i18n("занято")} ${archUsed(a)}${nodeFieldOff(a,"retentionDays")?"":` · ${a.days} ${i18n("дн.")}`} · ${archCameras(a.id).length} ${i18n("камер")}</small></span></div>`,
         empty:"Хранилищ нет. Камеры сервера не записывают видео",
         ph:"Имя или путь…",
         unit:"хранилище|хранилища|хранилищ",
@@ -24278,7 +24395,7 @@ function formBase(n){
       });
     }
     if(tab==="web"&&webHas(n))return webSrvHtml(n);
-    if(tab==="net")return card("Сеть",`<div class="g">${fld("IP",n.ip)}${fld("Маска","255.255.255.0")}${fld("Шлюз","10.20.1.1")}${fld("DNS","8.8.8.8")}</div>`);
+    if(tab==="net")return card("Сеть",`<div class="g">${pfw(n,"ip",fld("IP",n.ip))}${pfw(n,"netmask",fld("Маска","255.255.255.0"))}${pfw(n,"gateway",fld("Шлюз","10.20.1.1"))}${pfw(n,"dns",fld("DNS","8.8.8.8"))}</div>`);
     if(tab==="svc")
       return childListCard(n,{
         key:"svc",
@@ -24293,14 +24410,14 @@ function formBase(n){
     const svc=(n.devices||[]).filter(d=>isSvc(d)).length;
     const recCams=serverCameras(n.id).filter(isRecording);
     return card("Общие",`${bdg(n)}${n.online===false?` <span class="sub">${i18n("нет связи")}</span>`:` <span class="sub">${i18n("ведёт запись и службы")}</span>`}
-      <div class="g" style="margin-top:10px">${fld("Имя",locName(n))}${fld("IP",n.ip)}${can("feature:serverRoles")?sl("Роль",[n.role||"Узел","Резервный"]):""}</div>
-      ${serverLoadHtml(n)}
-      <label class="sub" style="display:block;margin-top:10px">${i18n("Метки сервера")}</label>${chipsHtml(refLabels,n.labels,"listToggle",`${n.id}`,"labels")}
-      <div class="g" style="margin-top:6px"><div><input placeholder="${i18n("Новая метка")}" aria-label="${i18n("Новая метка")}" ${onEv("change",["serverLabelAdd",`${n.id}`,onEv.value])}></div></div>
+      <div class="g" style="margin-top:10px">${fld("Имя",locName(n))}${pfw(n,"ip",fld("IP",n.ip))}${can("feature:serverRoles")?pfw(n,"role",sl("Роль",[n.role||"Узел","Резервный"])):""}</div>
+      ${pfw(n,"telemetry",serverLoadHtml(n))}
+      <div${pfa(n,"labels")}><label class="sub" style="display:block;margin-top:10px">${i18n("Метки сервера")}</label>${chipsHtml(refLabels,n.labels,"listToggle",`${n.id}`,"labels")}
+      <div class="g" style="margin-top:6px"><div><input placeholder="${i18n("Новая метка")}" aria-label="${i18n("Новая метка")}" ${onEv("change",["serverLabelAdd",`${n.id}`,onEv.value])}></div></div></div>
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","svc"])}><span>${i18n("Службы сервера")}</span><b>${svc}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","disk"])}><span>${i18n("Камер пишется")}</span><b>${recCams.length}</b></button>
-        ${serverGpu(n)?`<button type="button" class="mc" ${onEv("click",["pick",`${gpuId(n.id)}`])}><span>${i18n("Видеоускоритель")}</span><b>${escHtml(serverGpu(n).model)}</b></button>`:`<div class="mc"><span>${i18n("Видеоускоритель")}</span><b>${i18n("нет")}</b></div>`}
+        ${pfw(n,"gpu",serverGpu(n)?`<button type="button" class="mc" ${onEv("click",["pick",`${gpuId(n.id)}`])}><span>${i18n("Видеоускоритель")}</span><b>${escHtml(serverGpu(n).model)}</b></button>`:`<div class="mc"><span>${i18n("Видеоускоритель")}</span><b>${i18n("нет")}</b></div>`)}
         ${webTileHtml(n)}
         <div class="mc"><span>${i18n("Ошибки")}</span><b>0</b></div>
       </div>
@@ -24321,9 +24438,9 @@ function formBase(n){
     if(tab==="kids"){const types=["acfa","acfa_sensor","acfa_lock","acfa_fence"];
       return types.map(tp=>childListCard(n,{key:tp,title:tp==="acfa"?"Контроллеры":LB[tp],filter:d=>d.type===tp,empty:"Подобъектов этого типа нет",head:tp==="acfa"?unitAddBtn():""})).join("")+
         `<p class="sub">ACFA-устройства (пожарная защита, СКУД): датчики, замки, шлейфы и другие подобъекты с собственной иерархией.</p>`}
-    if(nested)return card("Контроллер",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Адрес",n.path||"")}</div>
+    if(nested)return card("Контроллер",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${pfw(n,"path",fld("Адрес",n.path||""))}</div>
       <p class="sub">${i18n("Контроллер работает через родительское устройство. У контроллера нет своего подключения.")}</p>`);
-    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}${fld("IP",n.ip)}${fldRo("MAC",n.mac||"—")}</div>`)+deviceFoldersCardHtml(n)}
+    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${pfw(n,"vendor",fld("Производитель",n.vendor))}${pfw(n,"model",fld("Модель",n.model))}${pfw(n,"ip",fld("IP",n.ip))}${fldRo("MAC",n.mac||"—")}</div>`)+deviceFoldersCardHtml(n)}
   if(handOf(n,"export"))return card("Экспорт видео",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Папка",n.path)}${sl("Формат",["MP4","AVI"],n.format)}</div>
     <p class="sub">Используется в правилах автоматизации: при срабатывании экспортирует фрагмент в указанную папку на сервере.</p>`);
   if(handOf(n,"email")){
@@ -24344,8 +24461,8 @@ function formBase(n){
       const noRec=!isRecording(n),edge=recEdge(n),list=camArchs(n);
       return recTargetCardHtml(n)+camArchsCardHtml(n,`${recMicHtml(n)?`<div class="g">${recMicHtml(n)}</div>`:""}
       ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет. Репликация берёт записи только из другого архива этой камеры.")}</p>`}
-      ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры находятся на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("сервер берёт их оттуда.")} `:""}${i18n("Сервер берёт записи без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Сервер сам выбирает период. Строка записи показывает отставание. Если источник стёр минуты записи раньше, чем сервер их взял, эти минуты пропадают. Строка и журнал сообщают об этом.")}</div>`:""}
-      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись должна идти, но не идёт из-за сбоя.")}</div>`:""}
+      ${list.some(x=>x.rec==="replica"&&!(x.main&&nodeFieldOff(n,"recordMode")))?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры находятся на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("сервер берёт их оттуда.")} `:""}${i18n("Сервер берёт записи без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Сервер сам выбирает период. Строка записи показывает отставание. Если источник стёр минуты записи раньше, чем сервер их взял, эти минуты пропадают. Строка и журнал сообщают об этом.")}</div>`:""}
+      ${list.some(x=>x.rec==="backup"&&!(x.main&&nodeFieldOff(n,"recordMode")))?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись должна идти, но не идёт из-за сбоя.")}</div>`:""}
       <p class="sub">${noRec?(cameraTreeServer(n.id)?i18n("Чтобы включить запись, привязать камеру к хранилищу. Без хранилища камера остаётся у своего сервера, но не записывает видео.")
           :i18n("Чтобы включить запись, привязать камеру к хранилищу. Камера ещё не подключена к серверу. Камера подключится к серверу выбранного хранилища."))
         :i18n("Основное хранилище задаёт сервер камеры. Дополнительные хранилища записывают тот же поток или второй поток. Пример: основной поток — в локальное хранилище, второй — в облако.")}</p>
@@ -24370,7 +24487,7 @@ function formBase(n){
   if(handOf(n,"storage")){
     const owner=find(n.id)?.p;
     const sizeF=canWrite(n,"sizeBytes")?`<div data-card-size><label>${i18n("Объём")}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(n.size)||""}" ${onEv("input",["storageSet",`${n.id}`,"size",onEv.value])}><span>${i18n("ГБ")}</span></div></div>`:fldRo("Объём",n.size||"—");
-    const modeF=canWrite(n,"recordMode")?`<div data-card-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["storageSet",`${n.id}`,"rec",onEv.value])}>${["backup","always"].map(m=>`<option value="${m}" ${n.rec===m?"selected":""}>${i18n(ARCH_MODE_RU[m])}</option>`).join("")}</select></div>`:"";
+    const modeF=canWrite(n,"recordMode")?`<div data-card-mode${pfa(n,"recordMode")}><label>${i18n("Когда писать")}</label><select ${onEv("change",["storageSet",`${n.id}`,"rec",onEv.value])}>${["backup","always"].map(m=>`<option value="${m}" ${n.rec===m?"selected":""}>${i18n(ARCH_MODE_RU[m])}</option>`).join("")}</select></div>`:"";
     return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${sizeF}${modeF}</div>
       <p class="sub">${i18n(canWrite(n,"sizeBytes")?"Карта этой камеры. Консоль добавляет её сама, в списке архивов её нет. Чтобы брать записи с карты, выбрать режим «Репликация» и источник «Встроенное хранилище».":"Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера. Для этого выбрать режим «Репликация» на вкладке «Архив» камеры.")}</p>`)+
       (owner&&handCam(owner)?card("Камера",`<div class="it" ${onEv("click",["pick",`${owner.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(owner))}<small>${i18n(recordModeLabel(owner.rec))}</small></span></div>`):"");
@@ -35423,7 +35540,9 @@ function edgeChecksHtml(st){
   const nvr=edgeIsNvr(st);
   const rows=[[st.online!==false&&st.mediaOk!==false,nvr?"Диск регистратора на месте и пишет":"Карта на месте и пишет",st.online===false?"Нет связи с устройством: проверка ждёт связи.":st.mediaOk===false?"Сервер не видит носитель или носитель не пишет.":""],
     [st.profileG!==false,"Устройство отдаёт записи по ONVIF Profile G",st.profileG===false?"Устройство не отдаёт записи по ONVIF Profile G. Сервер ничего не заберёт.":""]];
-  return`<div class="er-checks">${rows.map(([ok,t,why])=>`<div class="er-ck ${ok?"ok":"bad"}"><span class="er-mk" aria-hidden="true">${ok?"✓":"!"}</span><span>${i18n(t)}${why?`<small>${i18n(why)}</small>`:""}</span></div>`).join("")}</div>`;
+  // Правило 2 версии профиля: строка проверки — поле mediaOk или profileG
+  const ckF=["mediaOk","profileG"];
+  return`<div class="er-checks">${rows.map(([ok,t,why],i)=>`<div class="er-ck ${ok?"ok":"bad"}"${pfa(st,ckF[i])}><span class="er-mk" aria-hidden="true">${ok?"✓":"!"}</span><span>${i18n(t)}${why?`<small>${i18n(why)}</small>`:""}</span></div>`).join("")}</div>`;
 }
 // Правка настройки: PATCH хранилища, затем камеры перечитываются — режим записи им ставит сервер
 const EDGE_SET_KEY={type:"mode",arch:"archiveId",speed:"speedLimitMbps"};
@@ -35505,15 +35624,18 @@ function edgeRepScreenHtml(st){
       <div class="mc"><span>${i18n("Объём")}</span><b>${escHtml(st.size||"—")}</b></div>
       <div class="mc"><span>${i18n("Хранит")}</span><b>${edgeDaysText(d)}</b></div>
       <div class="mc"><span>${i18n("Связь")}</span><b>${st.online===false?i18n("нет связи"):i18n("на связи")}</b></div>
-      <div class="mc"><span>${i18n("Репликация")}</span><b>${escHtml(edgeRepLabel(st))}${edgeSkip(st).n?`<small class="es-mc">${escHtml(i18n(edgeSkip(st).name))}</small>`:""}</b></div>
+      <div class="mc"${pfa(st,"replication")}><span>${i18n("Репликация")}</span><b>${escHtml(edgeRepLabel(st))}${edgeSkip(st).n?`<small class="es-mc">${escHtml(i18n(edgeSkip(st).name))}</small>`:""}</b></div>
     </div>
     <p class="sub er-intro">${handOf(o,"ipsrv")?`${i18n("Диск внутри регистратора")} <button type="button" class="lk" ${onEv("click",["pick",o.id])}>${escHtml(locName(o))}</button>.`:o?`${i18n("Карта памяти камеры")} <button type="button" class="lk" ${onEv("click",["pick",o.id,{tab:"rec"}])}>${escHtml(locName(o))}</button>.`:""} ${i18n("При репликации сервер забирает записи")} ${w.from} ${i18n("в своё хранилище. Постоянная репликация забирает все записи. Правила автоматизации забирают записи по событию или по расписанию.")}</p>`;
-  return card("Встроенное хранилище",head)+card("Что забирать",edgeSharedHtml(st),`<span class="sub" style="font-weight:400">${i18n(edgeSkip(st).name)}</span>`)
-    +`<div class="es-sec" role="heading" aria-level="3">${i18n("Как сервер забирает записи")}</div>`
-    +card("Постоянная репликация",edgeRepEditHtml(st))+edgeRulesHtml(st)+edgePullCardHtml(st)+edgeStatusHtml(st);
+  // Правило 2 версии профиля: настройка репликации — поле replication, состояние — replicationStatus
+  const rp=h=>pfw(st,"replication",h);
+  return card("Встроенное хранилище",head)+rp(card("Что забирать",edgeSharedHtml(st),`<span class="sub" style="font-weight:400">${i18n(edgeSkip(st).name)}</span>`))
+    +rp(`<div class="es-sec" role="heading" aria-level="3">${i18n("Как сервер забирает записи")}</div>`)
+    +rp(card("Постоянная репликация",edgeRepEditHtml(st)))+rp(edgeRulesHtml(st))+rp(edgePullCardHtml(st))+pfw(st,"replicationStatus",edgeStatusHtml(st));
 }
 // Короткая подпись в строке «Периферии»
 function edgePeriphText(st){
+  if(nodeFieldOff(st,"replication"))return"";
   const p=edgeRep(st);if(p.type==="all")return i18n("репликация: забирать всё");
   const n=edgeRulesFor(st).length;return n?`${i18n("правил репликации:")} ${n}`:i18n("репликация выключена");
 }
@@ -35533,12 +35655,12 @@ function edgeStorageCardHtml(owner){
     :`${i18n(handOf(owner,"ipsrv")?"Диск внутри регистратора.":"Карта памяти внутри камеры.")}`;
   const body=`<div class="mx">
       <div class="mc"><span>${i18n("Объём")}</span><b>${escHtml(st.size||"—")}</b></div>
-      <div class="mc"><span>${i18n("Репликация")}</span><b>${excluded?i18n("камера не входит"):escHtml(edgeRepLabel(st,cam))}</b></div>
-      <div class="mc"><span>${i18n("Куда")}</span><b class="er-ell" title="${escHtml(a?locName(a):"—")}">${p.type!=="all"||excluded?"—":escHtml(a?locName(a):"—")}</b></div>
-      <div class="mc"><span>${i18n("Сейчас")}</span><b>${excluded?edgeStatChip(null):edgeStatChip(s)}</b></div>
+      <div class="mc"${pfa(st,"replication")}><span>${i18n("Репликация")}</span><b>${excluded?i18n("камера не входит"):escHtml(edgeRepLabel(st,cam))}</b></div>
+      <div class="mc"${pfa(st,"replication")}><span>${i18n("Куда")}</span><b class="er-ell" title="${escHtml(a?locName(a):"—")}">${p.type!=="all"||excluded?"—":escHtml(a?locName(a):"—")}</b></div>
+      <div class="mc"${pfa(st,"replicationStatus")}><span>${i18n("Сейчас")}</span><b>${excluded?edgeStatChip(null):edgeStatChip(s)}</b></div>
     </div>
-    <p class="sub" style="margin-top:10px">${where} ${excluded?"":edgeSummary(st,cam)}</p>
-    <button type="button" class="btn s" ${onEv("click",["edgeOpen",`${st.id}`])}>${i18n("Настроить репликацию")}</button>`;
+    <p class="sub" style="margin-top:10px">${where} ${excluded||nodeFieldOff(st,"replication")?"":edgeSummary(st,cam)}</p>
+    <button type="button" class="btn s"${pfa(st,"replication")} ${onEv("click",["edgeOpen",`${st.id}`])}>${i18n("Настроить репликацию")}</button>`;
   // Камера: «Включить», глубина и период кэша (параметры драйвера) — в этом же блоке, сверху; одного блока с этим именем хватает
   // Выключено — консоль с картой не работает: объём и репликацию не показываем, чтобы блок не спорил сам с собой
   const fs=handCam(owner)&&drvEdgeMerged(owner)?drvGroups(owner,"rec").get(DRV_EDGE):null;
@@ -35795,10 +35917,12 @@ const CLOUD_REGIONS={s3:["eu-central-1","eu-west-1","us-east-1","us-west-1","ap-
 // Локальное объектное — папка на диске; блочное — раздел целиком или файл
 // в папке. Размер — числом в гигабайтах.
 function volFieldsHtml(a,v,set){
-  const k=archAddr(a),inp=(label,key,type,hint,ph)=>`<div><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
-  const sel=(label,key,opts,hint)=>`<div><label>${i18n(label)}</label><select ${onEv("change",[...set,key,onEv.value])}>${opts.map(([val,l,dis])=>`<option value="${escHtml(val)}" ${String(v[key])===String(val)?"selected":""} ${dis?"disabled":""}>${escHtml(l)}</option>`).join("")}</select>${hint?`<div class="bk-hint">${hint}</div>`:""}</div>`;
-  const gb=(label,hint)=>`<div><label>${i18n(label)}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(v.size)||""}" ${onEv("input",[...set,"gb",onEv.value,true])}><span>${i18n("ГБ")}</span></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
-  const dir=hint=>`<div><label>${i18n("Папка на диске")}</label><div class="gb-in"><input value="${escHtml(v.dir||"")}" ${onEv("input",[...set,"dir",onEv.value,true])}><button type="button" class="btn s" title="${i18n("Выбрать папку на диске")}" ${onEv("click",["volPickDir",onEv.el,`${v.disk}`])}>${i18n("Обзор…")}</button></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  // Правило 2 версии профиля: метка поля тома по ключу (размер — sizeBytes, пользователь — login, пароль — password)
+  const vf=key=>pfa("volume",{gb:"sizeBytes",user:"login",pass:"password"}[key]||key);
+  const k=archAddr(a),inp=(label,key,type,hint,ph)=>`<div${vf(key)}><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  const sel=(label,key,opts,hint)=>`<div${vf(key)}><label>${i18n(label)}</label><select ${onEv("change",[...set,key,onEv.value])}>${opts.map(([val,l,dis])=>`<option value="${escHtml(val)}" ${String(v[key])===String(val)?"selected":""} ${dis?"disabled":""}>${escHtml(l)}</option>`).join("")}</select>${hint?`<div class="bk-hint">${hint}</div>`:""}</div>`;
+  const gb=(label,hint)=>`<div${vf("gb")}><label>${i18n(label)}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(v.size)||""}" ${onEv("input",[...set,"gb",onEv.value,true])}><span>${i18n("ГБ")}</span></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  const dir=hint=>`<div${vf("dir")}><label>${i18n("Папка на диске")}</label><div class="gb-in"><input value="${escHtml(v.dir||"")}" ${onEv("input",[...set,"dir",onEv.value,true])}><button type="button" class="btn s" title="${i18n("Выбрать папку на диске")}" ${onEv("click",["volPickDir",onEv.el,`${v.disk}`])}>${i18n("Обзор…")}</button></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
   if(k==="disk"){
     const sid=a.server;
     if(!sid)return`<div class="nt" style="margin-top:10px">${i18n("Сначала выбрать сервер. Тома локального хранилища находятся на дисках сервера.")}</div>`;
@@ -35814,7 +35938,7 @@ function volFieldsHtml(a,v,set){
     return`<div class="g" style="margin-top:10px">${sel("Диск","disk",opts)}
       ${sel("Размещение","mode",[["part",i18n("Раздел целиком")+(d?.sys?" — "+i18n("не для системного диска"):others?" — "+i18n("на диске есть другие тома"):""),partOff],["file",i18n("Файл в папке")]],
         v.mode==="part"?i18n("занимает весь диск. Неотформатированный диск форматируют отдельно кнопкой «Форматировать» у тома"):i18n("на диске с файловой системой. Для FAT32 — не больше 4 ГБ"))}
-      ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("сервер создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
+      ${v.mode==="part"?pfw("volume","sizeBytes",fldRo("Объём",d?.size||v.size)):dir("сервер создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
   }
   if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища — это всегда файл")}
       ${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>`;
@@ -36098,7 +36222,7 @@ function anNasPath(){anFoundDefault();renderArchNew()}
 // Шаг «Первый том», вариант «Том с записями»
 function anFoundHtml(a,addr){
   if(addr==="nas"){
-    const v=an.vol,inp=(l,k,t,h)=>`<div><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(v[k]??"")}" ${onEv("input",["anSet",k,onEv.value,true])} ${k==="disk"?onEv("change",["anNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
+    const v=an.vol,inp=(l,k,t,h)=>`<div${k==="user"||k==="pass"?pfa("volume",k==="user"?"login":"password"):""}><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(v[k]??"")}" ${onEv("input",["anSet",k,onEv.value,true])} ${k==="disk"?onEv("change",["anNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
     const list=protoFoundNas(v.disk);
     return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","папка, где лежат файлы томов .afs")}${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>
       <div class="an-vol-h">${i18n("Файлы томов в папке")}<span class="sub">${list.length} ${i18n(plural(list.length,"файл|файла|файлов"))}</span></div>
@@ -36230,7 +36354,7 @@ function avPaint(){
   if(av.src==="new")body+=d?`<div class="nt ok an-found-note">${i18n("Сервер создаст том")}: <b>${escHtml(volLabelOf(a,d))}</b> · ${escHtml(volDesc(Object.assign({archId:a.id},d)))}. ${i18n("Чтобы изменить место и размер, открыть карточку тома.")}</div>`
     :`<div class="nt err an-found-note">${i18n("На сервере нет свободных дисков. На каждом диске уже есть том этого хранилища или раздел другого.")}</div>`;
   else if(nas){
-    const inp=(l,k,t,h)=>`<div><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(av.nas[k]??"")}" ${onEv("input",["avNas",k,onEv.value])} ${k==="disk"?onEv("change",["avNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
+    const inp=(l,k,t,h)=>`<div${k==="user"||k==="pass"?pfa("volume",k==="user"?"login":"password"):""}><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(av.nas[k]??"")}" ${onEv("input",["avNas",k,onEv.value])} ${k==="disk"?onEv("change",["avNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
     const list=avList(a);
     body+=`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","папка, где лежат файлы томов .afs")}${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>
       <div class="an-vol-h">${i18n("Файлы томов в папке")}<span class="sub">${list.length} ${i18n(plural(list.length,"файл|файла|файлов"))}</span></div>
@@ -36433,7 +36557,7 @@ function camRecSchedPick(id,v){
 function recMicHtml(n){
   const mics=(n.devices||[]).filter(d=>handOf(d,"mic"));
   if(!mics.length)return"";
-  return`<div data-rec-mic><label>${i18n("Микрофон записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"audioDeviceId",onEv.value])}><option value="">${i18n("Первый микрофон")}</option>${mics.map(m=>`<option value="${escHtml(m.id)}" ${m.id===n.audioDeviceId?"selected":""}>${escHtml(locName(m))}</option>`).join("")}</select></div>`;
+  return`<div data-rec-mic${pfa(n,"audioDeviceId")}><label>${i18n("Микрофон записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"audioDeviceId",onEv.value])}><option value="">${i18n("Первый микрофон")}</option>${mics.map(m=>`<option value="${escHtml(m.id)}" ${m.id===n.audioDeviceId?"selected":""}>${escHtml(locName(m))}</option>`).join("")}</select></div>`;
 }
 function camRecSet(id,k,v){const n=find(id)?.n;if(!n)return;if(v)n[k]=v;else delete n[k];setD(true);paint()}
 // Обход архива устройства и скан отрезка записи: задачи камеры, карточки на вкладке «Архив»
@@ -36531,13 +36655,15 @@ function rwCardsHtml(n){
 function replicaSrcHtml(n,x,i){
   if(x.rec!=="replica")return"";
   const can=replicaSources(n,x),gone=x.replicaFrom&&!can.some(s=>s.id===x.replicaFrom);
-  return`<div class="ca-src" data-replica-src><label>${i18n("Откуда забирать")}</label><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"replicaFrom",onEv.value])}>${gone?`<option value="${escHtml(x.replicaFrom)}" selected>${i18n("источник снят")}</option>`:""}${can.map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.replicaFrom||"")?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
+  return`<div class="ca-src" data-replica-src${x.main?pfa(n,"replicaFrom"):""}><label>${i18n("Откуда забирать")}</label><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"replicaFrom",onEv.value])}>${gone?`<option value="${escHtml(x.replicaFrom)}" selected>${i18n("источник снят")}</option>`:""}${can.map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.replicaFrom||"")?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
 }
 // Срок, наименьшая глубина и предзапись — свои у каждой записи (как prerecord_sec привязки в Axxon One).
 // Пустой срок — как у хранилища; пустая предзапись дополнительной строки — как у камеры (основного хранилища).
 // replica забирает готовые записи, поэтому предзаписи у неё нет
+// Правило 2 версии профиля: у основной записи (x.main) срок, глубина и предзапись — поля камеры
+const REC_ROW_F={retentionDays:"retentionDays",minDepthDays:"minDepthDays",pre:"preRecordSec"};
 function recDepthHtml(n,x,i,a){
-  const inp=(l,k,ph,tip="")=>`<div><label>${i18n(l)}</label><input type="number" min="0" value="${x[k]??""}" placeholder="${escHtml(ph)}" ${tip?`title="${escHtml(tip)}"`:""} data-rec-field="${k}" ${onEv("change",["camArchRowSet",`${n.id}`,i,k,onEv.value])}></div>`;
+  const inp=(l,k,ph,tip="")=>`<div${x.main&&REC_ROW_F[k]?pfa(n,REC_ROW_F[k]):""}><label>${i18n(l)}</label><input type="number" min="0" value="${x[k]??""}" placeholder="${escHtml(ph)}" ${tip?`title="${escHtml(tip)}"`:""} data-rec-field="${k}" ${onEv("change",["camArchRowSet",`${n.id}`,i,k,onEv.value])}></div>`;
   const pre=x.rec==="replica"?"":x.main?inp("Предзапись, с","pre","5")
     :inp("Предзапись, с","pre",String(n.pre??5),`${i18n("Если поле пустое, хранилище берёт предзапись основного хранилища:")} ${n.pre??5} ${i18n("с")}`);
   return`<div class="ca-depth" data-rec-depth>${inp("Срок, дней","retentionDays",a?String(a.days):"")}${inp("Глубина не меньше, дней","minDepthDays","")}${pre}</div>`;
@@ -36553,10 +36679,10 @@ function camArchsCardHtml(n,rest=""){
       <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec||"Авто":recordModeLabel(x.rec)))}</td><td></td></tr>`;
     const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true),xv=x.rec;
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
-        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${archDaysText(a,x)}`:""}</div>`:`<div class="bk-hint">${a?archDaysText(a,x):""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recDepthHtml(n,x,i,a)}${recStateHtml(x)}</td>
-      <td class="ca-fit" data-l="${i18n("Поток")}"><select title="${escHtml(camStreams(n).find(s=>s.id===(x.stream||camStreams(n)[0].id))?.name||"")}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).filter(s=>x.rec!=="replica"||s.id===replicaStream(n,x,list)).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
-      <td class="ca-fit" data-l="${i18n("Режим записи")}"><select title="${escHtml(i18n(recordModeLabel(xv)))}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${xv===v?"selected":""} ${(v==="replica"&&!replicaSources(n,x).length)||(v==="sched"&&!recSchedules().length&&!can("createSchedule"))?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
-      <td class="ca-x"><button type="button" class="btn s ca-more" title="${i18n("Ещё")}" aria-label="${escHtml(`${i18n("Ещё")} · ${a?locName(a):x.arch}`)}" aria-haspopup="menu" ${onEv("click",["camArchRowMenu",onEv.el,`${n.id}`,i])}>${lu("ellipsis-vertical",14)}</button></td></tr>${camRecWhenHtml(n,x)}`;
+        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a&&!nodeFieldOff(n,"retentionDays")?` · ${archDaysText(a,x)}`:""}</div>`:`<div class="bk-hint">${a?archDaysText(a,x):""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recDepthHtml(n,x,i,a)}${recStateHtml(x.main?recStateOwn(n,x):x)}</td>
+      <td class="ca-fit" data-l="${i18n("Поток")}"${x.main?pfa(n,"stream"):""}><select title="${escHtml(camStreams(n).find(s=>s.id===(x.stream||camStreams(n)[0].id))?.name||"")}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).filter(s=>x.rec!=="replica"||s.id===replicaStream(n,x,list)).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
+      <td class="ca-fit" data-l="${i18n("Режим записи")}"${x.main?pfa(n,"recordMode"):""}><select title="${escHtml(i18n(recordModeLabel(xv)))}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${xv===v?"selected":""} ${(v==="replica"&&!replicaSources(n,x).length)||(v==="sched"&&!recSchedules().length&&!can("createSchedule"))?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
+      <td class="ca-x"><button type="button" class="btn s ca-more" title="${i18n("Ещё")}" aria-label="${escHtml(`${i18n("Ещё")} · ${a?locName(a):x.arch}`)}" aria-haspopup="menu" ${onEv("click",["camArchRowMenu",onEv.el,`${n.id}`,i])}>${lu("ellipsis-vertical",14)}</button></td></tr>${x.main&&nodeFieldOff(n,"recordMode")?"":camRecWhenHtml(n,x)}`;
   }).join("");
   const add=free.length?`<select class="ca-add" ${onEv("change",onEv.ifValue,["camArchRowAdd",n.id,onEv.value])}><option value="">＋ ${i18n("Привязать к хранилищу")}…</option>${free.map(a=>`<option value="${a.id}">${escHtml(locName(a))} · ${escHtml(archKindTag(a))}</option>`).join("")}</select>`
     :`<span class="sub">${i18n(list.length?"Других доступных хранилищ нет":"Доступных хранилищ нет")}</span>`;
