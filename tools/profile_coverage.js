@@ -489,7 +489,8 @@ async function pcovRun(profileId, opts) {
 // ?older=1 (profile_coverage.py --older): сервер старше консоли и не прислал ни одного поля профиля — правило 2 версии
 // профиля (api/profiles/README.md, «Версии», п. 2). Консоль на время прогона знает версию на одну младшую выше, чем у
 // сервера, и все поля профиля; сервер присылает профиль без properties и status. Экран должен спрятать все поля профиля:
-// поле, которое прогон нашёл «показанным», экран рисует без поля в версии сервера. Поля прогона — как без older
+// поле, которое прогон нашёл «показанным», экран рисует без поля в версии сервера. Поля прогона — как без older. Поле,
+// которое приносит другой профиль вида, получает olderOther: его экран не прячет
 async function pcovOlder(profileId, run) {
   if (typeof profHideRefresh !== "function" || typeof profKnownMap === "undefined") throw new Error("на странице нет правила 2 версии профиля (profHideRefresh)");
   const srv = KIND_PROFILES.get(profileId);
@@ -498,8 +499,12 @@ async function pcovOlder(profileId, run) {
   profKnownMap.set(profileId, Object.assign({}, knWas || srv, { version: `${M}.${m + 1}`, properties: profileProps(srv), status: [].concat(srv?.status || []) }));
   KIND_PROFILES.set(profileId, Object.assign({}, srv, { properties: [], status: [] }));
   profHideRefresh();
-  try { return await run({ prof: srv }); }
-  finally {
+  try {
+    const rep = await run({ prof: srv });
+    // Поле, которое приносит другой профиль вида (ptz у камеры есть и в vms.camera/1), экран показывает по праву: отметка other
+    rep.kinds.forEach((k) => Object.entries(k.fields).forEach(([f, x]) => { if (!kindFieldOff(k.kind, f)) x.olderOther = true; }));
+    return rep;
+  } finally {
     KIND_PROFILES.set(profileId, srv);
     if (knWas) profKnownMap.set(profileId, knWas); else profKnownMap.delete(profileId);
     profHideRefresh();

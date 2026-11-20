@@ -14271,7 +14271,7 @@ function archTableCard(n){
         <td class="as-nm"><span class="as-name" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${archIcon(a)}<span>${escHtml(locName(a))}</span></span></td>
         <td title="${escHtml(locName(archOwner(a)||{name:""}))}">${archOwnerCell(a,n)}</td>
         <td><span class="as-use"><span class="as-bar ${u>=90?"bad":u>=75?"warn":""}"><i style="width:${u}%"></i></span><span class="as-num">${u}% ${i18n("из")} ${archSize(a)}</span></span></td>
-        <td class="as-num">${a.days!=null?`${a.days} ${i18n("дн.")}`:"—"}</td>
+        <td class="as-num">${a.days!=null&&!nodeFieldOff(a,"retentionDays")?`${a.days} ${i18n("дн.")}`:"—"}</td>
         <td class="as-num">${archCameras(a.id).length}</td>
         <td>${archStateHtml(a)}</td>
       </tr>`;
@@ -21563,7 +21563,7 @@ const VW_LAYOUT="a";
 let vwTab="ev";
 function camViewHtml(n){
   const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res&&!kindFieldOff("stream","res")?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
-  const ptz=!!n.ptz&&can("putUnitPtz");
+  const ptz=!!n.ptz&&!nodeFieldOff(n,"ptz")&&can("putUnitPtz");
   // Экспорт — одной группой, «Экспорт…» первой: по ней видно, что «Кадр» и «Область» — тоже выгрузка (раунд 5)
   const exp=can("createExport")?`<span class="vw-sep" aria-hidden="true"></span><span class="vw-expg" role="group" aria-label="${i18n("Экспорт")}"><button type="button" class="btn s" data-exp-cam-go title="${i18n("Выгрузить запись или живое видео в файл")}" ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download",14)}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live title="${i18n("Сохранить текущий кадр в файл")}" ${onEv("click",["vwFrameExp",n.id])}>${lu("camera",14)}${i18n("Кадр")}</button>`:""}${can("feature:exportArea")?`<button type="button" class="btn s" data-exp-area-go title="${i18n("Выбрать область кадра и сохранить её в файл")}" ${onEv("click",["expCropStart",n.id])}>${lu("crop",14)}${i18n("Область")}</button>`:""}</span>`:"";
   const mark=can("createUnitBookmark")&&can("listUnitBookmarks")?`<button type="button" class="btn s" data-vw-mark ${onEv("click",["vwMarkGo"])}>${i18n("Отметить")}</button>`:"";
@@ -22064,7 +22064,7 @@ function cvStreamFps(n,s,i){return s.fps??(i?null:n.fps)}
 function cvKbpsText(k){return k>=1000?`${(k/1000).toFixed(k%1000?1:0).replace(".",",")} ${i18n("Мбит/с")}`:`${k} ${i18n("кбит/с")}`}
 
 function camVideoHtml(n){
-  const ptz=!!n.ptz&&can("putUnitPtz");
+  const ptz=!!n.ptz&&!nodeFieldOff(n,"ptz")&&can("putUnitPtz");
   // «Авто» нет: в превью одного размера оно прячет, какой поток на экране (как вкладки Main / Second stream в Axxon One)
   const cur=(lv?.id===n.id&&lv.stream)||camStreams(n)[0]?.id||"";
   const main=`<div class="card cv-main"><div class="ch cv-h"><span>${i18n("Видео")}</span>${bdg(n)}</div>
@@ -22390,12 +22390,12 @@ function cvJoyKey(id){
 let cvSideTab="pre";
 function cvPresetsHtml(n){
   if(cvTourEdit?.id===n.id)return`<section class="cv-sec cv-pre cv-ed">${cvTourEditorHtml(n,cvTourEdit.t)}</section>`;
-  return`<section class="cv-sec cv-pre">${cvSideTabsHtml(n)}<div class="cv-tab-body" data-cv-tab-body>${cvSideTab==="tours"?cvToursHtml(n):cvPresetListHtml(n)}</div></section>`;
+  return`<section class="cv-sec cv-pre">${cvSideTabsHtml(n)}<div class="cv-tab-body" data-cv-tab-body>${cvSideTab==="tours"?cvToursHtml(n):pfw(n,"presets",cvPresetListHtml(n))}</div></section>`;
 }
 function cvSideTabsHtml(n){
   const st=cvToursOf(n),run=st.run,pl=presetRows(n).length;
   const tab=(k,l,c,extra="")=>`<button type="button" role="tab" id="cv-tab-${k}" aria-selected="${cvSideTab===k}" tabindex="${cvSideTab===k?0:-1}" data-cv-tab="${k}" ${onEv("click",["cvSideTabSet",`${n.id}`,k])} ${onEv("keydown",["cvSideTabKey",`${n.id}`])}>${i18n(l)}<span>${c}</span>${extra}</button>`;
-  return`<div class="cv-tabs" role="tablist" aria-label="${i18n("Пресеты и туры")}">${tab("pre","Пресеты",`${pl}${n.presetMax?`<span data-preset-max> ${i18n("из")} ${n.presetMax}</span>`:""}`)}${tab("tours","Туры",st.tours.length,`<i class="cv-dot ${run?.paused?"pause":""}" data-cv-tour-dot ${run?"":"hidden"} title="${i18n(run?.paused?"Тур на паузе":"Тур идёт")}"></i>`)}</div>`;
+  return`<div class="cv-tabs" role="tablist" aria-label="${i18n("Пресеты и туры")}">${tab("pre","Пресеты",`${nodeFieldOff(n,"presets")?"":pl}${n.presetMax&&!nodeFieldOff(n,"presetMax")?`<span data-preset-max> ${i18n("из")} ${n.presetMax}</span>`:""}`)}${tab("tours","Туры",st.tours.length,`<i class="cv-dot ${run?.paused?"pause":""}" data-cv-tour-dot ${run?"":"hidden"} title="${i18n(run?.paused?"Тур на паузе":"Тур идёт")}"></i>`)}</div>`;
 }
 // Смена вкладки — только содержимое панели, с проявлением; видео и джойстик не трогает
 function cvSideTabSet(id,k){
@@ -23020,7 +23020,7 @@ function pmKey(id,e){
 // Раздел во всю ширину: режим и время на объекте, карточки обзорных камер (кадр с точками и сеткой, состояние),
 // калибровка — на месте карточек: кадр PTZ и кадр обзорной камеры рядом, под ними таблица точек
 function ttSecHtml(n){
-  if(!n.ptz)return"";
+  if(!n.ptz||nodeFieldOff(n,"ptz"))return"";
   const st=ttOf(n),m=TT_MODES.find(x=>x[0]===st.mode)||TT_MODES[0],ready=ttReady(st).length;
   const sum=`${i18n(m[1])} · ${i18n("обзорных камер с привязкой")}: ${ready} ${i18n("из")} ${st.ovs.length}`;
   return`<div class="card tt-sec" data-sec="tt" data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Слежение Tag&Track Pro")}<span class="sub" style="font-weight:400">${escHtml(sum)}</span></div><div class="cb"><div data-tt-body>${ttBodyHtml(n)}</div></div></div>`;
@@ -23355,7 +23355,7 @@ function ptzPadHtml(n){
   return`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${noMove?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>`;
 }
 function ptzCardHtml(n){
-  if(!n.ptz)return"";
+  if(!n.ptz||nodeFieldOff(n,"ptz"))return"";
   // Камера за NAT: положение пишет устройство в момент просьбы, а связи с ним нет. Движения и «Запомнить здесь» нет,
   // подпись пресета идёт правкой: ADR-0111 доп. (1)
   const list=presetRows(n),nat=n.direct===false,off=n.online===false||nat,full=presetFree(n)==null;
@@ -24205,14 +24205,14 @@ function formBase(n){
       nas:"Том — файл заданного размера в папке NAS (SMB2/SMB3, NFS, CIFS, iSCSI). Пользователь — с префиксом домена или компьютера: домен\\имя. В Windows к одному NAS одновременно подключается один пользователь.",
       bucket:"Том — это бакет (у Azure — контейнер). Его создают заранее в консоли провайдера. Томов может быть несколько. Объём не ограничен, его можно изменить без перезапуска. Делать тома одного размера, иначе глубина архива будет меняться при записи по кругу."}[k];
     return card("Параметры хранилища",`<div class="nt ${net?"":"ok"}">${archOwnerLine(n)}</div>
-      <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
+      <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${pfw(n,"retentionDays",archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения"))}
         ${fldRo("Тип",archKindLabel(n))}
-        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Сервер размечает тома под этот тип")}</div></div>
-        ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
+        <div${pfa(n,"storage")}>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Сервер размечает тома под этот тип")}</div></div>
+        ${spec.archiveModes.length?`<div data-arch-mode${pfa(n,"recordMode")}><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       </div>
       ${spec.serverWide?`<div class="nt">${i18n("Один на сервер. Работает со всеми камерами сервера. Привязывать камеры не нужно. Выключить его для одной камеры нельзя.")}</div>`:""}
-      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено. Консоль не привязывает сюда новые камеры")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры не записывают сюда видео. Здесь только копии отмеченных записей.")}</div>`}
-      ${spec.encryption?`<div class="ln ln-sw" data-needs="feature:archiveEncryption"><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>`:""}
+      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits${pfa(n,"admits")}><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено. Консоль не привязывает сюда новые камеры")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры не записывают сюда видео. Здесь только копии отмеченных записей.")}</div>`}
+      ${spec.encryption?`<div class="ln ln-sw" data-needs="feature:archiveEncryption"${pfa(n,"encrypted")}><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>`:""}
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","cams"])}><span>${i18n("Камер пишется")}</span><b>${cams.length}</b></button>
         <div class="mc"><span>${i18n("Томов")}</span><b>${vols.length}</b></div>
@@ -24371,7 +24371,7 @@ function formBase(n){
         title:"Хранилища сервера",
         items:on,
         text:a=>[locName(a),...archVols(a).map(v=>v.disk),archSize(a)],
-        row:a=>`<div class="it" ${onEv("click",["pick",`${a.id}`])}><span>${archIcon(a)}</span><span>${escHtml(locName(a))}<small>${escHtml(archKindTag(a))} · ${escHtml(archDiskLabel(a))} · ${archSize(a)} · ${i18n("занято")} ${archUsed(a)} · ${a.days} ${i18n("дн.")} · ${archCameras(a.id).length} ${i18n("камер")}</small></span></div>`,
+        row:a=>`<div class="it" ${onEv("click",["pick",`${a.id}`])}><span>${archIcon(a)}</span><span>${escHtml(locName(a))}<small>${escHtml(archKindTag(a))} · ${escHtml(archDiskLabel(a))} · ${archSize(a)} · ${i18n("занято")} ${archUsed(a)}${nodeFieldOff(a,"retentionDays")?"":` · ${a.days} ${i18n("дн.")}`} · ${archCameras(a.id).length} ${i18n("камер")}</small></span></div>`,
         empty:"Хранилищ нет. Камеры сервера не записывают видео",
         ph:"Имя или путь…",
         unit:"хранилище|хранилища|хранилищ",

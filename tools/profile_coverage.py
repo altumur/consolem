@@ -265,7 +265,7 @@ def main():
             left = []
             for k in rep["kinds"]:
                 for f, x in k["fields"].items():
-                    if not x.get("shown") or not (x.get("inProfile") or x.get("status")) or f in ok_older:
+                    if not x.get("shown") or not (x.get("inProfile") or x.get("status")) or x.get("olderOther") or f in ok_older:
                         continue
                     views = [v for v in x.get("views", []) if f"{f}@{v}" not in ok_older]
                     if views:
