@@ -2720,7 +2720,7 @@
     function unitBrief(u) {
       const out = { uid: u.uid, kind: u.kind, name: u.name, parentId: u.parentId == null ? null : u.parentId, domainId: u.domainId == null ? null : u.domainId, version: u.version };
       if (u.status && u.status.link) out.status = { link: u.status.link };
-      if (typeof props(u).subtype === "string" && props(u).subtype) out.subtype = props(u).subtype; // как DeviceRow.subtype
+      if (typeof props(u).subtype === "string" && props(u).subtype) out.subtype = props(u).subtype; // UnitBrief.subtype — из properties.subtype
       const brief = {};
       (kinds.get(u.kind) ? kinds.briefNames(u.kind) : []).forEach((n) => n in props(u) && (brief[n] = clone(props(u)[n])));
       // Строке дерева без строки устройства: выключенность и сервер — свойства вида (если они в схеме), сбой и лицензия — наблюдаемое

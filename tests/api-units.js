@@ -94,10 +94,14 @@
         if (dep && dep.version) assert.ok(cmp(dep.version, u.version) >= 0, `${p.id} использует ${u.id} ${u.version}, сервер отдаёт ${dep.version}`);
       });
     });
-    // Встроенный сервер отдаёт профили набора как есть: version и uses те же, что в наборе (иначе тест прошёл бы и без полей)
-    const fx = new Map((FX.profiles || []).map((p) => [p.id, p]));
-    profiles.forEach((p) => assert.ok((fx.get(p.id) || {}).version, `${p.id}: набор несёт version (профили собирают из api/profiles/)`));
-    profiles.forEach((p) => assert.eq({ version: p.version, uses: p.uses }, { version: (fx.get(p.id) || {}).version, uses: (fx.get(p.id) || {}).uses }, `${p.id}: version и uses — как в наборе`));
+    // Встроенный сервер отдаёт профили набора как есть: version и uses те же, что в наборе (иначе тест прошёл бы и без полей).
+    // Стенд бэкенда (?api=) эту сверку не проходит: version там необязателен (api/README.md, 0.25.0), профили и младшие
+    // версии — свои
+    if (!ApiTest.external) {
+      const fx = new Map((FX.profiles || []).map((p) => [p.id, p]));
+      profiles.forEach((p) => assert.ok((fx.get(p.id) || {}).version, `${p.id}: набор несёт version (профили собирают из api/profiles/)`));
+      profiles.forEach((p) => assert.eq({ version: p.version, uses: p.uses }, { version: (fx.get(p.id) || {}).version, uses: (fx.get(p.id) || {}).uses }, `${p.id}: version и uses — как в наборе`));
+    }
     return `профилей ${profiles.length}, с версией ${profiles.filter((p) => p.version).length}`;
   }, { needs: ["listKinds"] });
 
