@@ -167,8 +167,11 @@ function pcovSnap(view) {
   const roots = [document.getElementById("main"), ...document.querySelectorAll(".confirm.on, .mask.on")].filter(Boolean);
   const parts = [view ? String(view.key || view) : ""];
   roots.forEach((r) => {
-    const vals = [...r.querySelectorAll("input, select, textarea")].map((el) => (el.type === "checkbox" || el.type === "radio" ? el.checked : el.value));
+    // Поле, которое правило 2 версии профиля спрятало (data-prof-field с hidden, прототип 83), на экране не видно: в снимок
+    // не идёт ни разметка, ни значение поля ввода
+    const vals = [...r.querySelectorAll("input, select, textarea")].filter((el) => !el.closest("[data-prof-field][hidden]")).map((el) => (el.type === "checkbox" || el.type === "radio" ? el.checked : el.value));
     const c = r.cloneNode(true);
+    c.querySelectorAll("[data-prof-field][hidden]").forEach((el) => el.remove());
     c.removeAttribute("style");
     c.querySelectorAll("[style]").forEach((el) => el.removeAttribute("style"));
     parts.push(pcovMask(c.outerHTML), pcovMask(JSON.stringify(vals)));
@@ -329,18 +332,19 @@ function pcovExtraOwner(kind) {
   return im.find((id) => KIND_PROFILES.has(id)) || null;
 }
 // Поля прогона профиля на виде: [имя, где] — свойства и состояние профиля; у владельца (pcovExtraOwner) — и все поля схемы
-function pcovNames(profileId, kind) {
-  const prof = KIND_PROFILES.get(profileId), own = profileProps(prof), status = prof?.status || [];
+function pcovNames(profileId, kind, profIn) {
+  const prof = profIn || KIND_PROFILES.get(profileId), own = profileProps(prof), status = prof?.status || [];
   let names = [...own.map((f) => [f, "properties"]), ...status.map((f) => [f, "status"])];
   if (pcovExtraOwner(kind) === profileId) names = names.concat(Object.keys(kindProps(kind)).filter((f) => !own.includes(f)).map((f) => [f, "properties"]));
   return names;
 }
 
 // Отчёт профиля: {id, version, kinds:[{kind, screen, units, views, fields, coverage}], summary:{keep, remove, add, untested}}.
-// opts: units — объектов на вид; objects — объекты вместо чтения с сервера (самопроверка); fields — только эти поля
+// opts: units — объектов на вид; objects — объекты вместо чтения с сервера (самопроверка); fields — только эти поля;
+// prof — профиль, чьи поля проверять, вместо профиля из GET /kinds (pcovOlder: у сервера профиль без полей)
 async function pcovRun(profileId, opts) {
   opts = opts || {};
-  const N = opts.units || 3, prof = KIND_PROFILES.get(profileId);
+  const N = opts.units || 3, prof = opts.prof || KIND_PROFILES.get(profileId);
   const allow = opts.allow || PCOV.allow || {}, keepOk = allow.keep || {}, extraOk = allow.extra || {};
   const rep = { id: profileId, version: prof?.version || null, kinds: [], summary: { keep: [], remove: [], add: [], untested: [] } };
   if (!prof) { rep.note = "профиля нет в GET /kinds"; return rep; }
@@ -358,7 +362,7 @@ async function pcovRun(profileId, opts) {
       const ps = kindProps(k);
       // Поля всех знакомых профилей вида: «сверх профиля» — только то, чего нет ни в одном
       const known = new Set((KINDS.get(k)?.implements || []).filter((id) => KIND_PROFILES.has(id)).flatMap((id) => profileProps(KIND_PROFILES.get(id))));
-      let names = pcovNames(profileId, k);
+      let names = pcovNames(profileId, k, opts.prof);
       if (opts.fields) names = names.filter(([f]) => opts.fields.includes(f));
       const fields = {};
       names.forEach(([f, where]) => {
@@ -482,6 +486,26 @@ async function pcovRun(profileId, opts) {
   return rep;
 }
 
+// ?older=1 (profile_coverage.py --older): сервер старше консоли и не прислал ни одного поля профиля — правило 2 версии
+// профиля (api/profiles/README.md, «Версии», п. 2). Консоль на время прогона знает версию на одну младшую выше, чем у
+// сервера, и все поля профиля; сервер присылает профиль без properties и status. Экран должен спрятать все поля профиля:
+// поле, которое прогон нашёл «показанным», экран рисует без поля в версии сервера. Поля прогона — как без older
+async function pcovOlder(profileId, run) {
+  if (typeof profHideRefresh !== "function" || typeof profKnownMap === "undefined") throw new Error("на странице нет правила 2 версии профиля (profHideRefresh)");
+  const srv = KIND_PROFILES.get(profileId);
+  profileKnown(profileId);
+  const knWas = profKnownMap.get(profileId), [M, m] = (profileVer(srv) || "1.0").split(".").map(Number);
+  profKnownMap.set(profileId, Object.assign({}, knWas || srv, { version: `${M}.${m + 1}`, properties: profileProps(srv), status: [].concat(srv?.status || []) }));
+  KIND_PROFILES.set(profileId, Object.assign({}, srv, { properties: [], status: [] }));
+  profHideRefresh();
+  try { return await run({ prof: srv }); }
+  finally {
+    KIND_PROFILES.set(profileId, srv);
+    if (knWas) profKnownMap.set(profileId, knWas); else profKnownMap.delete(profileId);
+    profHideRefresh();
+  }
+}
+
 async function pcovSelfcheck(ok) {
   const ids = (await uiUnitsAll({ implements: "vms.archive/1" })).map((u) => u.uid).sort();
   const [archA, archB] = ids;
@@ -584,6 +608,7 @@ UiCheck(async ({ ok }) => {
   if (typeof screenFor !== "function" || typeof handScreenFields !== "function") { ok(false, "NOPAGE на странице нет screenFor и handScreenFields"); return; }
   if (mode === "selfcheck") return pcovSelfcheck(ok);
   if (!KIND_PROFILES.has(mode)) { ok(false, `профиля ${mode} нет в GET /kinds`); return; }
-  const rep = await pcovRun(mode, { units: Math.max(1, +q.get("units") || 2) });
+  const run = (o) => pcovRun(mode, Object.assign({ units: Math.max(1, +q.get("units") || 2) }, o));
+  const rep = q.get("older") === "1" ? await pcovOlder(mode, run) : await run();
   ok(true, "COVERAGE " + JSON.stringify(rep));
 });

@@ -21562,7 +21562,7 @@ function liveFrameHtml(n,inner=""){
 const VW_LAYOUT="a";
 let vwTab="ev";
 function camViewHtml(n){
-  const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
+  const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res&&!kindFieldOff("stream","res")?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
   const ptz=!!n.ptz&&can("putUnitPtz");
   // Экспорт — одной группой, «Экспорт…» первой: по ней видно, что «Кадр» и «Область» — тоже выгрузка (раунд 5)
   const exp=can("createExport")?`<span class="vw-sep" aria-hidden="true"></span><span class="vw-expg" role="group" aria-label="${i18n("Экспорт")}"><button type="button" class="btn s" data-exp-cam-go title="${i18n("Выгрузить запись или живое видео в файл")}" ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download",14)}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live title="${i18n("Сохранить текущий кадр в файл")}" ${onEv("click",["vwFrameExp",n.id])}>${lu("camera",14)}${i18n("Кадр")}</button>`:""}${can("feature:exportArea")?`<button type="button" class="btn s" data-exp-area-go title="${i18n("Выбрать область кадра и сохранить её в файл")}" ${onEv("click",["expCropStart",n.id])}>${lu("crop",14)}${i18n("Область")}</button>`:""}</span>`:"";
@@ -22080,7 +22080,8 @@ function cvStreamPickHtml(n,cur){
   // Выбран поток с сигналом: если cur без сигнала, отмечен первый живой. В Tab — одна остановка, стрелки ходят по живым
   const pick=on.some(s=>s.id===cur)?cur:(on[0]?.id||cur);
   const rows=ss.map((s,i)=>{const p=c.streams[s.id],res=cvStreamRes(n,s,i),fps=cvStreamFps(n,s,i),off=s.online===false;
-    const t=`${(res||"—").replace("x","×")} · ${fps??"—"} ${i18n("к/с")} · ${drvSend(n)?p.codec:s.codec||"—"} · ${cvKbpsText(p.kbps)}`;
+    // Правило 2 версии профиля: поле потока, которого нет в версии сервера, строка пропускает
+    const so=f=>kindFieldOff("stream",f),t=[so("res")?"":(res||"—").replace("x","×"),so("fps")?"":`${fps??"—"} ${i18n("к/с")}`,so("codec")?"":drvSend(n)?p.codec:s.codec||"—",cvKbpsText(p.kbps)].filter(Boolean).join(" · ");
     return`<button type="button" role="radio" class="cv-sp" aria-checked="${s.id===pick}" tabindex="${s.id===pick?0:-1}" title="${escHtml(`${s.name}: ${t}${off?`. ${i18n("Нет сигнала")}`:""}`)}" data-cv-stream="${escHtml(s.id)}" ${off?"disabled":""} ${onEv("click",["cvStreamSet",`${n.id}`,`${s.id}`])}><span class="cv-sp-r" aria-hidden="true"></span><b>${escHtml(s.name)}</b><span class="cv-sp-t">${escHtml(t)}</span>${off?`<span class="pf-st bad">${i18n("нет сигнала")}</span>`:""}</button>`}).join("");
   return`<div class="cv-sps" role="radiogroup" aria-label="${i18n("Поток в просмотре")}" ${onEv("keydown",["cvStreamKey",`${n.id}`])}><div class="cv-sps-h">${i18n("Поток в просмотре")}</div>${rows}</div>`;
 }
@@ -23293,12 +23294,12 @@ function cvStreamColHtml(n,s,i,c,con){
   }
   const head=`<div class="cv-col-h"><b>${escHtml(s.name)}</b>${i?"":`<span class="sub">${i18n("основной")}</span>`}${s.online===false?`<span class="pf-st bad">${i18n("нет сигнала")}</span>`:`<span class="pf-st ok">${i18n("работает")}</span>`}
     ${con&&i?`<button type="button" class="btn s btn-icon" title="${i18n("Удалить поток")}" aria-label="${i18n("Удалить поток")} ${escHtml(s.name)}" ${pendingDelHas(`camstream:${id}/${sid}`)?"disabled":""} ${onEv("click",["streamDel",`${id}`,`${sid}`])}>${lu("trash",14)}</button>`:""}</div>`;
-  if(!con)return`<div class="cv-col" data-stream="${escHtml(sid)}">${head}<div class="cv-g">${ro("Кодек",`${s.codec||p.codec}${p.profile?` · ${p.profile}`:""}`)}${ro("Разрешение",(res||"—").replace("x","×"))}${ro("Кадров в секунду",fps??"—")}${ro("Битрейт",`${p.brc==="cbr"?i18n("постоянный"):i18n("переменный, до")} ${cvKbpsText(p.kbps)}`)}${ro("Опорный кадр",`${i18n("каждые")} ${p.gop} ${i18n("кадров")}`)}${ro("В просмотре",i18n(p.live?"да":"нет"))}</div></div>`;
+  if(!con)return`<div class="cv-col" data-stream="${escHtml(sid)}">${head}<div class="cv-g">${pfw("stream","codec",ro("Кодек",`${s.codec||p.codec}${p.profile?` · ${p.profile}`:""}`))}${pfw("stream","res",ro("Разрешение",(res||"—").replace("x","×")))}${pfw("stream","fps",ro("Кадров в секунду",fps??"—"))}${ro("Битрейт",`${p.brc==="cbr"?i18n("постоянный"):i18n("переменный, до")} ${cvKbpsText(p.kbps)}`)}${ro("Опорный кадр",`${i18n("каждые")} ${p.gop} ${i18n("кадров")}`)}${ro("В просмотре",i18n(p.live?"да":"нет"))}</div></div>`;
   const resOpts=s.resOptions||(i?null:n.resOptions);
-  const resF=`<div class="cv-f"><label>${i18n("Разрешение")}</label>${resInput(resOpts,res,["cvPend",`${id}`,`${sid}`,"res",onEv.value]).replace(/^<(select|input) /,`<$1 data-df="Разрешение" `)}</div>`;
-  const fpsF=`<div class="cv-f"><label>${i18n("Кадров в секунду")}</label><span class="cv-num"><input type="number" min="1" value="${escHtml(fps??"")}" ${onEv("change",["cvPend",`${id}`,`${sid}`,"fps",onEv.value])}><small>${i18n("к/с")}</small></span></div>`;
+  const resF=`<div class="cv-f"${pfa("stream","res")}><label>${i18n("Разрешение")}</label>${resInput(resOpts,res,["cvPend",`${id}`,`${sid}`,"res",onEv.value]).replace(/^<(select|input) /,`<$1 data-df="Разрешение" `)}</div>`;
+  const fpsF=`<div class="cv-f"${pfa("stream","fps")}><label>${i18n("Кадров в секунду")}</label><span class="cv-num"><input type="number" min="1" value="${escHtml(fps??"")}" ${onEv("change",["cvPend",`${id}`,`${sid}`,"fps",onEv.value])}><small>${i18n("к/с")}</small></span></div>`;
   return`<div class="cv-col" data-stream="${escHtml(sid)}">${head}<div class="cv-g">
-    ${sel("Кодек","codec",CV_CODECS,p.codec)}${p.codec==="MJPEG"?"":sel("Профиль кодека","profile",CV_PROFILES,p.profile)}
+    ${pfw("stream","codec",sel("Кодек","codec",CV_CODECS,p.codec))}${p.codec==="MJPEG"?"":sel("Профиль кодека","profile",CV_PROFILES,p.profile)}
     ${resF}${fpsF}
     ${sel("Режим битрейта","brc",[["vbr","Переменный (VBR)"],["cbr","Постоянный (CBR)"]],p.brc)}
     ${num(p.brc==="cbr"?"Битрейт":"Наибольший битрейт","kbps",p.kbps,64,"кбит/с")}
@@ -23924,6 +23925,8 @@ function webSwHtml(n,k,title,hint,dis=""){
   return`<label class="web-cb"><input type="checkbox" data-web-cb="${k}" ${on?"checked":""} ${dis} ${onEv("change",["webToggle",`${n.id}`,`${k}`])}><span>${i18n(title)}<small>${i18n(hint)}</small></span></label>`;
 }
 function webAddrHtml(n){
+  // Правило 2 версии профиля: поля ip нет в версии сервера — адреса консоль не знает
+  if(nodeFieldOff(n,"ip"))return"";
   const st=webOf(n),u=webUrls(n,st.vals,webHttpsOn(n,st));
   if(!u.length)return`<span class="sub">${i18n("Веб-сервер выключен. Браузер и мобильные клиенты не подключатся к серверу.")}</span>`;
   return`<span class="web-addr-l">${i18n("Адрес")}:</span> ${u.map(x=>copyChipHtml(x,"Адрес")).join(" ")}`;
@@ -23969,7 +23972,7 @@ function webSrvHtml(n){
   const rp=Number(v.rtsp);
   const rtsp=card("RTSP-сервер",`<div class="web-row">${webPortFld(n,"rtsp","Порт RTSP",err,"")}${webPortFld(n,"rtspHttp","Порт RTSP через HTTP",err,"")}</div>
     <p class="sub web-hint">${i18n("Плееры и другие системы забирают видео с сервера по RTSP. Они входят под именем и паролем пользователя консоли и получают видео только тех камер, которые этот пользователь может смотреть по своим правам.")}</p>
-    <div class="web-rtsp-ex"><span class="web-addr-l">${i18n("Адрес потока камеры")}:</span> ${copyChipHtml(`rtsp://${i18n("имя")}:${i18n("пароль")}@${n.ip||"localhost"}${rp===554?"":":"+v.rtsp}/hosts/${i18n("ИМЯ-СЕРВЕРА")}/DeviceIpint.N/SourceEndpoint.video:0:0`,"Адрес")} <span class="sub web-rtsp-n">${i18n("N — номер камеры, имя сервера — заглавными буквами")}</span></div>
+    <div class="web-rtsp-ex"><span class="web-addr-l">${i18n("Адрес потока камеры")}:</span> ${copyChipHtml(`rtsp://${i18n("имя")}:${i18n("пароль")}@${(nodeFieldOff(n,"ip")?"":n.ip)||"localhost"}${rp===554?"":":"+v.rtsp}/hosts/${i18n("ИМЯ-СЕРВЕРА")}/DeviceIpint.N/SourceEndpoint.video:0:0`,"Адрес")} <span class="sub web-rtsp-n">${i18n("N — номер камеры, имя сервера — заглавными буквами")}</span></div>
     <p class="sub web-hint">${i18n("Имя пользователя для RTSP начинается с латинской буквы и содержит только латинские буквы, цифры и символы / - _ . : +")}</p>`);
   // Правило 2 версии профиля: настройки веб-, RTSP- и ONVIF-сервера — поле webServer, сертификат — webCertificate
   const ws=h=>pfw(n,"webServer",h);
@@ -24000,7 +24003,7 @@ function onvifAddr(n,v){return`${n.ip||"localhost"}:${String(v.onvif).trim()}`}
 function onvifAddrHtml(n){
   const v=webOf(n).vals;
   if(!v.onvifOn)return`<span class="sub">${i18n("ONVIF-сервер выключен. Другие VMS не получат видео этого сервера по ONVIF.")}</span>`;
-  if(!onvifPortOk(v.onvif))return"";
+  if(!onvifPortOk(v.onvif)||nodeFieldOff(n,"ip"))return"";
   return`<span class="web-addr-l">${i18n("Адрес для другой VMS")}:</span> ${copyChipHtml(onvifAddr(n,v),"Адрес")}`;
 }
 function onvifBadge(v){return!v.onvifOn?i18n("выключен"):onvifPortOk(v.onvif)?`${i18n("порт")} ${String(v.onvif).trim()}`:i18n("нет порта")}
@@ -24355,7 +24358,7 @@ function formBase(n){
   if(handOf(n,"server")){
     if(isUnallocated(n.id)){
       const domId=unallocDomainOf(n.id),domName=domains.find(d=>d.id===domId)?.name||"—";
-      return card("Нераспределённый сервер",`<div class="g">${fld("Имя",n.name)}${fld("IP",n.ip||"")}${fld("Порт",n.port||20111,"number")}</div>
+      return card("Нераспределённый сервер",`<div class="g">${fld("Имя",n.name)}${pfw(n,"ip",fld("IP",n.ip||""))}${pfw(n,"port",fld("Порт",n.port||20111,"number"))}</div>
         <p class="sub">Домен: <b>${domName}</b></p>
         <button type="button" class="btn pri" style="margin-top:12px;width:100%" ${onEv("click",["addToDomain",`${n.id}`,`${domId}`])}>${i18n("Добавить в домен")}</button>`);
     }
@@ -24387,7 +24390,7 @@ function formBase(n){
       });
     }
     if(tab==="web"&&webHas(n))return webSrvHtml(n);
-    if(tab==="net")return card("Сеть",`<div class="g">${fld("IP",n.ip)}${fld("Маска","255.255.255.0")}${fld("Шлюз","10.20.1.1")}${fld("DNS","8.8.8.8")}</div>`);
+    if(tab==="net")return card("Сеть",`<div class="g">${pfw(n,"ip",fld("IP",n.ip))}${pfw(n,"netmask",fld("Маска","255.255.255.0"))}${pfw(n,"gateway",fld("Шлюз","10.20.1.1"))}${pfw(n,"dns",fld("DNS","8.8.8.8"))}</div>`);
     if(tab==="svc")
       return childListCard(n,{
         key:"svc",
@@ -24402,14 +24405,14 @@ function formBase(n){
     const svc=(n.devices||[]).filter(d=>isSvc(d)).length;
     const recCams=serverCameras(n.id).filter(isRecording);
     return card("Общие",`${bdg(n)}${n.online===false?` <span class="sub">${i18n("нет связи")}</span>`:` <span class="sub">${i18n("ведёт запись и службы")}</span>`}
-      <div class="g" style="margin-top:10px">${fld("Имя",locName(n))}${fld("IP",n.ip)}${can("feature:serverRoles")?sl("Роль",[n.role||"Узел","Резервный"]):""}</div>
-      ${serverLoadHtml(n)}
-      <label class="sub" style="display:block;margin-top:10px">${i18n("Метки сервера")}</label>${chipsHtml(refLabels,n.labels,"listToggle",`${n.id}`,"labels")}
-      <div class="g" style="margin-top:6px"><div><input placeholder="${i18n("Новая метка")}" aria-label="${i18n("Новая метка")}" ${onEv("change",["serverLabelAdd",`${n.id}`,onEv.value])}></div></div>
+      <div class="g" style="margin-top:10px">${fld("Имя",locName(n))}${pfw(n,"ip",fld("IP",n.ip))}${can("feature:serverRoles")?pfw(n,"role",sl("Роль",[n.role||"Узел","Резервный"])):""}</div>
+      ${pfw(n,"telemetry",serverLoadHtml(n))}
+      <div${pfa(n,"labels")}><label class="sub" style="display:block;margin-top:10px">${i18n("Метки сервера")}</label>${chipsHtml(refLabels,n.labels,"listToggle",`${n.id}`,"labels")}
+      <div class="g" style="margin-top:6px"><div><input placeholder="${i18n("Новая метка")}" aria-label="${i18n("Новая метка")}" ${onEv("change",["serverLabelAdd",`${n.id}`,onEv.value])}></div></div></div>
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","svc"])}><span>${i18n("Службы сервера")}</span><b>${svc}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","disk"])}><span>${i18n("Камер пишется")}</span><b>${recCams.length}</b></button>
-        ${serverGpu(n)?`<button type="button" class="mc" ${onEv("click",["pick",`${gpuId(n.id)}`])}><span>${i18n("Видеоускоритель")}</span><b>${escHtml(serverGpu(n).model)}</b></button>`:`<div class="mc"><span>${i18n("Видеоускоритель")}</span><b>${i18n("нет")}</b></div>`}
+        ${pfw(n,"gpu",serverGpu(n)?`<button type="button" class="mc" ${onEv("click",["pick",`${gpuId(n.id)}`])}><span>${i18n("Видеоускоритель")}</span><b>${escHtml(serverGpu(n).model)}</b></button>`:`<div class="mc"><span>${i18n("Видеоускоритель")}</span><b>${i18n("нет")}</b></div>`)}
         ${webTileHtml(n)}
         <div class="mc"><span>${i18n("Ошибки")}</span><b>0</b></div>
       </div>
