@@ -4614,6 +4614,7 @@ async function kindsLoad(){
   if(r.status===304)return false;
   if(r.status>=400)throw{status:r.status,problem:r.body};
   kindsEtag=String(r.headers.etag||"").replace(/^W\//,"").replace(/"/g,"")||null;
+  profverApply(r.body);
   KINDS.clear();(r.body.items||[]).forEach(k=>KINDS.set(k.kind,k));
   KIND_PROFILES.clear();(r.body.profiles||[]).forEach(p=>{if(p?.id)KIND_PROFILES.set(p.id,p)});
   kindsApply();
@@ -5686,6 +5687,38 @@ function profileNewerProps(id){
   const k=new Set(profileProps(kn)),v=profileVer(srv),out={};
   profileProps(srv).forEach(f=>{if(!k.has(f))out[f]=v});
   return out;
+}
+// Показ версии профиля (только прототип 82): ?profver=<профиль>@<версия>+<поле>-<поле>,… меняет ответ GET /kinds так,
+// будто сервер отдал другую версию профиля. «+поле» — поле есть в профиле и в схеме видов профиля (строка), «-поле» —
+// поля нет ни там, ни там. Пример: ?profver=vms.camera/1@1.7+fooNew#node=<uid камеры>&form=all
+function profverParse(){
+  const m=/[?&]profver=([^&#]*)/.exec(location.search);if(!m)return[];
+  let s;try{s=decodeURIComponent(m[1])}catch(e){return[]}
+  return s.split(",").map(x=>{
+    const y=/^([^@]+)@(\d+\.\d+)((?:[+-][A-Za-z_]\w*)*)$/.exec(x.trim());if(!y)return null;
+    const add=[],drop=[];(y[3].match(/[+-][A-Za-z_]\w*/g)||[]).forEach(t=>(t[0]==="+"?add:drop).push(t.slice(1)));
+    return{id:y[1],version:y[2],add,drop};
+  }).filter(Boolean);
+}
+let profverToast=false;
+function profverApply(body){
+  const list=profverParse();if(!list.length||!body)return;
+  list.forEach(o=>{
+    const p=(body.profiles||[]).find(q=>q?.id===o.id);if(!p)return;
+    const ps=profileProps(p).filter(f=>!o.drop.includes(f));o.add.forEach(f=>{if(!ps.includes(f))ps.push(f)});
+    p.version=o.version;p.properties=ps;
+    (body.items||[]).filter(k=>(k.implements||[]).includes(o.id)).forEach(k=>{
+      k.schema=k.schema||{type:"object"};const pr=k.schema.properties=k.schema.properties||{};
+      o.add.forEach(f=>{if(!pr[f])pr[f]={type:"string",title:f}});
+      o.drop.forEach(f=>{delete pr[f]});
+      if(Array.isArray(k.schema.required))k.schema.required=k.schema.required.filter(f=>!o.drop.includes(f));
+    });
+  });
+  if(!profverToast){
+    profverToast=true;
+    const t=list.map(o=>`${o.id} ${o.version}${o.add.map(f=>" +"+f).join("")}${o.drop.map(f=>" −"+f).join("")}`).join(", ");
+    setTimeout(()=>toast(`${i18n("Показ: сервер отдаёт другую версию профиля")}: ${t}`),800);
+  }
 }
 // Поля знакомой версии, которых нет у сервера (сервер старше): их своему экрану показывать нельзя (правило 2). Заготовка
 // среза 2: вызовов пока нет. Наборы large, xl и one-domain отдают vms.detector/1 1.1 с 11 полями из 42 — срез 2 должен
