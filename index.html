@@ -6468,7 +6468,8 @@ function permText(p){
 // В карточке — только место [data-sui-slot] нужной высоты; suiPlace() ставит док поверх места и обрезает его по видимой
 // части прокрутки. Нет места (вкладка «Доступ», «Все параметры») — док скрыт, рамка жива, пока открыт тот же объект.
 // Правило стенда (не протокол): тестовая страница стенда — относительный адрес или адрес под api/plugins/ на происхождении
-// консоли (или оба адреса file:) — star: отправка с "*", приём с "null". Другой адрес на происхождении консоли — сбой.
+// консоли (у консоли с диска — только адрес под api/plugins/) — star: отправка с "*", приём с "null". Другой адрес на
+// происхождении консоли — сбой.
 // Рамка на http того же происхождения — без allow-same-origin; консоль с диска даёт allow-same-origin, иначе Chrome
 // не загружает скрипты страницы с диска
 const SUI_PROTO="setup/1",SUI_READY_MS=10000,SUI_FLUSH_MS=2000,SUI_APPLY="button",SUI_MECH_TABS=new Set(["acc"]);
@@ -6567,7 +6568,10 @@ async function suiOpen(n){
   const fileHere=location.protocol==="file:";
   const here=u=>u.protocol==="file:"?fileHere:(u.origin!=="null"&&u.origin===location.origin);
   const rel=!/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(raw);
-  const star=here(url)&&(rel||url.href.startsWith(new URL("api/plugins/",document.baseURI).href));
+  // Консоль с диска даёт рамке allow-same-origin, а под --allow-file-access-from-files (check_ui, check_stand) любой файл
+  // с allow-same-origin читает консоль: там star — только под api/plugins/, адрес после разбора (без «..»)
+  const plug=url.href.startsWith(new URL("api/plugins/",document.baseURI).href);
+  const star=here(url)&&(fileHere?plug:rel||plug);
   const hint=link.origin||su?.origin||"";
   let hintHere=false;
   if(hint){try{hintHere=here(new URL(String(hint)))}catch(e){}}
@@ -7038,22 +7042,32 @@ async function bridgeUnitGet(id,uid){
   if(res.status!==200||!res.body)return{fail:{id,ok:false,status:res.status,problem:bridgeProblem(res.body,res.status)}};
   return{unit:res.body};
 }
+// Значение страницы для плана: строкой, не длиннее 60 знаков
+function bridgeVal(v){const t=String(v??"");return t.length>60?t.slice(0,59)+"…":t}
 // Подпись и «станет» шага для плана
 function bridgeStepText(it,u,dest){
   const nm=u?bridgeName(u):String(it.uid);
-  if(it.createUnit)return{label:bridgeT("Добавить: {вид} «{имя}»",{вид:bridgeKindLabel(it.createUnit.kind),имя:textOf(it.createUnit.name)||"—"}),toT:i18n("будет добавлен")};
+  if(it.createUnit){
+    // Вложенные объекты (children) план называет числом: страница не добавит их незаметно
+    const nest=x=>(Array.isArray(x?.children)?x.children:[]).reduce((k,c)=>k+1+nest(c),0),kids=nest(it.createUnit);
+    return{label:bridgeT("Добавить: {вид} «{имя}»",{вид:bridgeKindLabel(it.createUnit.kind),имя:textOf(it.createUnit.name)||"—"}),
+      toT:kids?bridgeT("будет добавлен, вложенных объектов: {n}",{n:kids}):i18n("будет добавлен")};
+  }
   if(it.delete)return{label:bridgeT("Удалить «{имя}»",{имя:nm}),toT:i18n("будет удалён")};
   if(it.move!==undefined)return{label:bridgeT("Перенести «{имя}» в «{родитель}»",{имя:nm,родитель:dest}),toT:`«${dest}»`};
   if(it.folders)return{label:bridgeT("Папки «{имя}»",{имя:nm}),toT:`${it.folders.length} ${i18n(plural(it.folders.length,"папка|папки|папок"))}`};
   const ps=KINDS.get(u?.kind)?.schema?.properties||{},out=[];
-  if(it.patch.name!=null)out.push(`${i18n("Имя")}: «${it.patch.name}»`);
-  Object.keys(it.patch.properties||{}).forEach(k=>out.push(propLabel(ps[k],k)));
+  if(it.patch.name!=null)out.push(`${i18n("Имя")}: «${bridgeVal(it.patch.name)}»`);
+  // Значение — в плане рядом с полем: человек видит, на что страница меняет свойство, а не только какое
+  Object.entries(it.patch.properties||{}).forEach(([k,v])=>out.push(`${propLabel(ps[k],k)}: ${v===null?i18n("сбросить"):typeof v==="string"?`«${bridgeVal(v)}»`:bridgeVal(JSON.stringify(v))}`));
   if(it.patch.folders)out.push(i18n("Папки"));
   return{label:bridgeT("Изменить «{имя}»",{имя:nm}),toT:out.join(", ")||"—"};
 }
-// Имя родителя для подписи переноса: родитель из кэша или с сервера; null — корень домена объекта (имя домена)
-async function bridgeDestName(id,u,parentId){
-  const pid=parentId===null?u.domainId:parentId;
+// Имя родителя для подписи переноса: родитель из кэша или с сервера; null — корень домена: params.domainId шага
+// (vms.server/1: исключить в другой домен), без него — домен объекта
+async function bridgeDestName(id,u,parentId,params){
+  const pd=params&&typeof params.domainId==="string"&&params.domainId?params.domainId:null;
+  const pid=parentId===null?pd||u.domainId:parentId;
   if(!pid)return{name:"—"};
   const c=find(pid)?.n;if(c)return{name:locName(c)};
   const r=await bridgeUnitGet(id,pid);
@@ -7148,7 +7162,7 @@ async function bridgeDraft(msg,f){
   for(const r of raw){
     const it=r.item,u=units.get(it.uid);
     let dest="";
-    if(it.move!==undefined){const x=await bridgeDestName(id,u,it.move);if(x.fail)return x.fail;dest=x.name}
+    if(it.move!==undefined){const x=await bridgeDestName(id,u,it.move,it.params);if(x.fail)return x.fail;dest=x.name}
     texts.push(bridgeStepText(it,u,dest));
   }
   const dels=raw.filter(r=>r.item.delete).map(r=>units.get(r.item.uid));
@@ -7363,7 +7377,8 @@ function bridgeOnEvent(m){
 }
 // navigate → Promise<BridgeResult | null>. null — удачный переход: карточка другая, рамка закрыта, ответа нет.
 // Переход — по правилу «Моргание при переходе по ссылке»: hwJumpFlash вокруг pick, вспышку даёт hwFlashLanding.
-// Черновик не пуст — сначала cardLeaveAsk; «Остаться» — CANCELLED. Вопрос о блоках драйвера (csLeaveAsk) мост не задаёт
+// Блоки драйвера или потоки камеры не сохранены — сначала csLeaveAsk, как в pick; черновик не пуст — затем cardLeaveAsk.
+// «Остаться» в любом вопросе — CANCELLED
 async function bridgeNavigate(msg,f=suiFrame){
   const id=msg.id,uid=msg.uid;
   if(typeof uid!=="string"||!uid||uid.includes(":"))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/uid"});
@@ -7390,11 +7405,16 @@ async function bridgeNavigate(msg,f=suiFrame){
       try{pick(uid,{...(tb?{tab:tb}:{}),force:true,csOk:true})}finally{hwJumpFlash=false}
       res(null);
     };
-    if(!(cardDraft&&cardDiff().length)){go();return}
-    // Вопрос «Изменения не применены» — диалог рамки: открытый диалог consolem он не подменяет, пауза и счёт отказов — общие
-    if(bridgeDlgOpen()){res(bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)}));return}
-    if(bridgeMuted(f)){res(bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.MUTED)}));return}
-    cardLeaveAsk(()=>{bridgeAskCount(f,true);go()},()=>{bridgeAskCount(f,false);res(bridgeFail(id,0,"CANCELLED"))});
+    // Вопросы «Изменения не применены» и «Вы не сохранили изменения» — диалоги рамки: открытый диалог consolem они не
+    // подменяют, пауза и счёт отказов — общие
+    const ask=(open,next)=>{
+      if(bridgeDlgOpen()){res(bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)}));return}
+      if(bridgeMuted(f)){res(bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.MUTED)}));return}
+      open(()=>{bridgeAskCount(f,true);next()},()=>{bridgeAskCount(f,false);res(bridgeFail(id,0,"CANCELLED"))});
+    };
+    const draft=()=>{if(!bridgeLive(f)){res(null);return}if(!(cardDraft&&cardDiff().length)){go();return}ask(cardLeaveAsk,go)};
+    if(sel&&sel!==uid&&csDirtyList(sel).length){ask((y,no)=>csLeaveAsk(sel,y,no),draft);return}
+    draft();
   });
 }
 // confirm → Promise<true | false | "busy" | "gone"> (bridgeAsk): диалог consolem. Строку «Спрашивает страница вида «…»» consolem
@@ -10359,7 +10379,10 @@ function askConfirm(title,msg,warn,okLabel,onOk,opts={}){
     inp.onkeydown=e=>{if(e.key==="Enter"&&!ok.disabled){e.preventDefault();runConfirmOk()}};
   }
   document.getElementById("confirm").classList.add("open");
-  if(opts.typeCount!=null)setTimeout(()=>document.getElementById("confirmCountInp")?.focus(),40);
+  // Вопрос страницы подсистемы (asker): фокус — на «Отменить», а не в поле числа. Иначе страница выбирает момент вызова,
+  // и нажатия, которые человек печатал в её поле («1», Enter), подтвердят команду без чтения диалога
+  if(opts.asker)setTimeout(()=>document.getElementById("confirmCancel")?.focus(),40);
+  else if(opts.typeCount!=null)setTimeout(()=>document.getElementById("confirmCountInp")?.focus(),40);
 }
 let skipCredentialsWarn=localStorage.getItem("skipCredentialsWarn")==="1";
 function credentialsWarnHtml(bulk){
@@ -16159,9 +16182,9 @@ function csDirtyList(id,devOnly){
   if(cvDirty(n))out.push(i18n("Параметры потоков"));
   return out;
 }
-function csLeaveAsk(id,go){
+function csLeaveAsk(id,go,onCancel){
   const n=find(id)?.n,l=csDirtyList(id);
-  askConfirm("Вы не сохранили изменения",`<p>${i18n("Консоль не сохранила изменения камеры")} «${escHtml(locName(n||{}))}» ${i18n("в блоках:")}</p><ul class="bk-del">${l.map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul>`,"",i18n("Сбросить и перейти"),go,{html:true,cancelLabel:"Остаться"});
+  askConfirm("Вы не сохранили изменения",`<p>${i18n("Консоль не сохранила изменения камеры")} «${escHtml(locName(n||{}))}» ${i18n("в блоках:")}</p><ul class="bk-del">${l.map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul>`,"",i18n("Сбросить и перейти"),go,{html:true,cancelLabel:"Остаться",...(onCancel?{onCancel}:{})});
 }
 // Ушли с камеры: открытые правки её блоков закрываются, значения блоков драйвера и потоков возвращаются
 function csLeave(id){
@@ -39313,7 +39336,8 @@ document.onkeydown=e=>{
       e.preventDefault();treeKeyNav(e.key);return;
     }
   }
-  if(document.getElementById("confirm")?.classList.contains("open")&&e.key==="Enter"){e.preventDefault();runConfirmOk();return}
+  // Вопрос страницы подсистемы (#confirmAsker) общий Enter не подтверждает: Enter жмёт кнопку в фокусе, а в поле числа — только при верном числе
+  if(document.getElementById("confirm")?.classList.contains("open")&&e.key==="Enter"&&!document.getElementById("confirmAsker")){e.preventDefault();runConfirmOk();return}
   if(e.key==="Escape"){e.preventDefault();escapeLayer();return}
   if((e.key==="f"||e.key==="F"||e.key==="а"||e.key==="А")&&app==="hw"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest("input,textarea,select")){
     e.preventDefault();

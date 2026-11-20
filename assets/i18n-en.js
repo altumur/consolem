@@ -4340,4 +4340,5 @@ window.I18N_EN={
 "Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.":"The console does not know this command of the object kind, so it does not know if the command needs a confirmation. The console did not send the command.",
 "Чтобы подтвердить, ввести число":"To confirm, enter the number",
 "Подтвердить":"Confirm",
+"будет добавлен, вложенных объектов: {n}":"will be added, nested objects: {n}",
 };

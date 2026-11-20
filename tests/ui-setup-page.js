@@ -555,7 +555,7 @@ UiCheck(async ({ ok, until, sleep }) => {
     ok(await until(() => !!main().querySelector("[data-plugin]") && !slot() && !!main().querySelector("[data-schema-card]")), "mode: tab — ссылка «Страница плагина», форма по схеме");
 
     // Правило стенда — только для тестовой страницы стенда: относительный адрес или адрес под api/plugins/ на происхождении
-    // консоли (у консоли с диска — на диске). Другой адрес на происхождении консоли и подсказка origin, равная происхождению
+    // консоли (у консоли с диска — только под api/plugins/). Другой адрес на происхождении консоли и подсказка origin, равная происхождению
     // консоли, при чужом адресе — сбой с причиной, рамки нет
     {
       const SAME = i18n("У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу.");
@@ -564,6 +564,14 @@ UiCheck(async ({ ok, until, sleep }) => {
       stubSetup(() => Promise.resolve({ url: elsewhere, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
       await open(SUI_UNIT);
       ok(await until(sameFail, 3000), "адрес на происхождении консоли вне api/plugins/ — сбой «то же происхождение»: " + JSON.stringify(suiFrame && { state: suiFrame.state, why: suiFrame.why }));
+      // Консоль с диска даёт рамке allow-same-origin: там и относительный адрес — только под api/plugins/, «..» не выводит наружу
+      if (location.protocol === "file:") {
+        for (const rel of ["tools/setup-page.html", "api/plugins/../../tools/setup-page.html"]) {
+          stubSetup(() => Promise.resolve({ url: rel, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
+          suiRetry();
+          ok(await until(sameFail, 3000), `консоль с диска: относительный адрес ${rel} вне api/plugins/ — сбой «то же происхождение»: ` + JSON.stringify(suiFrame && { state: suiFrame.state, why: suiFrame.why }));
+        }
+      }
       const hintHere = location.protocol === "file:" ? "file://" : location.origin;
       stubSetup(() => Promise.resolve({ url: "https://pages.example/setup/index.html", origin: hintHere, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
       suiRetry();

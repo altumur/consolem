@@ -172,6 +172,12 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     pageSend({ type: "call", id: idC, op: "runUnitAction", params: { uid: ODD, action: "calibrate" }, body: { params: { level: "high" } } });
     ok(await until(() => dlgOpen() && !!document.getElementById("confirmCountInp"), 5000) && document.getElementById("confirmOk").disabled,
       "команда с confirm.typeCount: в диалоге поле для числа, «Выполнить» неактивна");
+    // Вопрос страницы: фокус — на «Отменить», а не в поле числа; общий Enter его не подтверждает (страница выбирает момент
+    // вызова, нажатия человека не должны подтвердить команду)
+    ok(await until(() => document.activeElement?.id === "confirmCancel", 2000), "вопрос страницы: фокус на «Отменить», не в поле числа: " + document.activeElement?.id);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await new Promise((r) => setTimeout(r, 150));
+    ok(dlgOpen() && !replyOf(idC) && !trace("POST", `/units/${ODD}/actions/calibrate`).length, "общий Enter вопрос страницы не подтверждает");
     await confirmWith(1);
     ok(await until(() => !!replyOf(idC), 5000) && replyOf(idC).ok === true && replyOf(idC).status >= 200 && replyOf(idC).status < 300 && trace("POST", `/units/${ODD}/actions/calibrate`).length === 1,
       "число введено — команда ушла, ответ сервера странице: " + (replyOf(idC) && replyOf(idC).status));
@@ -373,6 +379,17 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     const planText = document.getElementById("bmodal").textContent;
     ok(["Изменить «Датчик двери»", "Добавить:", "«Мост новый»", "Удалить «Датчик ворот»", "Перенести «Незнакомый объект 2»"].every((t) => planText.includes(t)), "в плане строки моста с подписями");
     closeBulkModal();
+    // План называет значения правки и вложенные объекты createUnit: страница не меняет значение и не добавляет объекты незаметно
+    const stP = bridgeStepText({ uid: S1, patch: { properties: { zone: "Север", note: null, level: 5 } } }, { uid: S1, kind: SENSOR, name: "Д" }, "");
+    ok(stP.toT.includes("«Север»") && stP.toT.includes("сбросить") && stP.toT.includes("5"), "план правки — со значениями: " + stP.toT);
+    const stC = bridgeStepText({ uid: CTRL, createUnit: { kind: SENSOR, name: "Р", properties: {}, children: [{ kind: SENSOR, properties: {}, children: [{ kind: SENSOR, properties: {} }] }] } }, null, "");
+    ok(stC.toT.includes("вложенных объектов: 2"), "план createUnit — число вложенных объектов: " + stC.toT);
+    // Перенос в корень с params.domainId: подпись — домен из params, а не домен объекта
+    const doms = allNodes().filter((x) => handOf(x, "domain"));
+    if (doms.length > 1) {
+      const dn = await bridgeDestName("x", { uid: ODD2, domainId: doms[0].id }, null, { domainId: doms[1].id });
+      ok(dn.name === locName(doms[1]), "перенос в корень с params.domainId — подпись называет домен из params: " + dn.name);
+    }
     window.CONSOLEM_TRACE.length = 0;
     const sentAt = sent.length;
     cardApply();
@@ -647,6 +664,16 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => code(replyOf("nf1")) === "CANCELLED", 3000) && sel === SUI_UNIT, "первый переход — CANCELLED");
     cardReset();
     ok(await until(() => !cardDiff().length, 3000), "черновик снова пуст");
+    // Блоки драйвера не сохранены (csDirtyList подменён): navigate спрашивает, как обычный переход; «Остаться» — CANCELLED
+    const realCsDirty = csDirtyList;
+    csDirtyList = (id) => (id === SUI_UNIT ? ["Блок драйвера"] : []);
+    try {
+      pageSend({ type: "navigate", id: "nc1", uid: cam });
+      ok(await until(() => dlgOpen() && document.getElementById("confirmTitle").textContent === "Вы не сохранили изменения", 5000), "navigate при несохранённых блоках драйвера — вопрос «Вы не сохранили изменения»");
+      document.getElementById("confirmCancel").click();
+      ok(await until(() => code(replyOf("nc1")) === "CANCELLED", 3000) && valid(replyOf("nc1")) && sel === SUI_UNIT, "«Остаться» — CANCELLED, карточка та же");
+    } finally { csDirtyList = realCsDirty; }
+    await touchPage();
     // Рамка закрылась при открытом confirm: диалог закрыт без ответа, подписки сняты
     pageSend({ type: "confirm", id: "cf5", title: "Вопрос", text: "Вопрос" });
     ok(await until(dlgOpen, 3000) && watchIds().includes(cam), "диалог c5 открыт, камера s3 в наблюдении");
