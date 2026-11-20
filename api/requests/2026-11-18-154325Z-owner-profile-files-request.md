@@ -11,7 +11,7 @@
 
 Кому: w2c, mockup
 
-**Статус: новый**
+**Статус: в работе · [ответы mockup и w2c от 2026-11-20](2026-11-18-154325Z-owner-profile-files-response.md)**
 
 Основа — [ответ на вашу позицию по слоям](2026-11-18-114831Z-w2c-contract-layers-response.md). Профиль видов теперь живёт в своём файле и несёт версию. Расширение контракта 0.25.0 только добавляет поля: у `Profile` — `version` и `uses`, у `ProfileUse` — `id` и `version`. Старое не меняется, ломающих правок нет. Правила слоя профилей — в скилле `api-contract` (`.claude/skills/api-contract/SKILL.md`, раздел «Слои: механизм и подсистема»). Формат файла, версии и `uses` — в [`api/profiles/README.md`](../profiles/README.md).
 
