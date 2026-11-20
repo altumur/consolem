@@ -434,7 +434,8 @@
   test("Домен: status.observed.stateSummary — числа не пересекаются, выключенные вне total, отставание на круг, unread, нет круга — нет поля", async () => {
     const env = await makeEnv();
     const cams = FX.devices.filter((d) => d.domainId === did && d.type === "camera");
-    // Итог круга — вычисляемое хуком core.domain/1: у объекта домена в status.observed
+    // Итог круга — поле профиля vms.camera/1 (AreaStateSummary, 0.35.0) у объекта области в status.observed; считает его хук
+    // core.domain/1 встроенного сервера
     const summary = async (e) => ((await e.ok("GET", `/units/${did}`)).status.observed || {}).stateSummary;
     const s = await summary(env);
     assert.eq(s.total, cams.filter((d) => d.enabled !== false).length, "выключенные вне total");
@@ -457,7 +458,7 @@
     assert.eq((await summary(part)).unread, 3, "unread");
     const none = await makeEnv({ fixturePatch: { stand: { summaryOff: true } } });
     assert.eq(await summary(none), undefined, "круг не прошёл — поля нет");
-  }, { needs: ["kind:camera", "testEvent"] });
+  }, { needs: ["kind:camera", "testEvent"], layer: "profile:vms.camera/1" });
 
   test("Поток: stream.hello первым, события устройств — только по наблюдению и детям, tree.changed, предел watchMax", async () => {
     const env = await makeEnv();

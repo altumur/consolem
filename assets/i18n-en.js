@@ -4343,4 +4343,11 @@ window.I18N_EN={
 "Чтобы подтвердить, ввести число":"To confirm, enter the number",
 "Подтвердить":"Confirm",
 "будет добавлен, вложенных объектов: {n}":"will be added, nested objects: {n}",
+"Страница сейчас скрыта. Пока пользователь не видит страницу, она только читает данные и получает события.":"The page is hidden now. While the user does not see the page, it can only read data and receive events.",
+"Страница просит выполнить команду для объекта, который не входит в её объект. Выполнить команду?":"The page asks to run a command for an object that is not part of its object. Run the command?",
+"Страница читает журнал только своего объекта и его дочерних объектов.":"The page reads the journal only for its object and the child objects.",
+"Страница не читает записи аудита.":"The page does not read audit records.",
+"Страница отменяет только операции, которые запустила сама.":"The page cancels only the operations that it started.",
+"Начать поиск в сети":"Start network search",
+"Остановить поиск в сети":"Stop network search",
 };

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.34.0",
+    "version": "0.35.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -10565,9 +10565,9 @@
         ],
         "description": "Необязательная возможность системы: без неё поле есть в записи, но менять его нельзя (422 NOT_SUPPORTED)",
         "x-enum-descriptions": {
-          "serverRoles": "Роль сервера (role в ServerPatch): основной, узел, резервный",
-          "serverNetwork": "Сетевые настройки сервера (netmask, gateway, dns в ServerPatch)",
-          "archiveEncryption": "Шифрование хранилища (encrypted: true в ArchiveCreate и ArchivePatch)",
+          "serverRoles": "Роль сервера: свойство role вида сервера (профиль vms.server/1): основной, узел, резервный",
+          "serverNetwork": "Сетевые настройки сервера: свойства netmask, gateway, dns вида сервера (профиль vms.server/1)",
+          "archiveEncryption": "Шифрование хранилища: свойство encrypted (true) видов хранилища (профиль vms.archive/1), при создании и правке",
           "assist": "Ассистент конфигурирования (POST /assist/turns): без него режим ассистента в интерфейсе скрыт",
           "accessCatalogs": "Каталоги LDAP: Access.catalogs, UserGroup.source, AccessUser.catalogId, POST /access/catalogs/{id}/sync. Без неё каталогов в интерфейсе нет, непустое значение — 422 NOT_SUPPORTED, field — путь поля",
           "accessSupervision": "Правка Role.supervision в разделе прав: кто подтверждает вход и экспорт. Без неё значение не по умолчанию — 422 NOT_SUPPORTED. Надзор над выгрузкой от неё не зависит: его признак — ExportGrant.supervisorRequired",
@@ -20277,6 +20277,45 @@
           "schema": {
             "$ref": "#/components/schemas/JsonSchema",
             "description": "С 0.31.0. Схема значения поля — то же подмножество, что у схем видов: enum — допустимые значения, x-enum-labels — их подписи (Text). Так система отдаёт значения, которые знает только она (id раскладок клиента у client.layout)."
+          }
+        }
+      },
+      "AreaStateSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "total",
+          "offline",
+          "silent",
+          "at"
+        ],
+        "description": "Итог круга состояний камер области (с 0.35.0): status.observed.stateSummary у объекта области (core.domain/1). Отдаёт система, которая объявила vms.camera/1; без вида камер поля нет. Поля нет и тогда, когда круг ещё не прошёл. Числа не пересекаются, выключенные камеры вне total. Итог отстаёт на круг: правка камеры видна в итоге после следующего круга",
+        "x-layer": "vms.camera/1",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Включённые камеры области"
+          },
+          "offline": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Камеры без связи или сверх лицензии"
+          },
+          "silent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Камеры без сигнала: связи нет, и драйвер сообщил о сбое (fault: drv). Камеры без связи по другой причине — в offline"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда прошёл круг"
+          },
+          "unread": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Сколько камер круг не прочитал: больше 0 — интерфейс пишет «данные неполные». Нет поля — круг прочитал все"
           }
         }
       }

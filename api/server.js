@@ -4254,7 +4254,7 @@
     // Мгновенный шаг (patch, folders, move: без команды устройству, удаления и создания) — у операции с wait выполняется
     // в самом запросе, как быстрые записи базы (/devices/update, /folders/{id}/devices, /servers/assign)
     const unitStepInstant = (r) => r.patch !== undefined || r.folders !== undefined || r.move !== undefined;
-    /* ----- Домен: итог круга — хук core.domain/1 (в ядре — status.observed.stateSummary) ----- */
+    /* ----- Домен: итог круга — хук core.domain/1, поле status.observed.stateSummary профиля vms.camera/1 (AreaStateSummary) ----- */
 
     /* ----- Большой набор ----- */
 

@@ -134,7 +134,8 @@
     nameProblem: domainNameProblem,
     summary: domainSummary,
     view(out, ctx) {
-      const s = domainSummary(out.uid, ctx);
+      // Итог круга по камерам — поле профиля vms.camera/1 (AreaStateSummary, 0.35.0): система без вида камер его не отдаёт
+      const s = ctx.kinds.list().some((k) => ctx.kinds.profileOf(k.kind, "vms.camera/1")) ? domainSummary(out.uid, ctx) : null;
       if (s) {
         out.status = Object.assign({}, out.status);
         out.status.observed = Object.assign({}, out.status.observed, { stateSummary: clone(s) });

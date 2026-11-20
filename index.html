@@ -7010,6 +7010,43 @@ function bridgeAsk(f,title,msg,okLabel,opts){
     mo.observe(box,{attributes:true,childList:true,subtree:true,characterData:true});
   });
 }
+// Рамка скрыта: на вкладке карточки нет её места (другая вкладка, «Все параметры»), док с рамкой не виден
+function bridgeHidden(f){return!!f&&suiFrame===f&&!document.querySelector("#main [data-sui-slot]")}
+// Команды act, у которых консоль сверяет объект с объектом страницы; журнал, который страница читает только по своему объекту
+const BRIDGE_SCOPED_ACT=new Set(["runUnitAction","runKindAction","startDiscovery","stopDiscovery"]);
+const BRIDGE_JOURNAL=new Set(["listJournal","listJournalFacets"]);
+const BRIDGE_SCOPE_DEPTH=32;
+// Объект входит в объект страницы: это он сам или его потомок (цепочка parentId с сервера). → {ok} или {fail}
+async function bridgeInScope(id,f,uid){
+  let cur=uid==null?"":String(uid);
+  for(let i=0;i<BRIDGE_SCOPE_DEPTH&&cur;i++){
+    if(cur===f.uid)return{ok:true};
+    const r=await bridgeUnitGet(id,cur);
+    if(r.fail)return r.fail.status===404?{ok:false}:r;
+    cur=r.unit.parentId==null?"":String(r.unit.parentId);
+  }
+  return{ok:false};
+}
+// Журнал для страницы: только записи своего объекта и его потомков, без аудита. Нет deviceId — consolem ставит uid
+// страницы; каждый uid в deviceId — свой объект или его потомок. Нет category — alarm и info; audit — отказ
+async function bridgeJournalScope(id,f,params){
+  if(params!=null&&(typeof params!=="object"||Array.isArray(params)))return{params};
+  const p={...(params||{})};
+  const list=v=>(Array.isArray(v)?v.map(String):String(v).split(",")).map(x=>x.trim()).filter(Boolean);
+  if(p.category!=null&&p.category!==""){
+    const c=list(p.category);
+    if(c.includes("audit"))return{fail:bridgeFail(id,0,"NOT_SUPPORTED",{field:"/params/category",message:i18n(BRIDGE_TEXT2.AUDIT)})};
+    p.category=c;
+  }else p.category=["alarm","info"];
+  if(p.deviceId!=null&&p.deviceId!==""){
+    for(const u of list(p.deviceId)){
+      const sc=await bridgeInScope(id,f,u);
+      if(sc.fail)return sc;
+      if(!sc.ok)return{fail:bridgeFail(id,0,"NOT_SUPPORTED",{field:"/params/deviceId",message:i18n(BRIDGE_TEXT2.SCOPE)})};
+    }
+  }else p.deviceId=f.uid;
+  return{params:p};
+}
 // Команда вызова act и подпись её объекта: у runUnitAction — по виду объекта (кэш, иначе GET /units/{uid}),
 // у runKindAction — по виду из параметров. У других операций act (поиск в сети) — null: подтверждения у них нет.
 // Вид объекта не прочитан, вид незнаком или команды нет в описании вида (кэш устарел) — {fail}: consolem не знает,
@@ -7039,19 +7076,39 @@ async function bridgeCall(msg,f=suiFrame){
   const id=msg.id,op=msg.op;
   const d=typeof op==="string"?BRIDGE_OPS.get(op):null;
   if(!d||!d.bridge||!can(op))return bridgeFail(id,0,"NOT_SUPPORTED");
+  // Скрытая страница (на вкладке нет её места) только читает и получает события: act и draft — BUSY
+  if(d.bridge!=="read"&&bridgeHidden(f))return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.HIDDEN)});
   if(d.bridge==="draft")return bridgeDraft(msg,f);
+  let params=msg.params;
+  if(BRIDGE_JOURNAL.has(op)){const j=await bridgeJournalScope(id,f,params);if(j.fail)return j.fail;params=j.params}
   let rq;
-  try{rq=bridgeRequest(op,msg.params,msg.body)}
+  try{rq=bridgeRequest(op,params,msg.body)}
   catch(e){if(e&&e.code)return bridgeFail(id,0,e.code,{field:e.field});throw e}
   if(d.bridge==="act"){
-    const x=await bridgeActDesc(op,msg.params||{},id);
+    const p=msg.params||{};
+    if(op==="cancelOperation"&&!f.bridgeOpIds?.has(String(p.operationId)))return bridgeFail(id,0,"NOT_SUPPORTED",{field:"/params/operationId",message:i18n(BRIDGE_TEXT2.CANCEL)});
+    const x=await bridgeActDesc(op,p,id);
     if(x?.fail)return x.fail;
-    if(x?.a.confirm){
+    // Вопрос консоли: у команды с ActionDescriptor.confirm — всегда; у команды без него — когда объект не входит в объект
+    // страницы (не он сам и не его потомок) или команда — вида целиком (runKindAction)
+    let q=null;
+    if(x?.a.confirm)q={lb:textOf(x.a.label)||x.a.id,name:x.name,text:textOf(x.a.confirm.text)||i18n("Выполнить команду?"),typeCount:x.a.confirm.typeCount};
+    else if(BRIDGE_SCOPED_ACT.has(op)){
+      const uid=op==="runKindAction"?null:String(p.uid);
+      const sc=uid?await bridgeInScope(id,f,uid):{ok:false};
+      if(sc.fail)return sc.fail;
+      if(!sc.ok){
+        let name=x?.name;
+        if(name==null){const g=await bridgeUnitGet(id,uid);if(g.fail)return g.fail;name=bridgeName(g.unit)}
+        q={lb:x?textOf(x.a.label)||x.a.id:i18n(op==="startDiscovery"?"Начать поиск в сети":"Остановить поиск в сети"),name,text:i18n(BRIDGE_TEXT2.FOREIGN)};
+      }
+    }
+    if(q){
       if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
-      const lb=textOf(x.a.label)||x.a.id;
+      const lb=q.lb;
       const o={rawTitle:true,rawMsg:true,asker:bridgeAsker(f)};
-      if(x.a.confirm.typeCount){o.typeCount=1;o.countLabel="Чтобы подтвердить, ввести число объектов команды"}
-      const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,o);
+      if(q.typeCount){o.typeCount=1;o.countLabel="Чтобы подтвердить, ввести число объектов команды"}
+      const yes=await bridgeAsk(f,`${lb} — «${q.name}»?`,q.text,lb,o);
       if(yes==="busy"||yes==="muted")return bridgeFail(id,0,"BUSY",{message:i18n(yes==="busy"?BRIDGE_TEXT2.DIALOG:BRIDGE_TEXT2.MUTED)});
       if(yes!==true)return bridgeFail(id,0,"CANCELLED");
     }
@@ -7063,6 +7120,8 @@ async function bridgeCall(msg,f=suiFrame){
   catch(e){return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
   if(!res||typeof res.status!=="number"||res.status===0)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE");
   const out={id,ok:res.status>=200&&res.status<300,status:res.status};
+  // Операция, которую запустила команда рамки (202 → Operation): её рамка может отменить (cancelOperation)
+  if(res.status===202&&(op==="runUnitAction"||op==="runKindAction")&&res.body&&typeof res.body.id==="string")(f.bridgeOpIds||(f.bridgeOpIds=new Set())).add(res.body.id);
   if(res.status>=400)out.problem=bridgeProblem(res.body,res.status);
   else if(res.body!==undefined&&res.body!==null)out.body=res.body;
   const et=res.headers?.etag;
@@ -7349,6 +7408,11 @@ const BRIDGE_TEXT2={
   FOLDERS:"Страница не меняет папки своего объекта шагом моста.",
   KINDS:"Подписка по видам принимает только виды объектов, которые знает консоль.",
   ACT:"Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.",
+  HIDDEN:"Страница сейчас скрыта. Пока пользователь не видит страницу, она только читает данные и получает события.",
+  FOREIGN:"Страница просит выполнить команду для объекта, который не входит в её объект. Выполнить команду?",
+  SCOPE:"Страница читает журнал только своего объекта и его дочерних объектов.",
+  AUDIT:"Страница не читает записи аудита.",
+  CANCEL:"Страница отменяет только операции, которые запустила сама.",
 };
 // Пределы сообщения subscribe: видов и типов в одной подписке, длина строки
 const BRIDGE_SUB_LIST_MAX=32,BRIDGE_SUB_STR_MAX=200;
@@ -7513,6 +7577,7 @@ SUI_ON.navigate=function(d){
   const f=suiFrame;
   if(!f.ready||typeof d.id!=="string"||!d.id)return;
   if(f.bridgeNav){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.NAV)}));return}
+  if(bridgeHidden(f)){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.HIDDEN)}));return}
   f.bridgeNav=true;
   bridgeNavigate(d,f).catch(e=>{console.warn("setup/1: navigate",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{f.bridgeNav=false;if(r)bridgePost(f,"result",r)});
 };
@@ -7521,6 +7586,7 @@ SUI_ON.confirm=function(d){
   if(!f.ready||typeof d.id!=="string"||!d.id)return;
   const bad=bridgeConfirmBad(d);
   if(bad){bridgePost(f,"result",bridgeFail(d.id,0,"VALIDATION_FAILED",{field:bad}));return}
+  if(bridgeHidden(f)){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.HIDDEN)}));return}
   // Второй вопрос, пока открыт первый (или диалог удаления и команды этой рамки), — BUSY. Открытый диалог consolem
   // (cardLeaveAsk, удаление, свой вопрос) вопрос страницы не подменяет — тоже BUSY
   const busy=m=>bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(m)}));
@@ -40622,11 +40688,12 @@ async function asstWorld(){
     do{const r=await API.get(path,{cursor,limit:LIM.pageMax});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
     return out;
   };
-  // Чего читать нельзя, того в снимке нет: ход идёт и без этого ключа
+  // Чего читать нельзя, того в снимке нет: ход идёт и без этого ключа. Окна обслуживания устарели (0.4.0): система их может
+  // не объявлять (0.35.0), тогда в снимке пустой список — AssistWorld.maintenanceWindows обязателен
   const opt=(need,path)=>can(need)?API.get(path).catch(()=>null):null;
-  const[reference,kinds,rows,rules,schedules,modes,windows,me,access,licenses]=await Promise.all([API.get("/reference"),API.get("/kinds"),all("/units"),API.get("/rules"),API.get("/schedules"),API.get("/modes"),API.get("/maintenance-windows"),API.get("/me"),opt("getAccess","/access"),opt("listLicenses","/licenses")]);
+  const[reference,kinds,rows,rules,schedules,modes,windows,me,access,licenses]=await Promise.all([API.get("/reference"),API.get("/kinds"),all("/units"),API.get("/rules"),API.get("/schedules"),API.get("/modes"),opt("listMaintenanceWindows","/maintenance-windows"),API.get("/me"),opt("getAccess","/access"),opt("listLicenses","/licenses")]);
   const units=await Promise.all(rows.map(x=>API.get(`/units/${x.uid}`)));
-  const world={reference,kinds:kinds.items,units,rules:rules.items,schedules:schedules.items,modes,maintenanceWindows:windows.items,me};
+  const world={reference,kinds:kinds.items,units,rules:rules.items,schedules:schedules.items,modes,maintenanceWindows:windows?.items||[],me};
   // Только имя и id: права и объекты ролей в службу не уходят
   if(access?.roles)world.roles=access.roles.map(({id,name})=>({id,name}));
   if(licenses)world.licenses=licenses.items;
