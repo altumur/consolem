@@ -9741,8 +9741,9 @@ function treeRowIcon(n){
 }
 function nodeStatus(n){
   const isCam=handCam(n);
-  const ruleOff=isCam&&!!n.ruleOff;
-  const license=isCam&&!!n.licenseExceeded;
+  // Правило 2 версии профиля: поля состояния нет в версии сервера — оно не меняет состояние объекта на экране
+  const ruleOff=isCam&&!!n.ruleOff&&!nodeFieldOff(n,"disabledByRuleId");
+  const license=isCam&&!!n.licenseExceeded&&!nodeFieldOff(n,"licenseExceeded");
   const on=n.enabled!==false&&!ruleOff&&!license;
   const off=!on&&!license;
   const signal=n.online!==false;
@@ -9862,7 +9863,7 @@ function objectStatusNotesHtml(n){
   return objectStatusNotesRest(n);
 }
 function objectStatusNotesRest(n){
-  const said=n?.faultText?`<div class="nt" role="status" data-fault-text>${escHtml(n.faultText)}</div>`:"";
+  const said=n?.faultText?`<div class="nt" role="status" data-fault-text${pfa(n,"faultText")}>${escHtml(n.faultText)}</div>`:"";
   return said+objectStateNotesHtml(n);
 }
 function objectStateNotesHtml(n){
@@ -15904,7 +15905,10 @@ function csEditCancel(id,k){
   setD(true);csEditSet(id,k,false);
 }
 function csChanged(l){return!!(cardDraft&&cardDraft.id===sel&&cardDraft.fields[l])}
-function csDl(rows){return`<dl class="cs-dl">${rows.map(([l,v,ch])=>`<div><dt>${i18n(l)}</dt><dd>${v}${ch?`<span class="cs-chg">${i18n("изменено")}</span>`:""}</dd></div>`).join("")}</dl>`}
+// Правило 2 версии профиля: строка описания по подписи — поле профиля (метка pfa), когда описанию дали узел n
+const CS_DL_F={"Короткое имя":"short","ID":"identifier","Производитель":"vendor","Модель":"model","IP-адрес и порт":"ip","RTSP":"rtspUrl",
+  "Имя пользователя":"login","MAC":"mac","Метки серверов: где работает":"labels","Что считать тревогой":"alarmKinds"};
+function csDl(rows,n){return`<dl class="cs-dl">${rows.map(([l,v,ch])=>`<div${n&&CS_DL_F[l]?pfa(n,CS_DL_F[l]):""}><dt>${i18n(l)}</dt><dd>${v}${ch?`<span class="cs-chg">${i18n("изменено")}</span>`:""}</dd></div>`).join("")}</dl>`}
 function csHead(html,act){return html.replace(/^(<div class="card"[^>]*><div class="ch">[\s\S]*?)<\/div>/,(m,h)=>`${h}<span class="cs-acts">${act}</span></div>`)}
 function csEditBtns(n,k){
   return csEditOn(n.id,k)
@@ -15995,14 +15999,14 @@ function ipsGenHtml(n){
   let ident;
   if(!csEditOn(n.id,"ident")){
     const rows=[["Имя",txt(val("Имя",n.name)),csChanged("Имя")],["Короткое имя",txt(n.short??"")],["ID",txt(deviceIdentifierValue(n)||"—")],["Вид",txt(i18n(IPSUB[n.subtype]||"IP-сервер"))],...csIdentDrvRows(n)];
-    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}${n.derived?`<p class="sub">${i18n("Консоль создала регистратор из устройства. У регистратора нет своей записи. Имя, адрес и состав задаёт устройство. Удалить регистратор нельзя.")}</p>`:""}<div style="margin-top:10px">${csDl(rows)}</div>`);
+    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}${n.derived?`<p class="sub">${i18n("Консоль создала регистратор из устройства. У регистратора нет своей записи. Имя, адрес и состав задаёт устройство. Удалить регистратор нельзя.")}</p>`:""}<div style="margin-top:10px">${csDl(rows,n)}</div>`);
   }else ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("Короткое имя",n.short??"")}${fldRo("ID",deviceIdentifierValue(n)||"—")}${fldRo("Вид",i18n(IPSUB[n.subtype]||"IP-сервер"))}</div>${csIdentDrvFields(n)}`);
   ident=csHead(csWrap("ident",ident),n.derived?"":csEditBtns(n,"ident"));
   // Подключение: адрес, порт, производитель и модель консоль задаёт при добавлении (x-immutable), учётные данные — меняются
   const pd=cardDraft&&cardDraft.id===n.id?cardDraft.fields["Пароль"]:null,pass=pd?pd.to:(n.pass||n.hasPassword);
   let conn;
-  if(!csEditOn(n.id,"conn"))conn=card("Подключение",csDl([["Производитель",txt(n.vendor||"")],["Модель",txt(n.model||"")],["IP-адрес и порт",txt(n.ip?`${n.ip}:${n.port||80}`:"")],
-    ["Имя пользователя",txt(val("Имя пользователя",n.user||n.login||"")||i18n("Авто")),csChanged("Имя пользователя")],["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]]));
+  if(!csEditOn(n.id,"conn"))conn=card("Подключение",csDl([["Производитель",txt(n.vendor||"")],["Модель",txt(n.model||"")],["IP-адрес и порт",txt(n.ip?`${n.ip}${nodeFieldOff(n,"port")?"":`:${n.port||80}`}`:"")],
+    ["Имя пользователя",txt(val("Имя пользователя",n.user||n.login||"")||i18n("Авто")),csChanged("Имя пользователя")],["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]],n));
   else conn=card("Подключение",`<div class="g cam-conn">${fldRo("Производитель",n.vendor||"")}${fldRo("Модель",n.model||"")}${fldRo("IP-адрес",n.ip||"")}${fldRo("Порт",n.port||80)}
     ${fldLbl("Имя пользователя","Имя пользователя",n.user||n.login||"","Авто")}
     <div><label>${i18n("Пароль")}</label><div class="dev-pass-wrap"><input class="dev-pass-input" type="password" value="${escHtml(cardFldVal("Пароль",n.pass||"")??"")}" placeholder="****" data-df="Пароль" data-orig="${escHtml(n.pass||"")}" ${onEv("input",["cardFld",onEv.el])}>${devPassToggleBtn(false)}</div></div>
@@ -16167,26 +16171,26 @@ function camGenLayout(n,p,ips){
   if(!csEditOn(n.id,"ident")){
     const rows=[["Имя",txt(val("Имя",n.name)),csChanged("Имя")],["Короткое имя",txt(val("Короткое имя",n.short??"")),csChanged("Короткое имя")],["ID",txt(deviceIdentifierValue(n)||"—")]];
     rows.push(...csIdentDrvRows(n));
-    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div style="margin-top:10px">${csDl(rows)}</div>`);
+    ident=card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div style="margin-top:10px">${csDl(rows,n)}</div>`);
   }else ident=ident.replace(/<\/div><\/div>$/,`${csIdentDrvFields(n)}</div></div>`);
   ident=csHead(csWrap("ident",ident),csEditBtns(n,"ident"));
   if(ips&&!n.ip)conn=ipsCamConnHtml(n,ips);
   else{
     if(!csEditOn(n.id,"conn")){
       const vendor=val("Производитель",n.vendor||""),rtsp=isRtspVendor(vendor);
-      const addr=rtsp?txt(cardFldOrig("RTSP","")):txt(val("IP",n.ip||"")?`${val("IP",n.ip||"")}:${val("Порт",n.port||80)}`:"");
+      const addr=rtsp?txt(cardFldOrig("RTSP","")):txt(val("IP",n.ip||"")?`${val("IP",n.ip||"")}${nodeFieldOff(n,"port")?"":`:${val("Порт",n.port||80)}`}`:"");
       // Пароль сервер не отдаёт (writeOnly): задан ли он — hasPassword или правка в черновике
       const pd=cardDraft&&cardDraft.id===n.id?cardDraft.fields["Пароль"]:null,pass=pd?pd.to:(n.pass||n.hasPassword);
       conn=card("Подключение",csDl([["Производитель",txt(vendor),csChanged("Производитель")],["Модель",txt(val("Модель",n.model||"")),csChanged("Модель")],
         [rtsp?"RTSP":"IP-адрес и порт",addr,csChanged("IP")||csChanged("Порт")||csChanged("RTSP")],
         ["Имя пользователя",txt(val("Имя пользователя",n.user||"")||i18n("Авто")),csChanged("Имя пользователя")],
-        ["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]]));
+        ["Пароль",pass?"••••":`<span class="cs-empty">${i18n("не задан")}</span>`,csChanged("Пароль")],["MAC",txt(n.mac||"—")]],n));
     }
     conn=csHead(csWrap("conn",conn),csEditBtns(n,"conn"));
   }
   if(!csEditOn(n.id,"place")){
     const chips=l=>l&&l.length?`<div class="cs-chips">${l.map(x=>`<span class="cs-tag">${escHtml(i18n(x))}</span>`).join("")}</div>`:`<span class="cs-empty">${i18n("не заданы")}</span>`;
-    place=card("Размещение и тревоги",csDl([["Метки серверов: где работает",chips(n.labels)],["Что считать тревогой",chips(n.alarmKinds)]]));
+    place=card("Размещение и тревоги",csDl([["Метки серверов: где работает",chips(n.labels)],["Что считать тревогой",chips(n.alarmKinds)]],n));
   }
   place=csHead(csWrap("place",place),csEditBtns(n,"place"));
   // Частые блоки выше: «Расположение» и «Размещение и тревоги» нужны при каждой установке, параметры драйвера — реже
@@ -16774,6 +16778,8 @@ function csTabWrap(n,html){
   const t=document.createElement("template");t.innerHTML=html;
   const secs=[];
   [...t.content.children].forEach((el,i)=>{
+    // Правило 2 версии профиля: раздел поля, которого нет в версии сервера, в оглавление не идёт (сам раздел прячет общий проход)
+    if(profHideSet.has(el.getAttribute("data-prof-field")))return;
     const ch=el.matches(".card")?el.querySelector(":scope>.ch"):null;
     if(ch){
       const title=csTitleOf(ch),k=el.dataset.sec||("t:"+title);
@@ -22828,7 +22834,7 @@ function pmShotAt(n){if(!pmShots.has(n.id))pmShots.set(n.id,Date.now());return n
 
 function pmSecHtml(n){
   const sum=pmSum(n);
-  return`<div class="card pm-sec" data-sec="pm" data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Маска приватности")}<span class="sub" style="font-weight:400" data-pm-sum>${escHtml(sum)}</span></div><div class="cb"><div data-pm-body>${pmBodyHtml(n)}</div></div></div>`;
+  return`<div class="card pm-sec" data-sec="pm"${pfa(n,"privacyMasks")} data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Маска приватности")}<span class="sub" style="font-weight:400" data-pm-sum>${escHtml(sum)}</span></div><div class="cb"><div data-pm-body>${pmBodyHtml(n)}</div></div></div>`;
 }
 function pmBodyHtml(n){
   const c=pmCur(n),areas=pmAreas(n),dirty=pmDirty(n),d=pmDomain(n);
@@ -24154,6 +24160,14 @@ function camArchRowLabel(id,i,x){
 const REC_STATE_RU={running:"идёт",waiting:"ждёт",stopped:"остановлена"};
 // Отставание replica от источника: период выбирает сервер, настройки нет
 function lagText(s){return s<60?`${s} ${i18n("с")}`:s<3600?`${Math.round(s/60)} ${i18n("мин")}`:s<86400?`${Math.round(s/360)/10} ${i18n("ч")}`:`${Math.round(s/8640)/10} ${i18n("дн.")}`}
+// Правило 2 версии профиля: состояние основной записи — поля камеры recordState, recordReason, replicaLagSec
+function recStateOwn(n,x){
+  const y=Object.assign({},x);
+  if(nodeFieldOff(n,"recordState"))delete y.state;
+  if(nodeFieldOff(n,"recordReason"))delete y.reason;
+  if(nodeFieldOff(n,"replicaLagSec"))delete y.lag;
+  return y;
+}
 function recStateHtml(x){
   if(!x.state&&!x.reason&&x.lag==null)return"";
   return`<div class="bk-hint" data-rec-state>${x.state?`${i18n("запись")}: ${escHtml(i18n(REC_STATE_RU[x.state]||x.state))}`:""}${x.lag!=null&&x.rec==="replica"?`<span data-rec-lag> · ${i18n("отставание")} ${escHtml(lagText(x.lag))}</span>`:""}${x.reason?` · ${escHtml(x.reason)}`:""}</div>`;
@@ -24470,8 +24484,8 @@ function formBase(n){
       const noRec=!isRecording(n),edge=recEdge(n),list=camArchs(n);
       return recTargetCardHtml(n)+camArchsCardHtml(n,`${recMicHtml(n)?`<div class="g">${recMicHtml(n)}</div>`:""}
       ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет. Репликация берёт записи только из другого архива этой камеры.")}</p>`}
-      ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры находятся на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("сервер берёт их оттуда.")} `:""}${i18n("Сервер берёт записи без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Сервер сам выбирает период. Строка записи показывает отставание. Если источник стёр минуты записи раньше, чем сервер их взял, эти минуты пропадают. Строка и журнал сообщают об этом.")}</div>`:""}
-      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись должна идти, но не идёт из-за сбоя.")}</div>`:""}
+      ${list.some(x=>x.rec==="replica"&&!(x.main&&nodeFieldOff(n,"recordMode")))?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры находятся на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("сервер берёт их оттуда.")} `:""}${i18n("Сервер берёт записи без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Сервер сам выбирает период. Строка записи показывает отставание. Если источник стёр минуты записи раньше, чем сервер их взял, эти минуты пропадают. Строка и журнал сообщают об этом.")}</div>`:""}
+      ${list.some(x=>x.rec==="backup"&&!(x.main&&nodeFieldOff(n,"recordMode")))?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись должна идти, но не идёт из-за сбоя.")}</div>`:""}
       <p class="sub">${noRec?(cameraTreeServer(n.id)?i18n("Чтобы включить запись, привязать камеру к хранилищу. Без хранилища камера остаётся у своего сервера, но не записывает видео.")
           :i18n("Чтобы включить запись, привязать камеру к хранилищу. Камера ещё не подключена к серверу. Камера подключится к серверу выбранного хранилища."))
         :i18n("Основное хранилище задаёт сервер камеры. Дополнительные хранилища записывают тот же поток или второй поток. Пример: основной поток — в локальное хранилище, второй — в облако.")}</p>
@@ -36566,7 +36580,7 @@ function camRecSchedPick(id,v){
 function recMicHtml(n){
   const mics=(n.devices||[]).filter(d=>handOf(d,"mic"));
   if(!mics.length)return"";
-  return`<div data-rec-mic><label>${i18n("Микрофон записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"audioDeviceId",onEv.value])}><option value="">${i18n("Первый микрофон")}</option>${mics.map(m=>`<option value="${escHtml(m.id)}" ${m.id===n.audioDeviceId?"selected":""}>${escHtml(locName(m))}</option>`).join("")}</select></div>`;
+  return`<div data-rec-mic${pfa(n,"audioDeviceId")}><label>${i18n("Микрофон записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"audioDeviceId",onEv.value])}><option value="">${i18n("Первый микрофон")}</option>${mics.map(m=>`<option value="${escHtml(m.id)}" ${m.id===n.audioDeviceId?"selected":""}>${escHtml(locName(m))}</option>`).join("")}</select></div>`;
 }
 function camRecSet(id,k,v){const n=find(id)?.n;if(!n)return;if(v)n[k]=v;else delete n[k];setD(true);paint()}
 // Обход архива устройства и скан отрезка записи: задачи камеры, карточки на вкладке «Архив»
@@ -36664,13 +36678,15 @@ function rwCardsHtml(n){
 function replicaSrcHtml(n,x,i){
   if(x.rec!=="replica")return"";
   const can=replicaSources(n,x),gone=x.replicaFrom&&!can.some(s=>s.id===x.replicaFrom);
-  return`<div class="ca-src" data-replica-src><label>${i18n("Откуда забирать")}</label><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"replicaFrom",onEv.value])}>${gone?`<option value="${escHtml(x.replicaFrom)}" selected>${i18n("источник снят")}</option>`:""}${can.map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.replicaFrom||"")?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
+  return`<div class="ca-src" data-replica-src${x.main?pfa(n,"replicaFrom"):""}><label>${i18n("Откуда забирать")}</label><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"replicaFrom",onEv.value])}>${gone?`<option value="${escHtml(x.replicaFrom)}" selected>${i18n("источник снят")}</option>`:""}${can.map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.replicaFrom||"")?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
 }
 // Срок, наименьшая глубина и предзапись — свои у каждой записи (как prerecord_sec привязки в Axxon One).
 // Пустой срок — как у хранилища; пустая предзапись дополнительной строки — как у камеры (основного хранилища).
 // replica забирает готовые записи, поэтому предзаписи у неё нет
+// Правило 2 версии профиля: у основной записи (x.main) срок, глубина и предзапись — поля камеры
+const REC_ROW_F={retentionDays:"retentionDays",minDepthDays:"minDepthDays",pre:"preRecordSec"};
 function recDepthHtml(n,x,i,a){
-  const inp=(l,k,ph,tip="")=>`<div><label>${i18n(l)}</label><input type="number" min="0" value="${x[k]??""}" placeholder="${escHtml(ph)}" ${tip?`title="${escHtml(tip)}"`:""} data-rec-field="${k}" ${onEv("change",["camArchRowSet",`${n.id}`,i,k,onEv.value])}></div>`;
+  const inp=(l,k,ph,tip="")=>`<div${x.main&&REC_ROW_F[k]?pfa(n,REC_ROW_F[k]):""}><label>${i18n(l)}</label><input type="number" min="0" value="${x[k]??""}" placeholder="${escHtml(ph)}" ${tip?`title="${escHtml(tip)}"`:""} data-rec-field="${k}" ${onEv("change",["camArchRowSet",`${n.id}`,i,k,onEv.value])}></div>`;
   const pre=x.rec==="replica"?"":x.main?inp("Предзапись, с","pre","5")
     :inp("Предзапись, с","pre",String(n.pre??5),`${i18n("Если поле пустое, хранилище берёт предзапись основного хранилища:")} ${n.pre??5} ${i18n("с")}`);
   return`<div class="ca-depth" data-rec-depth>${inp("Срок, дней","retentionDays",a?String(a.days):"")}${inp("Глубина не меньше, дней","minDepthDays","")}${pre}</div>`;
@@ -36686,10 +36702,10 @@ function camArchsCardHtml(n,rest=""){
       <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec||"Авто":recordModeLabel(x.rec)))}</td><td></td></tr>`;
     const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true),xv=x.rec;
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
-        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${archDaysText(a,x)}`:""}</div>`:`<div class="bk-hint">${a?archDaysText(a,x):""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recDepthHtml(n,x,i,a)}${recStateHtml(x)}</td>
-      <td class="ca-fit" data-l="${i18n("Поток")}"><select title="${escHtml(camStreams(n).find(s=>s.id===(x.stream||camStreams(n)[0].id))?.name||"")}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).filter(s=>x.rec!=="replica"||s.id===replicaStream(n,x,list)).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
-      <td class="ca-fit" data-l="${i18n("Режим записи")}"><select title="${escHtml(i18n(recordModeLabel(xv)))}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${xv===v?"selected":""} ${(v==="replica"&&!replicaSources(n,x).length)||(v==="sched"&&!recSchedules().length&&!can("createSchedule"))?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
-      <td class="ca-x"><button type="button" class="btn s ca-more" title="${i18n("Ещё")}" aria-label="${escHtml(`${i18n("Ещё")} · ${a?locName(a):x.arch}`)}" aria-haspopup="menu" ${onEv("click",["camArchRowMenu",onEv.el,`${n.id}`,i])}>${lu("ellipsis-vertical",14)}</button></td></tr>${camRecWhenHtml(n,x)}`;
+        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a&&!nodeFieldOff(n,"retentionDays")?` · ${archDaysText(a,x)}`:""}</div>`:`<div class="bk-hint">${a?archDaysText(a,x):""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recDepthHtml(n,x,i,a)}${recStateHtml(x.main?recStateOwn(n,x):x)}</td>
+      <td class="ca-fit" data-l="${i18n("Поток")}"${x.main?pfa(n,"stream"):""}><select title="${escHtml(camStreams(n).find(s=>s.id===(x.stream||camStreams(n)[0].id))?.name||"")}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).filter(s=>x.rec!=="replica"||s.id===replicaStream(n,x,list)).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
+      <td class="ca-fit" data-l="${i18n("Режим записи")}"${x.main?pfa(n,"recordMode"):""}><select title="${escHtml(i18n(recordModeLabel(xv)))}" ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${xv===v?"selected":""} ${(v==="replica"&&!replicaSources(n,x).length)||(v==="sched"&&!recSchedules().length&&!can("createSchedule"))?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
+      <td class="ca-x"><button type="button" class="btn s ca-more" title="${i18n("Ещё")}" aria-label="${escHtml(`${i18n("Ещё")} · ${a?locName(a):x.arch}`)}" aria-haspopup="menu" ${onEv("click",["camArchRowMenu",onEv.el,`${n.id}`,i])}>${lu("ellipsis-vertical",14)}</button></td></tr>${x.main&&nodeFieldOff(n,"recordMode")?"":camRecWhenHtml(n,x)}`;
   }).join("");
   const add=free.length?`<select class="ca-add" ${onEv("change",onEv.ifValue,["camArchRowAdd",n.id,onEv.value])}><option value="">＋ ${i18n("Привязать к хранилищу")}…</option>${free.map(a=>`<option value="${a.id}">${escHtml(locName(a))} · ${escHtml(archKindTag(a))}</option>`).join("")}</select>`
     :`<span class="sub">${i18n(list.length?"Других доступных хранилищ нет":"Доступных хранилищ нет")}</span>`;
