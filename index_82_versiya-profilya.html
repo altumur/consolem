@@ -3600,6 +3600,7 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/i18n-en-82.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -5329,6 +5330,7 @@ function sfFieldHtml(scope,owner,f,p,v,o={}){
   if(p["x-bound-to"]){const b=o.schema?.properties?.[p["x-bound-to"]];notes.push(`${i18n("смена сбросит")} «${escHtml(propLabel(b,p["x-bound-to"]))}»`)}
   if(p["x-ui-advanced"])notes.push(i18n("для опытных"));
   if(o.only)notes.push(`<span data-only-here>${i18n("сверх профиля")}</span>`);
+  if(o.newer)notes.push(`<span data-prof-newer>${i18n("новое в версии профиля")} ${escHtml(o.newer)}</span>`);
   const hint=notes.length?`<small class="sub">${notes.join(" · ")}</small>`:"";
   const w=sfWidget(p),t=sfType(p);
   if(o.ro){
@@ -5649,6 +5651,40 @@ const KIND_PROFILES=new Map();
 const unitProps=new Map();
 // Имена свойств профиля: GET /kinds отдаёт список имён, файл профиля — объект (часть 02)
 function profileProps(p){const x=p?.properties;return Array.isArray(x)?x.slice():x&&typeof x==="object"?Object.keys(x):[]}
+// Версия профиля (запрос 154325Z, п. 5; api/profiles/README.md, «Версии»). Консоль знает профили той версии, под которую
+// написаны её ручные экраны: раздел profiles набора demo в api/fixture.js (его собирает tools/build_api.py из
+// api/profiles/*.json). Сервер присылает свою младшую версию в GET /kinds → profiles[].version и поля этой версии.
+// Поля своего экрана — пересечение двух списков. Поле версии сервера, которого консоль не знает (сервер новее), экран не
+// берёт: его показывает «Все параметры» с меткой «новое в профиле» (правило 1). Поле, которого нет в версии сервера
+// (сервер старше), экран тоже не берёт (правило 2). Профиль, которого консоль не знает, — как раньше: поля сервера
+let profKnownMap=null;
+function profileKnown(id){
+  if(!profKnownMap){profKnownMap=new Map();(window.CONSOLEM_FIXTURES?.demo?.profiles||[]).forEach(p=>{if(p?.id)profKnownMap.set(p.id,p)})}
+  return profKnownMap.get(id)||null;
+}
+// Младшая версия «M.m»; сервер без version — M.0, где M — старшая версия из id
+function profileVer(p){
+  const v=p?.version;if(typeof v==="string"&&/^\d+\.\d+$/.test(v))return v;
+  const m=/\/(\d+)$/.exec(p?.id||"");return(m?m[1]:"1")+".0";
+}
+function profileVerCmp(a,b){const[x1,y1]=a.split(".").map(Number),[x2,y2]=b.split(".").map(Number);return x1-x2||y1-y2}
+function profileScreenProps(id){
+  const sp=profileProps(KIND_PROFILES.get(id)),kn=profileKnown(id);
+  if(!kn)return sp;
+  const k=new Set(profileProps(kn));return sp.filter(f=>k.has(f));
+}
+// Поля версии сервера, которых консоль не знает: {поле: версия сервера}
+function profileNewerProps(id){
+  const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn)return{};
+  const k=new Set(profileProps(kn)),v=profileVer(srv),out={};
+  profileProps(srv).forEach(f=>{if(!k.has(f))out[f]=v});
+  return out;
+}
+// Поля знакомой версии, которых нет у сервера (сервер старше): их своему экрану показывать нельзя (правило 2, срез 2)
+function profileOlderMissing(id){
+  const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn)return[];
+  const s=new Set(profileProps(srv));return profileProps(kn).filter(f=>!s.has(f));
+}
 // Поля своего экрана: объединение свойств знакомых профилей вида, без профилей, которые выбрали бы другой экран
 // (у вида с vms.camera/1 и vms.pos/1 поля кассы — не поля экрана камеры). Массив у ключа — «экран вида входит в массив»
 function handScreenFields(kind){
@@ -5659,7 +5695,7 @@ function handScreenFields(kind){
     if(!PROFILES_KNOWN.has(id)||!KIND_PROFILES.has(id))return;
     const t=SCREEN_OF_PROFILE[id];
     if(t!==undefined&&(Array.isArray(t)?!t.includes(hs):t!==hs))return;
-    profileProps(KIND_PROFILES.get(id)).forEach(f=>{if(!out.includes(f))out.push(f)});
+    profileScreenProps(id).forEach(f=>{if(!out.includes(f))out.push(f)});
   });
   return out;
 }
@@ -5673,6 +5709,19 @@ function kindExtraProps(kind){
   return known?screenCoverage(kind,handScreenFields(kind)).missing:[];
 }
 function nodeExtraProps(n){return n&&!isSchemaNode(n)?kindExtraProps(nodeKind(n)):[]}
+// Поля вида новее консоли (правило 1): {поле: версия сервера} по знакомым профилям своего экрана, как в handScreenFields
+function kindNewerProps(kind){
+  const hs=handScreenOf(kind),out={};
+  if(!hs)return out;
+  (KINDS.get(kind)?.implements||[]).forEach(id=>{
+    if(!PROFILES_KNOWN.has(id)||!KIND_PROFILES.has(id))return;
+    const t=SCREEN_OF_PROFILE[id];
+    if(t!==undefined&&(Array.isArray(t)?!t.includes(hs):t!==hs))return;
+    Object.entries(profileNewerProps(id)).forEach(([f,v])=>{if(!(f in out))out[f]=v});
+  });
+  return out;
+}
+function nodeNewerProps(n){return n&&!isSchemaNode(n)?kindNewerProps(nodeKind(n)):{}}
 // Базовая форма есть у объекта с ручным экраном, у вида которого есть схема со свойствами
 function hasBaseForm(n){
   if(!n||isSchemaNode(n)||n._row)return false;
@@ -5750,9 +5799,9 @@ function baseTabs(n){
 }
 // Строка над «Все параметры»: что это за форма и «Вернуться к настройке». Пока в базовой форме ручного экрана есть
 // неприменённые изменения, вернуться нельзя (у объекта по схеме черновик общий со страницей, запрета нет)
-function baseHeadHtml(n,first,extra){
+function baseHeadHtml(n,first,extra,newer){
   const back=baseChanged(n).length;
-  return`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(nodeKind(n)))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
+  return`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(nodeKind(n)))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}${newer?` ${i18n("Метка «новое в версии профиля» стоит у свойств, которые сервер добавил в профиль после версии, которую знает консоль. Особый экран эти свойства не показывает.")}`:""}`:""}</span>`+
     `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
 }
 function baseFormHtml(n,tabId){
@@ -5760,7 +5809,7 @@ function baseFormHtml(n,tabId){
   if(isSchemaNode(n)){const tabs=schemaTabs(n);return baseHeadHtml(n,(tabs.find(([id])=>id===tabId)||tabs[0])[0]===tabs[0][0],false)+schemaFormHtml(n,tabId)}
   const kind=nodeKind(n),k=KINDS.get(kind),schema=k?.schema;
   const tabs=baseTabs(n),cur=(tabs.find(([id])=>id===tabId)||tabs[0])[1],first=cur===tabs[0][1];
-  const extra=new Set(nodeExtraProps(n)),own=ownDraftRows(n).length,groups=new Map();
+  const newer=nodeNewerProps(n),extra=new Set(nodeExtraProps(n).filter(f=>!newer[f])),own=ownDraftRows(n).length,groups=new Map();
   sfEntries(schema).forEach(([f,p])=>{
     // Разовое при создании (x-transient) после создания не хранится и не правится
     if(p["x-transient"]||sfTab(p)!==cur)return;
@@ -5768,12 +5817,12 @@ function baseFormHtml(n,tabId){
   });
   const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=xpropsVals(n);
   const nameH=first?baseNameHtml(n):"";
-  let out=baseHeadHtml(n,first,extra.size>0);
+  let out=baseHeadHtml(n,first,extra.size>0,Object.keys(newer).length>0);
   if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
   let lead=nameH;
   if(!groups.size)groups.set(i18n(SF_GROUP),[]);
   groups.forEach((fs,g)=>{
-    const body=fs.map(([f,p])=>sfFieldHtml("xcard",n.id,f,p,vals[f],{ro:!!n.derived||sfReadOnly(p)||!!own,err:err[f],req:req.has(f),schema,only:extra.has(f)})).join("");
+    const body=fs.map(([f,p])=>sfFieldHtml("xcard",n.id,f,p,vals[f],{ro:!!n.derived||sfReadOnly(p)||!!own,err:err[f],req:req.has(f),schema,only:extra.has(f),newer:newer[f]})).join("");
     out+=`<div class="card" data-schema-card><div class="ch">${escHtml(g)}</div><div class="cb"><div class="g">${lead}${body||(lead?"":`<span class="sub">${i18n("Полей нет")}</span>`)}</div></div></div>`;
     lead="";
   });
