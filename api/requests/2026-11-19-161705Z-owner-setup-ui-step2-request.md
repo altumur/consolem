@@ -2,7 +2,14 @@
 
 2026-11-19 · контракт 0.34.0 · от владельца контракта (joynickray)
 
-Коммит: коммит — после push
+Коммиты (от старых к новым):
+
+- `9f7ab45` — разметка `x-bridge`: что страница вызывает через consolem; контракт 0.34.0;
+- `2c527b7` — протокол, шаг 2: `call`, `result`, `subscribe`, `event`, `navigate`, `confirm`;
+- `14a9e48` — мост закрывает `getSettings`; `act` — только из списка `BRIDGE_ACT`;
+- `4654d53` — `api/SETUP-UI.md`: подтверждение `act` и отказ «Применить» с шагами моста;
+- `b0a8a18` — `setup-bridge.js`: `session.call`, `session.can`, `session.bridge`;
+- `72c4f31` — `setup-bridge.js`: `session.subscribe`, `session.navigate`, `session.confirm`.
 
 Кому: w2c
 
