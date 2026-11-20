@@ -2,10 +2,10 @@
    (implements), а не по коду вида: ступень 1 — своя страница (screenPageStep, до части 05 — форма по схеме у вида с
    setupUi), ступень 2 — ручной экран по SCREEN_OF_PROFILE (handScreenOf), ступень 3 — форма по схеме. Раздел А — выбор
    экрана; раздел Г — профиль снят с вида при открытой карточке (kinds.changed); Г2 — то же у других кодов ручных экранов
-   (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей; Д — версия профиля от сервера (прототип 82). Виды теста ставятся в KINDS на время
+   (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей; Д — версия профиля от сервера (прототип 82); Е — сервер старше консоли прячет поля (правило 2, из прототипа 83). Виды теста ставятся в KINDS на время
    проверки и снимаются в finally с kindsApply(). Сценарий пришёл с прототипом 78 (index_78_ekran-po-profilyu.html, удалён), теперь проверяет index.html.
    Охрана screenFor — для прототипов, скопированных с index.html до переноса; на index.html она — сбой (absent). */
-UiCheck(async ({ ok, until, absent }) => {
+UiCheck(async ({ ok, until, sleep, absent }) => {
   if (typeof screenFor !== "function") { absent("screenFor"); return; }
   const main = () => document.getElementById("main");
   const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -507,6 +507,64 @@ UiCheck(async ({ ok, until, absent }) => {
         K.schema = schemaWas;
       }
       ok(handScreenFields("camera").slice().sort().join() === fieldsWas && JSON.stringify(kindNewerProps("camera")) === "{}", "после проверки: поля экрана камеры как до неё, меток «новое» нет");
+    }
+  }
+
+  // ── Е. Сервер старше консоли: ручной экран прячет поля, которых нет в версии сервера (правило 2, из прототипа 83) ──
+  // Поле знакомой версии, которого нет в списке сервера младшей версии, не видно на ручном экране: метка data-prof-field
+  // получает hidden, nodeFieldOff — true. Та же версия с неполным списком (vms.detector/1 1.1 в наборах large, xl,
+  // one-domain) ничего не прячет. Поле, которое приносит другой профиль вида, остаётся. Пришло из прототипа 83
+  if (typeof profHideRefresh !== "function") absent("profHideRefresh");
+  else {
+    let pos = null;
+    walkAll((n) => { if (!pos && !isSchemaNode(n) && (KINDS.get(nodeKind(n))?.implements || []).includes("vms.pos/1") && handScreenOf(nodeKind(n))) pos = n; });
+    const pk = profileKnown("vms.pos/1"), pv = pk && profileVer(pk);
+    if (!pos || !pv || /\.0$/.test(pv)) ok(false, "нет кассы с ручным экраном или знакомая версия vms.pos/1 — M.0: правило 2 проверить не на чем");
+    else {
+      const wasProf = new Map(KIND_PROFILES), kind = nodeKind(pos);
+      const older = pv.replace(/\.(\d+)$/, (m, d) => "." + (Number(d) - 1));
+      const setPos = (version, drop) => { const w = wasProf.get("vms.pos/1"); KIND_PROFILES.set("vms.pos/1", Object.assign({}, w, { version, properties: profileProps(w).filter((f) => !drop.includes(f)) })); profHideRefresh(); };
+      const restore = () => { KIND_PROFILES.clear(); wasProf.forEach((v, k) => KIND_PROFILES.set(k, v)); profHideRefresh(); };
+      const tagged = (f) => [...main().querySelectorAll(`[data-prof-field="${kind} ${f}"]`)];
+      try {
+        await until(() => ![...treeBr.values()].some((b) => b.busy), 10000);
+        pick(pos.id, { force: true, tab: "gen" });
+        await until(() => sel === pos.id && tagged("ip").length > 0, 10000);
+        ok(tagged("ip").length > 0 && tagged("ip").every((e) => !e.hidden) && profHideSet.size === 0, "сервер той же версии: поле ip кассы помечено и видно, набор скрытых полей пуст");
+        // 1. Та же версия с неполным списком — не старше: ничего не прячем
+        setPos(pv, ["ip", "vendor"]);
+        ok(!profileServerOlder("vms.pos/1") && profHideSet.size === 0 && tagged("ip").every((e) => !e.hidden), `сервер ${pv} без ip и vendor: не старше, поля видны`);
+        // 2. Сервер младшей версии без ip и vendor: метки скрыты, nodeFieldOff — true, другие поля видны
+        setPos(older, ["ip", "vendor"]);
+        ok(profileServerOlder("vms.pos/1") && JSON.stringify(profileOlderMissing("vms.pos/1").sort()) === '["ip","vendor"]', `сервер ${older}: profileOlderMissing — ip и vendor: ` + JSON.stringify(profileOlderMissing("vms.pos/1")));
+        ok(tagged("ip").length > 0 && tagged("vendor").length > 0 && tagged("ip").every((e) => e.hidden && getComputedStyle(e).display === "none") && tagged("vendor").every((e) => e.hidden), `сервер ${older}: поля ip и vendor на открытой карточке скрыты`);
+        // Узел формы по схеме того же вида правило 2 не трогает: форму рисует схема сервера
+        ok(isSchemaNode(Object.assign({}, pos, { _schema: true })) && !nodeFieldOff(Object.assign({}, pos, { _schema: true }), "ip") && nodeFieldOff(pos, "ip"), "узел формы по схеме: nodeFieldOff — нет, у узла ручного экрана — да");
+        ok(nodeFieldOff(pos, "ip") && !nodeFieldOff(pos, "port") && tagged("port").every((e) => !e.hidden), "nodeFieldOff: ip — да, port — нет; port виден");
+        // 3. Карточка, нарисованная заново, сразу без полей
+        pick(pos.id, { force: true, tab: "gen" });
+        await until(() => sel === pos.id && tagged("port").length > 0, 10000);
+        await sleep(50);
+        ok(tagged("ip").length > 0 && tagged("ip").every((e) => e.hidden), "карточка нарисована заново: поле ip скрыто");
+        // 4. Поле, которое приносит другой профиль вида, остаётся: у вида с vms.pos/1 и vms.camera/1 ip даёт камера
+        await withKinds([campos], async () => {
+          profHideRefresh();
+          const camIp = profileProps(KIND_PROFILES.get("vms.camera/1")).includes("ip");
+          ok(camIp && !kindFieldOff("acme.campos", "ip") && kindFieldOff(kind, "ip"), "вид с vms.pos/1 и vms.camera/1: ip приносит vms.camera/1 — поле не скрыто, у кассы скрыто");
+        });
+        // 5. Версия не по формату — не старше
+        setPos("1", ["ip"]);
+        ok(!profileServerOlder("vms.pos/1") && profHideSet.size === 0, "версия «1» не по формату: не старше, ничего не скрыто");
+        // 6. Сервер снова той же версии: hidden снят
+        setPos(older, ["ip"]);
+        restore();
+        ok(profHideSet.size === 0 && tagged("ip").length > 0 && tagged("ip").every((e) => !e.hidden), "сервер снова той же версии: поле ip на открытой карточке снова видно");
+        pick(pos.id, { force: true, tab: "gen" });
+        await until(() => sel === pos.id && tagged("port").length > 0, 10000);
+        ok(tagged("ip").length > 0 && tagged("ip").every((e) => !e.hidden), "карточка нарисована заново после возврата версии: поле ip видно");
+      } finally {
+        restore();
+      }
     }
   }
 });

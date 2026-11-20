@@ -17,8 +17,13 @@
   python3 tools/profile_coverage.py --check                 код 1, если у профиля есть remove, add или untested
   python3 tools/profile_coverage.py --selfcheck             самопроверка инструмента (?pcov=selfcheck)
   python3 tools/profile_coverage.py --page FILE.html        другой файл (прототип)
+  python3 tools/profile_coverage.py --older                 правило 2 версии профиля: сервер старше консоли и не
+                                                            прислал полей профиля — экран не должен показать ни одного;
+                                                            код 1, если показал (страница с profHideRefresh: index.html, из прототипа 83)
 Исключения — tools/profile_coverage.allow.json: {"<профиль>": {"keep": {"<поле>": "почему остаётся"},
-"extra": {"<поле>": "почему на экране, но не в профиле"}}}. Поле без причины — ошибка разбора.
+"extra": {"<поле>": "почему на экране, но не в профиле"}, "older": {"<поле>" или "<поле>@<вид>": "почему экран меняется
+без поля в версии сервера, но поля не показывает"}}}. Поле без причины — ошибка разбора. Раздел older читает только --older:
+поле, которое экран берёт для другого (плеер — размер кадра потока), а не показывает; <вид> — как в отчёте (camera:view).
 Один запуск Chrome на профиль. Код выхода 1 — проверка не прошла, 2 — инструмент не может работать.
 """
 import json
@@ -85,8 +90,8 @@ def load_allow():
             bad.append(f"{pid}: нужен объект с keep и extra")
             continue
         for part, fields in rec.items():
-            if part not in ("keep", "extra"):
-                bad.append(f"{pid}: неизвестный раздел {part} (только keep и extra)")
+            if part not in ("keep", "extra", "older"):
+                bad.append(f"{pid}: неизвестный раздел {part} (только keep, extra и older)")
             elif not isinstance(fields, dict):
                 bad.append(f"{pid}.{part}: нужен объект {{поле: причина}}")
             else:
@@ -190,7 +195,8 @@ def main():
         check = "--check" in args
         selfcheck = "--selfcheck" in args
         debug = "--debug" in args
-        args = [a for a in args if a not in ("--check", "--selfcheck", "--debug")]
+        older = "--older" in args
+        args = [a for a in args if a not in ("--check", "--selfcheck", "--debug", "--older")]
         if args:
             raise Stop("непонятные параметры: " + " ".join(args))
         if not units.isdigit() or int(units) < 1:
@@ -222,7 +228,7 @@ def main():
     failed = 0
     for pid in only or known:
         t0 = time.time()
-        q = "?" + urllib.parse.urlencode(dict({"pcov": pid, "units": units, "fixture": fixture}, **({"debug": "1"} if debug else {})))
+        q = "?" + urllib.parse.urlencode(dict({"pcov": pid, "units": units, "fixture": fixture}, **({"debug": "1"} if debug else {}), **({"older": "1"} if older else {})))
         try:
             lines = run_page(q, {"allow": allow.get(pid, {}), "status": status_schemas(pid)})
         except Stop as e:
@@ -254,6 +260,19 @@ def main():
         print("   итог: " + " · ".join(f"{n}: {', '.join(sm[n]) or '—'}" for n in ("keep", "remove", "add", "untested")))
         if check and (sm["remove"] or sm["add"] or sm["untested"]):
             failed += 1
+        if older:
+            ok_older = allow.get(pid, {}).get("older", {})
+            left = []
+            for k in rep["kinds"]:
+                for f, x in k["fields"].items():
+                    if not x.get("shown") or not (x.get("inProfile") or x.get("status")) or x.get("olderOther") or f in ok_older:
+                        continue
+                    views = [v for v in x.get("views", []) if f"{f}@{v}" not in ok_older]
+                    if views:
+                        left.append(f"{k['kind']}.{f} ({', '.join(views)})")
+            if left:
+                print("   правило 2: показаны без поля в версии сервера: " + "; ".join(left))
+                failed += 1
     if json_out:
         try:
             with open(json_out, "w", encoding="utf-8") as f:

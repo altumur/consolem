@@ -71,6 +71,20 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     await until(() => !!replyOf(id), 10000);
     return replyOf(id) || { id, none: true };
   };
+  // Вызов, на который консоль может спросить: диалог открылся — «Выполнить». → {r, asked: текст вопроса или false}
+  const callYes = async (op, params, body) => {
+    const id = "t" + ++seq;
+    const msg = { type: "call", id, op };
+    if (params !== undefined) msg.params = params;
+    if (body !== undefined) msg.body = body;
+    pageSend(msg);
+    let asked = false;
+    await until(() => {
+      if (!asked && document.getElementById("confirm").classList.contains("open")) { asked = document.getElementById("confirmMsg").textContent; document.getElementById("confirmOk").click(); }
+      return !!replyOf(id);
+    }, 10000);
+    return { r: replyOf(id) || { id, none: true }, asked };
+  };
   const code = (r) => r && r.problem && r.problem.code;
   const dlgOpen = () => document.getElementById("confirm").classList.contains("open");
   const opsBackup = new Set(CAPS.operations);
@@ -145,15 +159,24 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       code(r3) === "VALIDATION_FAILED" && r3.problem.field === "/params/If-Match" && !window.CONSOLEM_TRACE.length && valid(r) && valid(r2),
       "нет параметра пути, незнакомый параметр, заголовок — VALIDATION_FAILED с полем, без запроса");
 
-    // act: команда без подтверждения идёт сразу; idempotencyKey добавляет consolem
+    // 0.35.0: команда без подтверждения идёт сразу только своему объекту и его потомкам. Контроллер — родитель клавиатуры,
+    // не её потомок: консоль спрашивает. idempotencyKey добавляет consolem
     bodies.length = 0;
-    r = await call("runUnitAction", { uid: CTRL, action: "ARM" });
+    let ya = await callYes("runUnitAction", { uid: CTRL, action: "ARM" });
+    r = ya.r;
+    ok(ya.asked === i18n(BRIDGE_TEXT2.FOREIGN), "команда объекту вне объекта страницы — вопрос консоли: " + ya.asked);
+    {
+      const own = await bridgeInScope("x", suiFrame, SUI_UNIT), up = await bridgeInScope("x", suiFrame, CTRL);
+      const kid = (await realRaw("GET", `/units?parentId=${CTRL}&limit=1`)).body?.items?.[0]?.uid;
+      const down = kid ? await bridgeInScope("x", { uid: CTRL }, kid) : { ok: true };
+      ok(own.ok && !up.ok && down.ok, "свой объект и его потомок входят в объект страницы, родитель — нет: " + JSON.stringify([own, up, down, kid]));
+    }
     const sentBody = bodies.find((b) => b.method === "POST" && b.path === `/units/${CTRL}/actions/ARM`)?.body;
     const ctrl = await API.get(`/units/${CTRL}`);
     ok(r.ok && r.status === 200 && !dlgOpen() && typeof sentBody?.idempotencyKey === "string" && ctrl.status?.observed?.armed === true,
       "runUnitAction ARM — 200 без диалога, idempotencyKey от consolem, GET показывает итог команды");
     bodies.length = 0;
-    r = await call("runUnitAction", { uid: CTRL, action: "DISARM" }, { idempotencyKey: "page-key-1" });
+    r = (await callYes("runUnitAction", { uid: CTRL, action: "DISARM" }, { idempotencyKey: "page-key-1" })).r;
     ok(r.ok && bodies.find((b) => b.path === `/units/${CTRL}/actions/DISARM`)?.body?.idempotencyKey === "page-key-1", "idempotencyKey страницы consolem не меняет");
 
     // act с ActionDescriptor.confirm: сначала диалог consolem; отказ — CANCELLED без запроса
@@ -216,9 +239,45 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       JSON.stringify(actGone.map((x) => x.status + " " + code(x))) + ", команд " + [kindPosts("no.such/KIND"), kindPosts("archive.network"), actPosts(CTRL)]);
     // Команда вида, которую consolem знает, уходит
     bodies.length = 0;
-    r = await call("runKindAction", { kind: "archive.network", action: "check" });
+    ya = await callYes("runKindAction", { kind: "archive.network", action: "check" });
+    r = ya.r;
+    ok(ya.asked === i18n(BRIDGE_TEXT2.FOREIGN), "команда вида целиком — вопрос консоли");
     ok(r.status > 0 && kindPosts("archive.network") === 1, "runKindAction знакомой команды вида — запрос ушёл, ответ сервера странице: " + r.status);
 
+    // 0.35.0: журнал — только свой объект и его потомки, без аудита; отмена — только своих операций
+    {
+      const jPath = () => decodeURIComponent((window.CONSOLEM_TRACE.filter((t) => t.method === "GET" && /^\/journal\b/.test(t.path)).pop() || {}).path || "");
+      window.CONSOLEM_TRACE.length = 0;
+      let j = await call("listJournal", { limit: 5 });
+      ok(j.ok && jPath().includes(`deviceId=${SUI_UNIT}`) && jPath().includes("category=alarm,info"), "listJournal без deviceId и category — consolem ставит свой объект и alarm,info: " + jPath());
+      j = await call("listJournalFacets", { deviceId: SUI_UNIT });
+      ok(j.ok, "listJournalFacets своего объекта — ответ сервера");
+      window.CONSOLEM_TRACE.length = 0;
+      const jA = await call("listJournal", { category: "audit,alarm" }), jD = await call("listJournal", { deviceId: [SUI_UNIT, CTRL] });
+      ok(code(jA) === "NOT_SUPPORTED" && jA.problem.field === "/params/category" && code(jD) === "NOT_SUPPORTED" && jD.problem.field === "/params/deviceId" &&
+        jA.status === 0 && valid(jA) && valid(jD) && !jPath(), "журнал с аудитом или чужим deviceId — NOT_SUPPORTED с полем, без запроса");
+      window.CONSOLEM_TRACE.length = 0;
+      const cx = await call("cancelOperation", { operationId: "op-not-mine" });
+      ok(code(cx) === "NOT_SUPPORTED" && cx.problem.field === "/params/operationId" && cx.status === 0 && !traced("/operations/"), "отмена чужой операции — NOT_SUPPORTED без запроса");
+      (suiFrame.bridgeOpIds || (suiFrame.bridgeOpIds = new Set())).add("op-mine-test");
+      const cm = await call("cancelOperation", { operationId: "op-mine-test" });
+      ok(cm.status > 0, "отмена операции рамки уходит на сервер: " + cm.status);
+      suiFrame.bridgeOpIds.delete("op-mine-test");
+    }
+    // 0.35.0: скрытая страница («Все параметры») только читает: act, confirm и navigate — BUSY, getUnit отвечает
+    {
+      formAllSet(true);
+      ok(await until(() => !document.querySelector("#main [data-sui-slot]") && !!suiFrame?.ready, 5000), "«Все параметры»: места страницы нет, рамка жива");
+      bodies.length = 0;
+      const hAct = await call("runUnitAction", { uid: CTRL, action: "ARM" });
+      pageSend({ type: "confirm", id: "hc1", title: "Скрыто", text: "Вопрос" });
+      pageSend({ type: "navigate", id: "hn1", uid: CTRL });
+      const hRead = await call("getUnit", { uid: SUI_UNIT });
+      ok(await until(() => !!replyOf("hc1") && !!replyOf("hn1"), 3000) && [hAct, replyOf("hc1"), replyOf("hn1")].every((x) => code(x) === "BUSY" && x.problem.message === i18n(BRIDGE_TEXT2.HIDDEN) && valid(x)) &&
+        hRead.ok && !dlgOpen() && !actPosts(CTRL) && sel === SUI_UNIT, "скрытая страница: команда, вопрос и переход — BUSY «страница скрыта», чтение работает");
+      formAllSet(false);
+      ok(await until(() => !!document.querySelector("#main [data-sui-slot]") && !!suiFrame?.ready, 5000), "«Вернуться к настройке»: место страницы есть");
+    }
     // Система не объявила операцию — NOT_SUPPORTED, и в ops её нет
     CAPS.operations.delete("listLicenses");
     window.CONSOLEM_TRACE.length = 0;
@@ -480,7 +539,9 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     r = await subscribe("s1", { entityIds: [domainId], types: ["discovery.progress", "discovery.finished"] });
     ok(r.ok === true && r.status === 200 && r.body?.sub === "s1" && valid(r), "subscribe s1 — result ok, body.sub равен id — " + JSON.stringify(r));
     const evAt = sent.length;
-    r = await call("startDiscovery", { uid: domainId });
+    ya = await callYes("startDiscovery", { uid: domainId });
+    r = ya.r;
+    ok(ya.asked === i18n(BRIDGE_TEXT2.FOREIGN), "поиск в сети домена (вне объекта страницы) — вопрос консоли");
     ok(r.ok && r.status === 202, "startDiscovery домена через мост — 202: " + r.status);
     const evs = () => sent.slice(evAt).filter((m) => m.type === "event");
     ok(await until(() => evs().some((m) => m.sub === "s1" && m.message.type === "discovery.finished"), 30000), "event s1 с discovery.finished пришёл");
@@ -754,7 +815,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     // Итоговая волна: страница читает найденное по событиям поиска не на каждое событие, а не чаще раза за промежуток
     window.CONSOLEM_TRACE.length = 0;
     const discAt = sent.length;
-    runOk("discovery", await run("discovery"));
+    runOk("discovery", await run("discovery", yes));
     const discEvs = sent.slice(discAt).filter((m) => m.type === "event" && /^discovery\./.test(m.message.type)).length;
     const discGets = window.CONSOLEM_TRACE.filter((t) => t.method === "GET" && /^\/units\/[^/]+\/discovery$/.test(t.path)).length;
     ok(discEvs >= 6 && discGets < discEvs / 2, `страница читает найденное реже событий поиска: событий ${discEvs}, чтений ${discGets}`);
@@ -856,7 +917,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       "init.readOnly, в init.host.bridge.ops нет draft, команда есть");
     window.CONSOLEM_TRACE.length = 0;
     bodies.length = 0;
-    const dn = await run("denied");
+    const dn = await run("denied", yes);
     runOk("denied", dn);
     const act = stepOf(dn, "act"), drf = stepOf(dn, "draft");
     ok(/status 403/.test(act.detail || "") && /PERMISSION_DENIED/.test(act.detail || "") && bodies.filter((x) => x.path === `/units/${CTRL}/actions/ARM`).length === 1,
