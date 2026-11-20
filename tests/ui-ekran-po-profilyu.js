@@ -260,6 +260,32 @@ UiCheck(async ({ ok, until, absent }) => {
   const HAND_MENU = /Добавить детекторы…|Применить настройки к другим…/;
   try {
     ok(HAND_MENU.test(menuText(find(camU.uid).n)), "меню строки камеры — пункты ручного экрана камеры");
+    // У детектора своё меню (rcSliceItems), но общая форма вида у него тоже есть: «Все параметры» — и в меню строки, и в «Ещё»
+    if (KINDS.has("det")) {
+      const dn = allNodes().find((x) => handOf(x, "det") && hasBaseForm(x));
+      ok(!!dn && /Все параметры/.test(menuText(dn)), "меню строки детектора — «Все параметры» (общая форма вида): «" + (dn ? menuText(dn) : "детектора нет") + "»");
+      // Короткие меню срезов (rcSliceItems) тоже несут пункт: камера, сервер и детектор с общей формой — во всех срезах
+      const srvN = allNodes().find((x) => handOf(x, "server") && hasBaseForm(x));
+      const wasSl = slice;
+      try {
+        for (const [what, x] of [["камеры", find(camU.uid).n], ["сервера", srvN], ["детектора", dn]]) {
+          if (!x) continue;
+          const miss = ["all", "cam", "acfa", "det", "arch"].filter((s) => { slice = s; return !/Все параметры/.test(menuText(x)); });
+          ok(!miss.length, `меню строки ${what} — «Все параметры» во всех срезах дерева` + (miss.length ? `; нет в: ${miss.join(", ")}` : ""));
+        }
+      } finally { slice = wasSl; }
+      if (dn) {
+        // Пункт открывает общую форму детектора, «Вернуться к настройке» — его экран; выбор помнится по виду, поэтому снимаем
+        pick(dn.id, { force: true, tab: "gen" });
+        await until(() => sel === dn.id && !find(dn.id)?.n._row);
+        formAllSet(true);
+        ok(await until(() => !!main().querySelector("[data-base-head]"), 5000), "детектор: «Все параметры» открывает общую форму вида");
+        formAllSet(false);
+        ok(await until(() => !main().querySelector("[data-base-head]"), 5000), "детектор: «Вернуться к настройке» возвращает его экран");
+        pick(camU.uid, { force: true, tab: "gen" });
+        await until(() => sel === camU.uid && !find(camU.uid)?.n._row && !!main().querySelector(".cs-cq"));
+      }
+    }
     const n0 = find(camU.uid).n;
     n0.ip = NEW_IP;
     n0.name = NEW_NAME;

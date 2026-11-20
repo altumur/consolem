@@ -13236,24 +13236,28 @@ function rcGoItems(id){
 // В срезе показаны только его объекты: контейнер в «Детекторах» и «Хранилищах» предлагает только их.
 function rcSliceItems(n){
   const id=n.id;
+  // «Все параметры» — общая форма вида, как в меню openTreeCtx: в каждом коротком меню среза, где у объекта она есть
+  const fa=formAllCtxItem(n,(fn,...args)=>["ctxThen",id,fn,...args]),faG=fa?[fa]:[];
   if(handOf(n,"det")){
     const cam=find(id)?.p;
     // Создать поддетектор — первым пунктом после «Открыть»: в дереве нет постоянной строки «Создать…»
     return[rcGoItems(id),
       [...(dwHasSubs(n)?[tctxItem(i18n("Создать поддетектор…"),["rcRun","dwSubCreate",id],tctxPlusIcon())]:[]),
-       ...(rulePresetFor(n)?[tctxItem(i18n("Создать правило по событию…"),["rcRun","ruleFromDevice",id])]:[])],
+       ...(rulePresetFor(n)?[tctxItem(i18n("Создать правило по событию…"),["rcRun","ruleFromDevice",id])]:[]),
+       ...faG],
       canFav(n)?[tctxItem(isFav(id)?i18n("Убрать из избранного"):i18n("В избранное"),["toggleFav",id,sel===id&&selCtx?selCtx:null],tctxStarIcon())]:[],
       cam?[tctxDanger(`${i18n("Удалить")}…`,["rcRun","deleteDetector",cam.id,id])]:[]];
   }
-  if(slice==="det"&&handCam(n))return[rcGoItems(id),[tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen",id],tctxPlusIcon())]];
+  if(slice==="det"&&handCam(n))return[rcGoItems(id),[tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen",id],tctxPlusIcon())],faG];
   if(slice==="det"&&typeIn(n,["domain","server","folder","nofolder","unalloc"]))
-    return[rcGoItems(id),[tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen"],tctxPlusIcon())]];
+    return[rcGoItems(id),[tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen"],tctxPlusIcon())],faG];
   if(slice==="arch"&&(handOf(n,"domain")||handOf(n,"server"))){
     const own=handOf(n,"server")?serverArchives(id):[];
     // Кнопки «Исключить из домена» внизу карточки нет: пункт есть в «Ещё» на всех срезах с карточкой сервера, и в этом тоже
     const excl=handOf(n,"server")&&!isUnallocated(id)&&domainOf(id)?[tctxDanger(i18n("Исключить из домена"),["rcRun","excludeFromDomain",id])]:[];
     return[rcGoItems(id),
       canCreateKind("archive")?[tctxItem(i18n("Создать хранилище…"),["rcRun","addArchive",id],tctxPlusIcon())]:[],
+      faG,
       [...(own.length===1?[tctxDanger(`${i18n("Удалить хранилище")} «${escHtml(locName(own[0]))}»…`,["rcRun","deleteArchive",own[0].id])]:[]),...excl]];
   }
   return null;
