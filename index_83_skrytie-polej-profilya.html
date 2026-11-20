@@ -17586,13 +17586,13 @@ function detFieldsHtml(cam,d,nameLb,noSensFld){
     :fldRo("Размещение",i18n(d.builtin?"Встроенный":"Серверный"));
   const kind=d.builtin?fldRo("Тип",detKindText(d,cam)):sl("Тип",DET_TYPES,d.kind||DET_TYPES[0]);
   const noSens=!!opt&&opt.sensitivityMin==null;
-  const sens=noSens||noSensFld?"":fld(opt?`Чувствительность`:"Чувствительность",d.sens||"");
-  const streams=!d.builtin&&cam?sl("Поток",camStreams(cam).map(s=>s.id),d.stream||camStreams(cam)[0].id):"";
+  const sens=noSens||noSensFld?"":pfw(d,"sensitivity",fld(opt?`Чувствительность`:"Чувствительность",d.sens||""));
+  const streams=!d.builtin&&cam?pfw(d,"stream",sl("Поток",camStreams(cam).map(s=>s.id),d.stream||camStreams(cam)[0].id)):"";
   return`<div class="g">${fld(nameLb,locName(d))}${place}${kind}${sens}${streams}</div>
     ${opt&&!noSens&&!noSensFld?`<p class="sub">${i18n("Чувствительность")}: ${opt.sensitivityMin}–${opt.sensitivityMax}</p>`:""}
-    ${d.builtin?"":`<div style="margin-top:10px">${fld("Настройки детектора",d.params||"")}</div><label class="sub" style="display:block;margin-top:10px">${i18n("Метки серверов: где считать")}</label>${chipsHtml(refLabels,d.labels,"listToggle",`${d.id}`,"labels")}`}
+    ${d.builtin?"":`<div style="margin-top:10px"${pfa(d,"params")}>${fld("Настройки детектора",d.params||"")}</div><div${pfa(d,"labels")}><label class="sub" style="display:block;margin-top:10px">${i18n("Метки серверов: где считать")}</label>${chipsHtml(refLabels,d.labels,"listToggle",`${d.id}`,"labels")}</div>`}
     <label class="sub" style="display:block;margin-top:10px">${i18n("Что считать тревогой")}</label>${chipsHtml(refEvents,d.alarmKinds,"listToggle",`${d.id}`,"alarmKinds")}
-    <div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${d.enabled!==false?"on":""}" role="switch" aria-checked="${d.enabled!==false}" data-det-on="${escHtml(d.id)}" ${onEv("click",["detEnable",`${d.id}`])}></div></div>`;
+    <div class="ln ln-sw"${pfa(d,"enabled")}><div>${i18n("Включён")}</div><div class="sw ${d.enabled!==false?"on":""}" role="switch" aria-checked="${d.enabled!==false}" data-det-on="${escHtml(d.id)}" ${onEv("click",["detEnable",`${d.id}`])}></div></div>`;
 }
 function detEnable(id){
   const n=find(id)?.n;if(!n)return;
@@ -17627,7 +17627,7 @@ function camDetectorsHtml(n){
     title:"Детекторы камеры",
     items:dets,
     text:d=>[detTitle(d),i18n(d.kind||DET_TYPES[0]),...(dwHasSubs(d)?dwSubUnits(d).map(s=>s.name):[])],
-    row:d=>{const sb=dwHasSubs(d)?dwSubUnits(d).map(dwSubLite):[];return`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"встроенный":"серверный")} · ${escHtml(detZoneText(d))}${sb.length?` · ${sb.length} ${i18n(plural(sb.length,"поддетектор|поддетектора|поддетекторов"))}`:""}</small></span>${pendingDelHas(d.id)?`<span class="bd off">${i18n("удаляется")}</span>`:`${bdg(d)}<button type="button" class="btn s det-row-del" ${onEv("click",onEv.stop,["deleteDetector",`${n.id}`,`${d.id}`])}>${i18n("Удалить")}…</button>`}</div>`
+    row:d=>{const sb=dwHasSubs(d)?dwSubUnits(d).map(dwSubLite):[];return`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"встроенный":"серверный")}${nodeFieldOff(d,"zone")?"":` · ${escHtml(detZoneText(d))}`}${sb.length?` · ${sb.length} ${i18n(plural(sb.length,"поддетектор|поддетектора|поддетекторов"))}`:""}</small></span>${pendingDelHas(d.id)?`<span class="bd off">${i18n("удаляется")}</span>`:`${bdg(d)}<button type="button" class="btn s det-row-del" ${onEv("click",onEv.stop,["deleteDetector",`${n.id}`,`${d.id}`])}>${i18n("Удалить")}…</button>`}</div>`
       +(sb.length?`<div class="dw-csub">${sb.map((s,i)=>`<button type="button" class="dw-csub-r" ${onEv("click",["dwSubPick",d.id,s.id,1])}><i class="dw-tdot" style="background:${DW_SUBC[i%DW_SUBC.length]}"></i><span>${escHtml(s.name)}</span><small>${escHtml(s.kind?i18n(DW_SUBN[s.kind]||s.kind):"")}${s.on?"":` · ${i18n("выкл")}`}</small></button>`).join("")}</div>`:"")},
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
@@ -17743,7 +17743,8 @@ function dwKindOf(d){
   return DW_CODES.has(code)?code:"other";
 }
 // Свойство есть в схеме вида детектора d (вид плагина — своя схема): раздела окна без него нет
-const dwHas=(d,p)=>kindHasProp(nodeKind(d)||"det",p);
+// Правило 2 версии профиля: поля нет в версии сервера — окно детектора его не показывает, как поле вне схемы вида
+const dwHas=(d,p)=>kindHasProp(nodeKind(d)||"det",p)&&!kindFieldOff(nodeKind(d)||"det",p);
 const dwCls=a=>Array.isArray(a)?DW_ALL.filter(x=>a.includes(x)):DW_ALL.slice();
 const dwCopy=pts=>pts.map(q=>[q[0],q[1]]);
 function dwPolyOf(z){if(!z||!z.points?.length)return null;if(z.shape==="rect"){const[[x0,y0],[x1,y1]]=z.points;return[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]}return dwCopy(z.points)}
@@ -18323,7 +18324,7 @@ function dwArcSet(id,f){const c=dwC(detNodeOf(id));c.arc[f]=!c.arc[f];if(f==="sh
 function dwArcSw(id,c,f,help,dis){
   const on=!!c.arc[f],l=DW_ARC_F.find(x=>x[0]===f)[1].replace(/^(Записывать|Показывать) /,"");
   if(!dwArcHas(detNodeOf(id),f))return"";
-  return`<div class="dw-f dw-arc-f${dis?" dis":""}" data-dw-arc="${f}"><label class="dw-swl"${dis?` title="${i18n(dis)}"`:""}><span class="sw ${on?"on":""}${dis?" dis":""}" role="switch" aria-checked="${on}"${dis?` aria-disabled="true"`:` ${onEv("click",["dwArcSet",id,f])}`} aria-label="${i18n(DW_ARC_F.find(x=>x[0]===f)[1])}"></span>${i18n(l[0].toUpperCase()+l.slice(1))}</label>${help?dwHelp(help):""}</div>`;
+  return`<div class="dw-f dw-arc-f${dis?" dis":""}" data-dw-arc="${f}"${pfa(detNodeOf(id),f)}><label class="dw-swl"${dis?` title="${i18n(dis)}"`:""}><span class="sw ${on?"on":""}${dis?" dis":""}" role="switch" aria-checked="${on}"${dis?` aria-disabled="true"`:` ${onEv("click",["dwArcSet",id,f])}`} aria-label="${i18n(DW_ARC_F.find(x=>x[0]===f)[1])}"></span>${i18n(l[0].toUpperCase()+l.slice(1))}</label>${help?dwHelp(help):""}</div>`;
 }
 // Срок хранения метаданных — у домена детектора, страница «Хранение» опций
 // Домен детектора: по серверу, а без сервера — домен устройства (камеры) из записи
@@ -18576,16 +18577,18 @@ function dwSubsHtml(id,k,c){
     return`<div class="dw-sub${s.on?"":" off"}${op?" sel":""}" style="--c:${col}" data-dw-sub="${escHtml(s.id)}">
       <div class="dw-sub-h"><button type="button" class="dw-sub-t" aria-expanded="${op}" ${onEv("click",["dwSubSel",s.id])}><span class="tw">${op?TW_OPEN:TW_SHUT}</span><i class="dw-sw" style="background:${col}"></i><span class="dw-sub-tt"><b>${escHtml(s.name)}</b><span class="sub">${i18n(DW_SUBN[s.kind])}</span></span></button>
         <span class="dw-sub-n">${s.kind==="mask"?i18n("без событий"):`${n} ${i18n("сраб.")}`}</span>
-        <div class="sw ${s.on?"on":""}" role="switch" aria-checked="${s.on}" aria-label="${i18n("Включён")}" ${onEv("click",["dwSubOn",id,s.id])}></div></div>
+        <div class="sw ${s.on?"on":""}" role="switch" aria-checked="${s.on}" aria-label="${i18n("Включён")}"${dwSubPf(id,s,"enabled")} ${onEv("click",["dwSubOn",id,s.id])}></div></div>
       ${op?`<div class="dw-sub-b">${dwSubBodyHtml(id,k,s)}</div>`:""}</div>`}).join("");
   const empty=c.subs.length?"":`<p class="sub">${i18n(k==="tracker"?"У трекера нет поддетекторов. Трекер сам не создаёт событий: чтобы получать события, создать поддетектор.":"Поддетекторов нет. Поддетектор добавляет к событиям детектора событие по своему условию: линия, область, время.")}</p>`;
   if(one)return rows;
   const add=dw.subNew?dwSubNewHtml(id,k):`<div class="dw-row"><button type="button" class="btn s" ${onEv("click",["dwSubNewOpen"])}>${lu("plus",14)}${i18n("Создать поддетектор")}</button></div>`;
   return rows+empty+add+dwHelp("Детектор находит объекты, а поддетектор решает, когда сработать. Зоны детектирования и размер объекта детектора действуют на все его поддетекторы.");
 }
+// Правило 2 версии профиля: метка поля поддетектора — по виду его объекта (subdet или вид плагина с vms.subdetector/1)
+function dwSubPf(id,s,f){const u=dwSubUnits(detNodeOf(id)||{}).find(x=>x.id===s.id);return pfa(u?nodeKind(u):"subdet",f)}
 function dwSubBodyHtml(id,k,s){
-  const num=(key,l,min,max,unit,help)=>`<div class="dw-f dw-num"><label>${i18n(l)}</label><span class="dw-in"><input type="number" min="${min}" max="${max}" value="${s[key]}" ${onEv("input",["dwSubSet",id,s.id,key,onEv.value,onEv.el])}>${unit?`<span>${i18n(unit)}</span>`:""}</span>${help?dwHelp(help):""}</div>`;
-  const seg=o=>`<span class="dw-seg">${o.map(([v,l])=>`<button type="button" class="${s.mode===v?"on":""}" ${onEv("click",["dwSubMode",id,s.id,v])}>${i18n(l)}</button>`).join("")}</span>`;
+  const num=(key,l,min,max,unit,help)=>`<div class="dw-f dw-num"${key==="time"?dwSubPf(id,s,"timeSec"):""}><label>${i18n(l)}</label><span class="dw-in"><input type="number" min="${min}" max="${max}" value="${s[key]}" ${onEv("input",["dwSubSet",id,s.id,key,onEv.value,onEv.el])}>${unit?`<span>${i18n(unit)}</span>`:""}</span>${help?dwHelp(help):""}</div>`;
+  const seg=o=>`<span class="dw-seg"${dwSubPf(id,s,"timeMode")}>${o.map(([v,l])=>`<button type="button" class="${s.mode===v?"on":""}" ${onEv("click",["dwSubMode",id,s.id,v])}>${i18n(l)}</button>`).join("")}</span>`;
   const f=[`<div class="dw-f"><label>${i18n("Имя")}</label><input type="text" class="dw-txt" value="${escHtml(s.name)}" aria-label="${i18n("Имя поддетектора")}" ${onEv("input",["dwSubName",id,s.id,onEv.value])}></div>`];
   if(s.kind==="line")f.push(`<div class="dw-f"><label>${i18n("Направление")}</label>${dwDirHtml(id,s.dir,"dwSubDir",s.id)}${dwHelp("Линия поддетектора показана на кадре. Чтобы изменить линию, тянуть её концы мышью.")}</div>`);
   else{const c=dwC(detNodeOf(id)),col=DW_SUBC[c.subs.indexOf(s)%DW_SUBC.length];f.push(dwSubZonesHtml(id,s,col)+dwHelp(s.kind==="a2a"?"Области 1 и 2 показаны на кадре. Чтобы изменить область, тянуть её или её точки мышью.":"Область поддетектора показана на кадре. Чтобы изменить область, тянуть её или её точки мышью."))}
@@ -18595,7 +18598,7 @@ function dwSubBodyHtml(id,k,s){
   if(s.kind==="abandoned")f.push(num("time","Сработать, если предмет лежит дольше",1,172800,"с"));
   if(s.kind==="a2a")f.push(`<div class="dw-f"><label>${i18n("Время перехода из области 1 в область 2")}</label>${seg([["gt","дольше"],["lt","меньше"]])}</div>`,num("time","Время",0,172800,"с","Если время 0, поддетектор не проверяет время перехода."));
   if(s.kind==="multi")f.push(num("count","Объектов в области не меньше",1,100,"","Поддетектор сработает, когда в области одновременно находится столько объектов."));
-  if(k!=="motion"&&s.kind!=="mask"&&s.kind!=="abandoned")f.push(`<div class="dw-f"><label>${i18n("Классы объектов")}</label>${dwChips(id,["person","car","bike"],s.classes,"dwSubClass",s.id)}</div>`);
+  if(k!=="motion"&&s.kind!=="mask"&&s.kind!=="abandoned")f.push(`<div class="dw-f"${dwSubPf(id,s,"classes")}><label>${i18n("Классы объектов")}</label>${dwChips(id,["person","car","bike"],s.classes,"dwSubClass",s.id)}</div>`);
   if(s.kind!=="mask"&&DW_SIZE.has(k)){
     const c=dwC(detNodeOf(id)),p=a=>`${Math.round(a[0]*1000)/10} × ${Math.round(a[1]*1000)/10} %`;
     f.push(`<div class="dw-f"><label>${i18n("Размер объекта")} <span class="sub">${i18n("как у детектора")}</span></label>
@@ -18608,7 +18611,7 @@ function dwSubBodyHtml(id,k,s){
     f.push(`<details class="dw-adv"${dw.subAdv?" open":""}><summary>${i18n("Дополнительно")}</summary><div class="dw-adv-b">
       <div class="dw-f dw-num"><label>${i18n("Скорость объекта")}</label><span class="dw-in"><span>${i18n("от")}</span>${inp("spd",0,0,500,"Скорость не меньше")}<span>${i18n("до")}</span>${inp("spd",1,0,500,"Скорость не больше")}</span>${dwHelp("Поддетектор пропускает объекты медленнее и быстрее этих значений. Значения — от 0 до 500.")}</div>
       <div class="dw-f dw-num"><label>${i18n("Смещение по X и Y")}</label><span class="dw-in">${inp("off",0,1,40,"Смещение по X")}<span>×</span>${inp("off",1,1,40,"Смещение по Y")}<span>% ${i18n("рамки")}</span></span>${dwHelp("Консоль считает смещение в процентах рамки объекта. Значение может быть от 1 до 40.")}</div>
-      <div class="dw-f"><label class="dw-swl"><span class="sw ${s.grp?"on":""}" role="switch" aria-checked="${s.grp}" ${onEv("click",["dwSubGrp",id,s.id])}></span>${i18n("Сработать на группу объектов")}</label>
+      <div class="dw-f"${dwSubPf(id,s,"group")}><label class="dw-swl"><span class="sw ${s.grp?"on":""}" role="switch" aria-checked="${s.grp}" ${onEv("click",["dwSubGrp",id,s.id])}></span>${i18n("Сработать на группу объектов")}</label>
         ${s.grp?num("gn","Объектов в группе не меньше",1,100,"")+num("gh","Ждать следующие объекты группы",0,86400,"с","Поддетектор ждёт это время после первого объекта группы. Если за это время пришло нужное число объектов, поддетектор сработает."):""}</div>
       <p class="sub" data-plan-stub>${i18n("Заглушка: превью не учитывает смещение и группу объектов.")}</p></div></details>`);
   }
@@ -18860,7 +18863,7 @@ function faceClashHtml(d){
 }
 function dwPanelHtml(cam,d,k,c){
   const id=d.id,on=d.enabled!==false;
-  const head=`<section class="dw-sec dw-head"><div class="dw-name"><input type="text" value="${escHtml(locName(d))}" aria-label="${i18n("Имя")}" readonly><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" aria-label="${i18n("Включён")}" ${onEv("click",["detEnable",`${id}`])}></div></div>
+  const head=`<section class="dw-sec dw-head"><div class="dw-name"><input type="text" value="${escHtml(locName(d))}" aria-label="${i18n("Имя")}" readonly><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" aria-label="${i18n("Включён")}"${pfa(d,"enabled")} ${onEv("click",["detEnable",`${id}`])}></div></div>
     <p class="sub">${escHtml(i18n(DW_KINDS.find(x=>x[0]===k)?.[1]||detKindText(d,cam)))} · ${i18n(d.builtin?"на камере":"на сервере")}${cam?` · ${escHtml(locName(cam))}`:""}</p>
     <div class="dw-state" data-dw-st>${dwStateHtml(d)}</div></section>`;
   // Вкладки столбца: «Детектор», «Поддетекторы» (у видов с поддетекторами), «Автоматизация» — правила с детектором (в «Оборудовании»)
@@ -18880,7 +18883,7 @@ function dwPanelHtml(cam,d,k,c){
   // Встроенный детектор: границы ползунка — из шаблона камеры, а без чувствительности в шаблоне ползунка нет
   const opt=detOption(cam,d);
   // Чувствительности у объекта нет — ползунок показывает умолчание (dwSensDef), а поле в «Дополнительно» не нужно
-  const sensUi=(k==="motion"||k==="tracker")&&!(opt&&opt.sensitivityMin==null);
+  const sensUi=(k==="motion"||k==="tracker")&&!(opt&&opt.sensitivityMin==null)&&!nodeFieldOff(d,"sensitivity");
   if(sensUi)when.push(dwRange(id,"sens","Чувствительность",opt?.sensitivityMin??1,opt?.sensitivityMax??100,1,"","Чем выше чувствительность, тем более слабое движение замечает детектор."));
   if((k==="neural"||k==="lpr")&&dwHas(d,"confidence"))when.push(dwRange(id,"conf","Уверенность нейросети не ниже",10,99,1,"%","Детектор сработает, только если нейросеть уверена в объекте не меньше этого значения.","conf"));
   if(k==="lpr"&&dwHas(d,"plateWidth"))when.push(`<div class="dw-f"><label>${i18n("Ширина номера")} <b data-dw-out="pw">${dwPwText(c)}</b></label>
